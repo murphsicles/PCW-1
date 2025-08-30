@@ -1,0 +1,3 @@
+# clippy.toml
+pedantic = true
+warnings-as-errors = true
