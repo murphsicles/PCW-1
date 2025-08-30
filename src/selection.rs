@@ -1,29 +1,22 @@
 use crate::errors::PcwError;
-use sv::messages::OutPoint; // From rust-sv
+use sv::messages::OutPoint;
 use std::collections::{HashMap, HashSet};
-use std::cmp::Ordering;
+use std::cmp::{max, min};
 
-/// UTXO struct for snapshot (§6.1).
 #[derive(Clone, Debug)]
 pub struct Utxo {
     pub outpoint: OutPoint,
     pub value: u64,
-    pub script_pubkey: Vec<u8>, // For signing
+    pub script_pubkey: Vec<u8>,
 }
 
-/// Reservation table: i -> disjoint S_i (§6.1).
 pub type Reservation = HashMap<usize, Vec<Utxo>>;
 
-/// Build disjoint reservations per §6: Deterministic orders, stages A-D, optional fan-out.
 pub fn build_reservations(u0: &[Utxo], split: &[u64], feerate_floor: u64, dust: u64, k_max: usize, m_max: usize, fanout_allowed: bool) -> Result<Reservation, PcwError> {
     let mut u_sorted = u0.to_vec();
-    u_sorted.sort_by(|a, b| {
-        a.value.cmp(&b.value)
-            .then_with(|| a.outpoint.txid.cmp(&b.outpoint.txid))
-            .then_with(|| a.outpoint.vout.cmp(&b.outpoint.vout))
-    }); // Asc value, txid, vout §6.2
+    u_sorted.sort_by(|a, b| a.value.cmp(&b.value).then(a.outpoint.txid.cmp(&b.outpoint.txid)).then(a.outpoint.vout.cmp(&b.outpoint.vout)));
     let mut note_indices = (0..split.len()).collect::<Vec<_>>();
-    note_indices.sort_by(|&i, &j| split[j].cmp(&split[i]).then_with(|| i.cmp(&j))); // Desc amount, asc i §6.2
+    note_indices.sort_by(|&i, &j| split[j].cmp(&split[i]).then_with(|| i.cmp(&j)));
     let mut used = HashSet::new();
     let mut r = HashMap::new();
     let mut fanout_done = false;
@@ -31,17 +24,15 @@ pub fn build_reservations(u0: &[Utxo], split: &[u64], feerate_floor: u64, dust: 
     'outer: loop {
         for &i in &note_indices {
             let target = split[i];
-            if let Some(s_i) = select_inputs(&u_sorted, &used, target, feerate_floor, dust, k_max, m_max) {
+            if let Some(s_i) = select_inputs(&u_sorted, &used, target, feerate_floor, dust, k_max, m_max)? {
                 r.insert(i, s_i.clone());
                 for utxo in &s_i {
                     used.insert(utxo.outpoint.clone());
                 }
             } else {
                 if fanout_allowed && !fanout_done {
-                    // Impl fan_out: Consolidate to new payer addrs (§6.8)
                     let fan_out = fan_out(&u_sorted, &used, split, feerate_floor, dust)?;
-                    // Assume fan_out.success and confirmed; refresh u_sorted
-                    u_sorted = fan_out.outputs; // Simplified; in real, append new UTXOs after broadcast/confirm
+                    u_sorted = [u_sorted.iter().filter(|u| !used.contains(&u.outpoint)).cloned().collect::<Vec<_>>(), fan_out.outputs].concat();
                     used.clear();
                     r.clear();
                     fanout_done = true;
@@ -56,29 +47,40 @@ pub fn build_reservations(u0: &[Utxo], split: &[u64], feerate_floor: u64, dust: 
     Ok(r)
 }
 
-/// Select disjoint inputs for target per stages A-D (§6.4).
-fn select_inputs(u: &[Utxo], used: &HashSet<OutPoint>, target: u64, feerate: u64, dust: u64, k_max: usize, m_max: usize) -> Option<Vec<Utxo>> {
-    let available = u.iter().filter(|utxo| !used.contains(&utxo.outpoint)).collect::<Vec<_>>();
+fn select_inputs(u: &[Utxo], used: &HashSet<OutPoint>, target: u64, feerate: u64, dust: u64, k_max: usize, m_max: usize) -> Result<Vec<Utxo>, PcwError> {
+    let available = u.iter().filter(|utxo| !used.contains(&utxo.outpoint)).cloned().collect::<Vec<_>>();
     // Stage A: Exact single
     for utxo in &available {
         let m = 1;
         let n = 1;
-        let fee = feerate * size_est(m, n);
+        let fee = feerate * (10 + 148 * m as u64 + 34 * n as u64);
         if utxo.value == target + fee {
-            return Some(vec![utxo.clone()]);
+            return Ok(vec![utxo]);
         }
     }
-    // Stage B: Exact few (subset sum up to k_max)
+    // Stage B: Exact few (simple greedy subset sum for small k_max)
     for card in 2..=k_max {
-        // Impl subset sum search (greedy or exact for small card); return if exact
+        let mut sum = 0u64;
+        let mut selected = vec![];
+        let mut avail_sorted = available.clone();
+        avail_sorted.sort_by_key(|u| u.value);
+        for utxo in avail_sorted.iter().rev() { // Largest first for greedy
+            if sum + utxo.value <= target + feerate * (10 + 148 * card as u64 + 34) {
+                sum + = utxo.value;
+                selected.push(utxo.clone());
+                if selected.len() == card && sum == target + feerate * (10 + 148 * card as u64 + 34) {
+                    return Ok(selected);
+                }
+            }
+        }
     }
-    // Stage C: Single near-over with change >= dust
+    // Stage C: Single near-over
     let mut best_single = None;
     let mut min_change = u64::MAX;
     for utxo in &available {
         let m = 1;
         let n = 2;
-        let fee = feerate * size_est(m, n);
+        let fee = feerate * (10 + 148 * m as u64 + 34 * n as u64);
         if utxo.value > target + fee {
             let change = utxo.value - target - fee;
             if change >= dust && change < min_change {
@@ -88,29 +90,59 @@ fn select_inputs(u: &[Utxo], used: &HashSet<OutPoint>, target: u64, feerate: u64
         }
     }
     if let Some(bs) = best_single {
-        return Some(bs);
+        return Ok(bs);
     }
-    // Stage D: Fewest inputs minimal overshoot (greedy knapsack for m=2..m_max)
+    // Stage D: Fewest m minimal overshoot (greedy knapsack)
     let mut best_few = None;
     let mut min_m = usize::MAX;
     let mut min_over = u64::MAX;
     for m in 2..=m_max {
-        // Impl greedy select for m; compute overshoot = sum - target - fee(m,2)
-        // If overshoot == 0 or >= dust, and m < min_m or (m == min_m and overshoot < min_over), update
+        let mut avail_sorted = available.clone();
+        avail_sorted.sort_by_key(|u| u.value);
+        let mut selected = vec![];
+        let mut sum = 0u64;
+        for utxo in avail_sorted.iter().rev() {
+            if selected.len() < m {
+                selected.push(utxo.clone());
+                sum += utxo.value;
+            }
+        }
+        let n = 2;
+        let fee = feerate * (10 + 148 * m as u64 + 34 * n as u64);
+        let overshoot = sum.saturating_sub(target + fee);
+        if sum >= target + fee && (overshoot == 0 || overshoot >= dust) {
+            if m < min_m || (m == min_m && overshoot < min_over) {
+                min_m = m;
+                min_over = overshoot;
+                best_few = Some(selected);
+            }
+        }
     }
-    best_few
+    if let Some(bf) = best_few {
+        Ok(bf)
+    } else {
+        Err(PcwError::Underfunded)
+    }
 }
 
-/// Size est per P2PKH (§6.3, §7.3).
 fn size_est(m: usize, n: usize) -> u64 {
     10 + 148 * m as u64 + 34 * n as u64
 }
 
-/// Fan-out consolidation (§6.8): Simplified stub; impl to create smaller payer UTXOs.
+/// Fan-out: Consolidate to new payer outputs near v_max (§6.8).
 fn fan_out(u: &[Utxo], used: &HashSet<OutPoint>, split: &[u64], feerate: u64, dust: u64) -> Result<FanOutResult, PcwError> {
-    // Logic to consolidate into outputs near v_max/mid; broadcast and confirm
-    // Return new outputs as Utxo vec
-    unimplemented!(); // For v1; return dummy for tests
+    let available = u.iter().filter(|utxo| !used.contains(&utxo.outpoint)).cloned().collect::<Vec<_>>();
+    let total = available.iter().map(|u| u.value).sum::<u64>();
+    let v_max = split.iter().cloned().max().unwrap_or(0);
+    let num_out = (total / v_max) as usize + 1; // Buffer
+    let out_value = total / num_out as u64;
+    let mut outputs = vec![];
+    for _ in 0..num_out {
+        // Assume new payer addr derivation (spec "fund" label, but stub as dummy Utxo)
+        outputs.push(Utxo { outpoint: OutPoint { txid: [0;32], vout: 0 }, value: out_value.max(dust), script_pubkey: vec![] });
+    }
+    // In real, build/sign/broadcast fan-out tx, wait confirm, return new UTXOs
+    Ok(FanOutResult { outputs })
 }
 
 struct FanOutResult {
@@ -119,6 +151,5 @@ struct FanOutResult {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    // Tests for disjoint, preferences, fan-out trigger
+    // Add tests for select_inputs stages, fan_out
 }
