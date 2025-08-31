@@ -1,10 +1,16 @@
+//! Module for invoice management in the PCW-1 protocol.
+//!
+//! This module defines the `Invoice` struct and its methods for creation, signing,
+//! verification, and hash computation as per §§3.4 and 14.2 of the spec.
+
 use crate::errors::PcwError;
 use crate::json::canonical_json;
 use crate::keys::IdentityKeypair;
 use crate::utils::sha256;
 use chrono::prelude::*;
-use secp256k1::{Message, Secp256k1};
+use secp256k1::{Message, Secp256k1, ecdsa::Signature, PublicKey, SecretKey};
 use serde::{Deserialize, Serialize};
+use hex;
 
 /// Invoice struct per §3.4, §14.2: Canonical fields, sorted order.
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -66,7 +72,8 @@ impl Invoice {
         let hash = sha256(&bytes);
         let msg = Message::from_slice(&hash)?;
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_slice(&key.priv_key)?);
+        let secret_key = SecretKey::from_slice(&key.priv_key)?;
+        let sig = secp.sign_ecdsa(&msg, &secret_key);
         self.sig = hex::encode(sig.serialize_der());
         Ok(())
     }
@@ -84,7 +91,7 @@ impl Invoice {
         let hash = sha256(&bytes);
         let msg = Message::from_slice(&hash)?;
         let pub_key = PublicKey::from_slice(&hex::decode(&self.sig_key)?)?;
-        let sig = ecdsa::Signature::from_der(&hex::decode(&self.sig)?)?;
+        let sig = Signature::from_der(&hex::decode(&self.sig)?)?;
         let secp = Secp256k1::new();
         secp.verify_ecdsa(&msg, &sig, &pub_key)?;
         if !self.expiry.is_empty() {
@@ -113,9 +120,35 @@ mod tests {
         let priv_k = [1; 32];
         let key = IdentityKeypair::new(priv_k)?;
         let policy_hash = [0; 32];
-        let mut invoice = Invoice::new("inv1".to_string(), "terms".to_string(), "sat".to_string(), 1000, hex::encode(policy_hash), None)?;
+        let mut invoice = Invoice::new(
+            "inv1".to_string(),
+            "terms".to_string(),
+            "sat".to_string(),
+            1000,
+            hex::encode(policy_hash),
+            None,
+        )?;
         invoice.sign(&key)?;
         invoice.verify(&policy_hash)?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_invoice_expired() -> Result<(), PcwError> {
+        let priv_k = [1; 32];
+        let key = IdentityKeypair::new(priv_k)?;
+        let policy_hash = [0; 32];
+        let past = Utc::now() - chrono::Duration::days(1);
+        let mut invoice = Invoice::new(
+            "inv2".to_string(),
+            "terms".to_string(),
+            "sat".to_string(),
+            1000,
+            hex::encode(policy_hash),
+            Some(past),
+        )?;
+        invoice.sign(&key)?;
+        assert!(invoice.verify(&policy_hash).is_err());
         Ok(())
     }
 }
