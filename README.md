@@ -1,8 +1,10 @@
-# Peer Cash Wallet Protocol (PCW-1)
+# Peer Cash Wallet Protocol (PCW-1) 🚀
+
+![Rust](https://img.shields.io/badge/rust-edition%202024-orange) ![Dependencies](https://img.shields.io/badge/deps-up%20to%20date-green) ![License](https://img.shields.io/badge/license-MIT-blue) ![CI](https://github.com/murphsicles/PCW-1/workflows/Rust%20CI/badge.svg)
 
 A Rust library implementing the Peer Cash Wallet Protocol for IP-to-IP BSV settlement, verbatim from the spec. This crate provides structs, functions, and traits for deterministic derivations, bounded splitting, disjoint coin selection, transaction formation, broadcast strategies, receipts, and failure handling.
 
-## Features
+## Features ✨
 
 - Deterministic per-invoice scope and derivations (§3-§4, §7)
 - Bounded note splitting with permutation (§5)
@@ -14,16 +16,16 @@ A Rust library implementing the Peer Cash Wallet Protocol for IP-to-IP BSV settl
 - Canonical JSON serialization (§2, §14)
 - Signed append-only logging (§13)
 
-## Installation
+## Installation 📦
 
 Add to Cargo.toml:
 
-'''toml
+```toml
 [dependencies]
 pcw_protocol = "0.1.0"
-'''
+```
 
-## Usage Example
+## Usage Example 💻
 
 ```rust
 use pcw_protocol::*;
@@ -37,7 +39,7 @@ let addr_b = addressing::recipient_address(&scope, 0, &anchor_b).unwrap();
 // etc.
 ```
 
-## Spec Mapping
+## Spec Mapping 📚
 
 - Keys & Scope: §3, §13
 - Policy & Invoice: §3.3-§3.4, §14.1-§14.2
@@ -52,14 +54,14 @@ let addr_b = addressing::recipient_address(&scope, 0, &anchor_b).unwrap();
 - Logging: §13
 - Utils: §2
 
-## State Machine Diagram
+## State Machine Diagram 📊
 
 ![Failure Handling & Exact Behaviors](failure-handling-diagram.png)
 
-## Testing
+## Testing 🧪
 
 Comprehensive tests cover properties (§17.3), negatives (§17.4), and golden vectors (§17.6). Run `cargo test`.
 
-## License
+## License 📄
 
-MIT
+MIT - See [LICENSE](./LICENSE) for details.
