@@ -1,4 +1,3 @@
-# .github/workflows/rust.yml
 name: Rust CI
 
 on:
@@ -25,6 +24,12 @@ jobs:
 
     - name: Lint with Clippy
       run: cargo clippy -- -D warnings
+
+    - name: Build crate
+      run: cargo build --verbose
+
+    - name: Build examples
+      run: cargo build --examples --verbose
 
     - name: Run tests
       run: cargo test --verbose
