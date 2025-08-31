@@ -92,7 +92,7 @@ pub fn generate_proof(leaves: &[[u8; 32]], i: usize, manifest: &Manifest, amount
     while current.len() > 1 {
         let is_left = index % 2 == 0;
         let sibling_idx = if is_left { index + 1 } else { index - 1 };
-        let sibling = if sibling_idx >= current.len() { current[index] } else { current[sibling_idx] }; // Dup odd
+        let sibling = if sibling_idx >= current.len() { current[index] } else { current[sibling_idx] };
         path.push(PathElement { pos: if is_left { "L".to_string() } else { "R".to_string() }, hash: hex::encode(sibling) });
         let mut next = vec![];
         for j in (0..current.len()).step_by(2) {
@@ -129,6 +129,9 @@ pub fn verify_proof(proof: &Proof, manifest: &Manifest) -> Result<(), PcwError> 
     let mut preimage = b"leaf".to_vec();
     preimage.extend_from_slice(&le32(proof.leaf.i));
     let txid_bytes = hex::decode(&proof.leaf.txid)?;
+    if txid_bytes.len() != 32 {
+        return Err(PcwError::Other("Txid not 32 bytes §10.2".to_string()));
+    }
     preimage.extend_from_slice(&txid_bytes);
     preimage.extend_from_slice(&le8(proof.leaf.amount));
     let addr_bytes = hex::decode(&proof.leaf.addr_payload)?;
@@ -139,7 +142,8 @@ pub fn verify_proof(proof: &Proof, manifest: &Manifest) -> Result<(), PcwError> 
     let mut l = sha256(&preimage);
     for elem in &proof.path {
         let s = hex::decode(&elem.hash)?;
-        let mut concat = if elem.pos == "L" { [l, s.try_into()?].concat() } else { [s.try_into()?, l].concat() };
+        let s_arr: [u8; 32] = s.try_into().map_err(|_| PcwError::Other("Sibling not 32 bytes".to_string()))?;
+        let mut concat = if elem.pos == "L" { [l, s_arr].concat() } else { [s_arr, l].concat() };
         l = sha256(&concat);
     }
     if hex::encode(l) != proof.merkle_root {
@@ -154,5 +158,5 @@ pub fn verify_proof(proof: &Proof, manifest: &Manifest) -> Result<(), PcwError> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    // Test leaves, root with odd dup, proof gen/verify, reject invalid
+    // Tests for leaves, root with odd dup, proof gen/verify, reject invalid
 }
