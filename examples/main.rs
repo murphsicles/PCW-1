@@ -1,3 +1,5 @@
+extern crate pcw_protocol;
+
 use chrono::prelude::*;
 use hex;
 use pcw_protocol::{
