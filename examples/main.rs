@@ -1,8 +1,8 @@
-use pcw_protocol::*;
-use sv::network::Network;
 use chrono::prelude::*;
 use hex;
+use pcw_protocol::*;
 use std::collections::HashSet;
+use sv::network::Network;
 
 fn main() -> Result<(), PcwError> {
     // Mock keys
@@ -15,13 +15,27 @@ fn main() -> Result<(), PcwError> {
 
     // Policy
     let expiry = Utc::now() + chrono::Duration::days(1);
-    let mut policy = Policy::new(hex::encode(anchor_b.pub_key.serialize()), 100, 1000, 500, 1, expiry)?;
+    let mut policy = Policy::new(
+        hex::encode(anchor_b.pub_key.serialize()),
+        100,
+        1000,
+        500,
+        1,
+        expiry,
+    )?;
     policy.sign(&identity_b)?;
     policy.verify()?;
     let h_policy = policy.h_policy();
 
     // Invoice
-    let mut invoice = Invoice::new("inv1".to_string(), "terms".to_string(), "sat".to_string(), 2000, hex::encode(h_policy), Some(expiry))?;
+    let mut invoice = Invoice::new(
+        "inv1".to_string(),
+        "terms".to_string(),
+        "sat".to_string(),
+        2000,
+        hex::encode(h_policy),
+        Some(expiry),
+    )?;
     invoice.sign(&identity_a)?;
     invoice.verify(&h_policy)?;
     let h_i = invoice.h_i();
@@ -38,7 +52,10 @@ fn main() -> Result<(), PcwError> {
     let mut u0 = vec![];
     for i in 0..5 {
         u0.push(Utxo {
-            outpoint: OutPoint { txid: [i; 32], vout: i as u32 },
+            outpoint: OutPoint {
+                txid: [i; 32],
+                vout: i as u32,
+            },
             value: 500,
             script_pubkey: vec![],
         });
@@ -50,7 +67,17 @@ fn main() -> Result<(), PcwError> {
     let i = 0;
     let s_i = r.get(&i).unwrap_or(&vec![]);
     let priv_keys = vec![[5u8; 32]; s_i.len()];
-    let (note_tx, meta) = build_note_tx(&scope, i, s_i, split[0], &anchor_b.pub_key, &anchor_a.pub_key, 1, 1, &priv_keys)?;
+    let (note_tx, meta) = build_note_tx(
+        &scope,
+        i,
+        s_i,
+        split[0],
+        &anchor_b.pub_key,
+        &anchor_a.pub_key,
+        1,
+        1,
+        &priv_keys,
+    )?;
     println!("Note Tx: {:?}", note_tx);
     println!("Meta: {:?}", meta);
 
@@ -59,7 +86,10 @@ fn main() -> Result<(), PcwError> {
     let addr_payloads = vec![[0u8; 21]; amounts.len()];
     let mut entries = vec![];
     for j in 0..amounts.len() {
-        entries.push(Entry { i: j as u32, txid: "mock_txid_".to_string() + &j.to_string() });
+        entries.push(Entry {
+            i: j as u32,
+            txid: "mock_txid_".to_string() + &j.to_string(),
+        });
     }
     let mut manifest = Manifest {
         invoice_hash: hex::encode(h_i),
