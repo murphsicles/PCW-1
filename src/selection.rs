@@ -63,7 +63,7 @@ fn select_inputs(u: &[Utxo], used: &HashSet<OutPoint>, target: u64, feerate: u64
             return Ok(vec![utxo]);
         }
     }
-    // Stage B: Exact few (brute for small k_max; or dp subset sum)
+    // Stage B: Exact few
     for card in 2..=k_max {
         if let Some(selected) = subset_sum(&available, target + feerate * (10 + 148 * card as u64 + 34), card)? {
             return Ok(selected);
@@ -122,12 +122,40 @@ fn select_inputs(u: &[Utxo], used: &HashSet<OutPoint>, target: u64, feerate: u64
     }
 }
 
-/// Simple subset sum for exact (dynamic programming for small card).
+/// Exact subset sum for Stage B (§6.4): DP with backtrack for small card.
 fn subset_sum(available: &[Utxo], target: u64, card: usize) -> Result<Option<Vec<Utxo>>, PcwError> {
-    // Impl DP: bool dp[card+1][target+1]
-    // ...
-    // Return Some(selected) if found, None
-    Ok(None) // Full impl would use vec of vec or bitset for efficiency
+    let n = available.len();
+    let mut dp = vec![vec![false; (target as usize) + 1]; (card + 1) as usize];
+    dp[0][0] = true;
+    let mut prev = vec![vec![None; (target as usize) + 1]; (card + 1) as usize]; // For backtrack: (item idx, prev sum)
+    for i in 0..n {
+        for c in (1..=card).rev() {
+            for t in (available[i].value..=target).rev() {
+                if dp[c-1][(t - available[i].value) as usize] {
+                    dp[c][t as usize] = true;
+                    prev[c][t as usize] = Some((i, t - available[i].value));
+                }
+            }
+        }
+    }
+    if dp[card][target as usize] {
+        // Backtrack to find selected
+        let mut selected = vec![];
+        let mut current_t = target;
+        let mut current_c = card;
+        while current_c > 0 {
+            if let Some((idx, prev_t)) = prev[current_c][current_t as usize] {
+                selected.push(available[idx].clone());
+                current_t = prev_t;
+                current_c -= 1;
+            } else {
+                break;
+            }
+        }
+        Ok(Some(selected))
+    } else {
+        Ok(None)
+    }
 }
 
 fn fan_out(u: &[Utxo], used: &HashSet<OutPoint>, split: &[u64], feerate: u64, dust: u64) -> Result<FanOutResult, PcwError> {
@@ -138,7 +166,7 @@ fn fan_out(u: &[Utxo], used: &HashSet<OutPoint>, split: &[u64], feerate: u64, du
     let out_value = total / num_out as u64;
     let mut outputs = vec![];
     for k in 0..num_out {
-        // Derive new payer addr (spec "fund" label; assume dummy OutPoint for sim)
+        // Derive new payer addr (spec "fund" label; assume dummy for sim, prod use HD derivation)
         let dummy_txid = [k as u8; 32];
         outputs.push(Utxo { outpoint: OutPoint { txid: dummy_txid, vout: 0 }, value: out_value.max(dust), script_pubkey: vec![] });
     }
@@ -152,5 +180,6 @@ struct FanOutResult {
 
 #[cfg(test)]
 mod tests {
-    // ...
+    use super::*;
+    // Add tests for select_inputs stages, fan_out
 }
