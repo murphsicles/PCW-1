@@ -127,7 +127,7 @@ fn subset_sum(available: &[Utxo], target: u64, card: usize) -> Result<Option<Vec
     let n = available.len();
     let mut dp = vec![vec![false; (target as usize) + 1]; (card + 1) as usize];
     dp[0][0] = true;
-    let mut prev = vec![vec![None; (target as usize) + 1]; (card + 1) as usize]; // For backtrack: (item idx, prev sum)
+    let mut prev = vec![vec![None; (target as usize) + 1]; (card + 1) as usize]; // (item idx, prev t)
     for i in 0..n {
         for c in (1..=card).rev() {
             for t in (available[i].value..=target).rev() {
@@ -139,7 +139,6 @@ fn subset_sum(available: &[Utxo], target: u64, card: usize) -> Result<Option<Vec
         }
     }
     if dp[card][target as usize] {
-        // Backtrack to find selected
         let mut selected = vec![];
         let mut current_t = target;
         let mut current_c = card;
@@ -158,6 +157,15 @@ fn subset_sum(available: &[Utxo], target: u64, card: usize) -> Result<Option<Vec
     }
 }
 
+/// Fan-out: Consolidate to new payer outputs near v_max (§6.8).
+/// NOTE: This is a stub for production. In a real wallet, replace dummy outpoints with actual ones obtained from broadcasting the fan-out tx.
+/// Steps for production:
+/// 1. Derive new payer addresses under "fund" label (e.g., HD path from {Z, H_I, "fund", k}).
+/// 2. Build and sign a consolidation tx with available inputs and outputs of size ~ v_max.
+/// 3. Broadcast the tx (e.g., via Electrum or P2P).
+/// 4. Wait for confirmation (per policy depth).
+/// 5. Fetch the new UTXOs with their real txid/vout/script_pubkey.
+/// For testing, dummy outpoints are used.
 fn fan_out(u: &[Utxo], used: &HashSet<OutPoint>, split: &[u64], feerate: u64, dust: u64) -> Result<FanOutResult, PcwError> {
     let available = u.iter().filter(|utxo| !used.contains(&utxo.outpoint)).cloned().collect::<Vec<_>>();
     let total = available.iter().map(|u| u.value).sum::<u64>();
@@ -166,11 +174,9 @@ fn fan_out(u: &[Utxo], used: &HashSet<OutPoint>, split: &[u64], feerate: u64, du
     let out_value = total / num_out as u64;
     let mut outputs = vec![];
     for k in 0..num_out {
-        // Derive new payer addr (spec "fund" label; assume dummy for sim, prod use HD derivation)
         let dummy_txid = [k as u8; 32];
         outputs.push(Utxo { outpoint: OutPoint { txid: dummy_txid, vout: 0 }, value: out_value.max(dust), script_pubkey: vec![] });
     }
-    // In prod, build/sign Tx with inputs available, outputs to new addrs, broadcast, wait confirm, return real UTXOs
     Ok(FanOutResult { outputs })
 }
 
