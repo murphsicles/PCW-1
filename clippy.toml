@@ -1,3 +1,2 @@
 # clippy.toml
-pedantic = true
-warnings-as-errors = true
+# No invalid fields, keeping it empty for now
