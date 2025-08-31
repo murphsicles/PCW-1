@@ -1,8 +1,9 @@
-extern crate pcw_protocol;
-
 use chrono::prelude::*;
 use hex;
-use pcw_protocol::{AnchorKeypair, IdentityKeypair, Policy, Invoice, Scope, bounded_split, build_reservations, build_note_tx, Entry, Manifest, compute_leaves, merkle_root, generate_proof, verify_proof};
+use pcw_protocol::{
+    AnchorKeypair, Entry, IdentityKeypair, Invoice, Manifest, Policy, Scope, bounded_split,
+    build_note_tx, build_reservations, compute_leaves, generate_proof, merkle_root, verify_proof,
+};
 use sv::messages::OutPoint;
 
 fn main() -> Result<(), PcwError> {
