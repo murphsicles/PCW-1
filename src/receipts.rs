@@ -158,5 +158,82 @@ pub fn verify_proof(proof: &Proof, manifest: &Manifest) -> Result<(), PcwError> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    // Tests for leaves, root with odd dup, proof gen/verify, reject invalid
+    use hex;
+
+    #[test]
+    fn test_compute_leaves() -> Result<(), PcwError> {
+        let manifest = Manifest {
+            invoice_hash: "test_hash".to_string(),
+            merkle_root: "".to_string(),
+            count: 2,
+            entries: vec![
+                Entry { i: 0, txid: "0000000000000000000000000000000000000000000000000000000000000000".to_string() },
+                Entry { i: 1, txid: "1111111111111111111111111111111111111111111111111111111111111111".to_string() },
+            ],
+        };
+        let amounts = [100, 200];
+        let addr_payloads = [[0; 21], [1; 21]];
+        let leaves = compute_leaves(&manifest, &amounts, &addr_payloads)?;
+        assert_eq!(leaves.len(), 2);
+        assert_ne!(leaves[0], leaves[1]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_merkle_root_even() {
+        let leaves = vec![[0; 32], [1; 32]];
+        let root = merkle_root(leaves);
+        assert_ne!(root, [0; 32]);
+    }
+
+    #[test]
+    fn test_merkle_root_odd() {
+        let leaves = vec![[0; 32]];
+        let root = merkle_root(leaves);
+        assert_eq!(root, [0; 32]); // For N=1, root = leaf
+    }
+
+    #[test]
+    fn test_generate_verify_proof() -> Result<(), PcwError> {
+        let manifest = Manifest {
+            invoice_hash: "test_hash".to_string(),
+            merkle_root: "".to_string(),
+            count: 1,
+            entries: vec![
+                Entry { i: 0, txid: "txid0".to_string() },
+            ],
+        };
+        let amounts = [100];
+        let addr_payloads = [[0; 21]];
+        let leaves = compute_leaves(&manifest, &amounts, &addr_payloads)?;
+        let proof = generate_proof(&leaves, 0, &manifest, &amounts, &addr_payloads)?;
+        verify_proof(&proof, &manifest)?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_verify_invalid_txid() {
+        let proof = Proof {
+            invoice_hash: "test_hash".to_string(),
+            merkle_root: "root".to_string(),
+            leaf: Leaf {
+                i: 0,
+                txid: "wrong_txid".to_string(),
+                amount: 100,
+                addr_payload: hex::encode([0; 21]),
+            },
+            path: vec![],
+        };
+        let manifest = Manifest {
+            invoice_hash: "test_hash".to_string(),
+            merkle_root: "root".to_string(),
+            count: 1,
+            entries: vec![
+                Entry { i: 0, txid: "correct_txid".to_string() },
+            ],
+        };
+        assert!(verify_proof(&proof, &manifest).is_err());
+    }
+
+    // Additional tests for mismatched lengths, invalid hex, wrong root
 }
