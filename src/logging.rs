@@ -1,17 +1,27 @@
+//! Module for logging in the PCW-1 protocol.
+//!
+//! This module provides a signed, append-only logging system as per §§13.6-13.7,
+//! with record types for reissues, cancellations, conflicts, and orphaned notes.
+//! Logs are chained via previous hashes and signed with identity keypairs.
+
 use crate::errors::PcwError;
 use crate::json::canonical_json;
 use crate::keys::IdentityKeypair;
 use crate::utils::sha256;
 use chrono::prelude::*;
 use serde::Serialize;
-use secp256k1::{Message, Secp256k1, ecdsa::Signature};
+use secp256k1::{Message, Secp256k1, ecdsa::Signature, PublicKey, SecretKey};
 use std::collections::HashMap;
 
-/// Trait for signed, append-only logs (§13.6-§13.7).
+/// Trait for signed, append-only logs (§§13.6-13.7).
 pub trait LogRecord: Serialize {
+    /// Sign the record with the provided identity keypair.
     fn sign(&mut self, key: &IdentityKeypair) -> Result<(), PcwError>;
+    /// Verify the record's signature.
     fn verify(&self) -> Result<(), PcwError>;
+    /// Get the previous hash for chaining.
     fn prev_hash(&self) -> String;
+    /// Get the sequence number of the record.
     fn seq(&self) -> u64;
 }
 
@@ -152,6 +162,7 @@ pub struct ConflictRecord {
     pub seq: u64,
 }
 
+/// Metadata for a conflicted outpoint.
 #[derive(Serialize, Clone, Debug)]
 pub struct OutpointMeta {
     pub txid: String,
@@ -261,13 +272,16 @@ impl LogRecord for OrphanedRecord {
 pub fn append_to_log<T: LogRecord>(log: &mut Vec<T>, mut record: T, prev: Option<&T>) -> Result<(), PcwError> {
     if let Some(p) = prev {
         let mut p_unsigned = p.clone();
-        // Remove sig triplet for preimage
+        p_unsigned.sig = "".to_string(); // Remove sig for preimage
+        p_unsigned.by = "".to_string();
+        p_unsigned.sig_alg = "".to_string();
         let p_bytes = canonical_json(&p_unsigned)?;
         record.prev_hash = hex::encode(sha256(&p_bytes));
     } else {
         record.prev_hash = "".to_string();
     }
     record.seq = log.len() as u64 + 1;
+    record.at = Utc::now().to_rfc3339(); // Set timestamp
     log.push(record);
     Ok(())
 }
@@ -376,13 +390,66 @@ mod tests {
 
     #[test]
     fn test_append_to_log() -> Result<(), PcwError> {
-        let mut log: Vec<ReissueRecord> = vec![];
-        let mut record1 = ReissueRecord { /* fields */ };
+        let mut log: Vec<ReissueRecord> = Vec::new();
+        let priv_k = [1; 32];
+        let key = IdentityKeypair::new(priv_k)?;
+
+        // Create and sign first record
+        let mut record1 = ReissueRecord {
+            invoice_hash: "test1".to_string(),
+            i: 0,
+            note_id: "note1".to_string(),
+            event: "reissue".to_string(),
+            version: 1,
+            supersedes: "old1".to_string(),
+            txid_new: "new1".to_string(),
+            addr_recv: "addr_b1".to_string(),
+            addr_change: "addr_a1".to_string(),
+            fee: 100,
+            feerate_used: 1,
+            at: Utc::now().to_rfc3339(),
+            by: "".to_string(),
+            sig_alg: "".to_string(),
+            sig: "".to_string(),
+            prev_hash: "".to_string(),
+            seq: 0, // Will be set by append_to_log
+        };
+        record1.sign(&key)?;
         append_to_log(&mut log, record1, None)?;
-        let mut record2 = ReissueRecord { /* fields */ };
+
+        // Create and sign second record
+        let mut record2 = ReissueRecord {
+            invoice_hash: "test2".to_string(),
+            i: 1,
+            note_id: "note2".to_string(),
+            event: "reissue".to_string(),
+            version: 1,
+            supersedes: "old2".to_string(),
+            txid_new: "new2".to_string(),
+            addr_recv: "addr_b2".to_string(),
+            addr_change: "addr_a2".to_string(),
+            fee: 200,
+            feerate_used: 2,
+            at: Utc::now().to_rfc3339(),
+            by: "".to_string(),
+            sig_alg: "".to_string(),
+            sig: "".to_string(),
+            prev_hash: "".to_string(),
+            seq: 0, // Will be set by append_to_log
+        };
+        record2.sign(&key)?;
         append_to_log(&mut log, record2, Some(&log[0]))?;
+
+        assert_eq!(log.len(), 2);
+        assert_eq!(log[0].seq, 1);
         assert_eq!(log[1].seq, 2);
-        // Assert log[1].prev_hash == hash of record1 without sig triplet
+        assert_eq!(log[1].prev_hash, hex::encode(sha256(&canonical_json(&{
+            let mut r = log[0].clone();
+            r.sig = "".to_string();
+            r.by = "".to_string();
+            r.sig_alg = "".to_string();
+            r
+        })?)));
         Ok(())
     }
 }
