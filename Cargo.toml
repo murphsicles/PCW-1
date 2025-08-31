@@ -20,7 +20,7 @@ serde_json = "1.0.143"
 sha2 = "0.10.9"
 sv = { git = "https://github.com/murphsicles/rust-sv", tag = "v0.5.2" }
 thiserror = "2.0.16"
-tokio = { version = "1.41.0", features = ["time", "rt-multi-thread"] }
+tokio = { version = "1.47.1", features = ["time", "rt-multi-thread"] }
 unicode-normalization = "0.1.24"
 
 [dev-dependencies]
