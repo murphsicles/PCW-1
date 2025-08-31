@@ -1,0 +1,37 @@
+pcw-protocol/
+├── .github/
+│   └── workflows/
+│       └── rust.yml
+├── Cargo.toml
+├── Cargo.lock
+├── rustfmt.toml
+├── clippy.toml
+├── README.md
+├── LICENSE
+├── failure-handling-diagram.png
+├── benches/
+│   └── main.rs
+├── src/
+│   ├── lib.rs
+│   ├── errors.rs
+│   ├── json.rs
+│   ├── keys.rs
+│   ├── scope.rs
+│   ├── policy.rs
+│   ├── invoice.rs
+│   ├── split.rs
+│   ├── selection.rs
+│   ├── addressing.rs
+│   ├── tx.rs
+│   ├── protocol.rs
+│   ├── broadcast.rs
+│   ├── receipts.rs
+│   ├── failure.rs
+│   ├── logging.rs
+│   └── utils.rs
+├── tests/
+│   └── integration.rs
+│   └── selection.rs
+├── examples/
+│   └── main.rs
+└── bible.md
