@@ -1,7 +1,6 @@
 use chrono::prelude::*;
 use hex;
 use pcw_protocol::*;
-use std::collections::HashSet;
 use sv::network::Network;
 
 fn main() -> Result<(), PcwError> {
