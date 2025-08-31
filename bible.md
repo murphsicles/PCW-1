@@ -1,6 +1,6 @@
 # PCW-1 Spec Bible
 
-This file contains the full verbatim spec from the Substack article by Dr. Craig S Wright, including abstract, sections 1-17, and state machine diagram description. Use as the "bible" for double-checking implementations. The code must follow this verbatim.
+This file contains the full verbatim spec from the [Substack article](https://substack.com/@cstominaga/note/p-171965159?r=5u2jjk) by Dr. Craig S Wright, including abstract, sections 1-17, and state machine diagram description. Use as the "bible" for double-checking implementations. The code must follow this verbatim.
 
 ## Abstract
 
