@@ -4,7 +4,7 @@ use crate::keys::IdentityKeypair;
 use crate::utils::sha256;
 use chrono::prelude::*;
 use serde::Serialize;
-use secp256k1::{Message, Secp256k1};
+use secp256k1::{Message, Secp256k1, ecdsa::Signature};
 use std::collections::HashMap;
 
 /// Trait for signed, append-only logs (§13.6-§13.7).
@@ -63,7 +63,7 @@ impl LogRecord for ReissueRecord {
         let hash = sha256(&bytes);
         let msg = Message::from_slice(&hash)?;
         let pub_key = PublicKey::from_slice(&hex::decode(&self.by)?)?;
-        let sig = ecdsa::Signature::from_der(&hex::decode(&self.sig)?)?;
+        let sig = Signature::from_der(&hex::decode(&self.sig)?)?;
         let secp = Secp256k1::new();
         secp.verify_ecdsa(&msg, &sig, &pub_key)?;
         Ok(())
@@ -121,7 +121,7 @@ impl LogRecord for CancelRecord {
         let hash = sha256(&bytes);
         let msg = Message::from_slice(&hash)?;
         let pub_key = PublicKey::from_slice(&hex::decode(&self.by)?)?;
-        let sig = ecdsa::Signature::from_der(&hex::decode(&self.sig)?)?;
+        let sig = Signature::from_der(&hex::decode(&self.sig)?)?;
         let secp = Secp256k1::new();
         secp.verify_ecdsa(&msg, &sig, &pub_key)?;
         Ok(())
@@ -184,7 +184,7 @@ impl LogRecord for ConflictRecord {
         let hash = sha256(&bytes);
         let msg = Message::from_slice(&hash)?;
         let pub_key = PublicKey::from_slice(&hex::decode(&self.by)?)?;
-        let sig = ecdsa::Signature::from_der(&hex::decode(&self.sig)?)?;
+        let sig = Signature::from_der(&hex::decode(&self.sig)?)?;
         let secp = Secp256k1::new();
         secp.verify_ecdsa(&msg, &sig, &pub_key)?;
         Ok(())
@@ -242,7 +242,7 @@ impl LogRecord for OrphanedRecord {
         let hash = sha256(&bytes);
         let msg = Message::from_slice(&hash)?;
         let pub_key = PublicKey::from_slice(&hex::decode(&self.by)?)?;
-        let sig = ecdsa::Signature::from_der(&hex::decode(&self.sig)?)?;
+        let sig = Signature::from_der(&hex::decode(&self.sig)?)?;
         let secp = Secp256k1::new();
         secp.verify_ecdsa(&msg, &sig, &pub_key)?;
         Ok(())
@@ -329,17 +329,60 @@ mod tests {
         Ok(())
     }
 
-    // Similar tests for ConflictRecord, OrphanedRecord
+    #[test]
+    fn test_conflict_record_sign_verify() -> Result<(), PcwError> {
+        let priv_k = [1; 32];
+        let key = IdentityKeypair::new(priv_k)?;
+        let mut record = ConflictRecord {
+            invoice_hash: "test".to_string(),
+            i: 0,
+            note_id: "note".to_string(),
+            event: "conflict_external".to_string(),
+            outpoint: OutpointMeta { txid: "tx".to_string(), vout: 0 },
+            at: Utc::now().to_rfc3339(),
+            by: "".to_string(),
+            sig_alg: "".to_string(),
+            sig: "".to_string(),
+            prev_hash: "".to_string(),
+            seq: 1,
+        };
+        record.sign(&key)?;
+        record.verify()?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_orphaned_record_sign_verify() -> Result<(), PcwError> {
+        let priv_k = [1; 32];
+        let key = IdentityKeypair::new(priv_k)?;
+        let mut record = OrphanedRecord {
+            invoice_hash: "test".to_string(),
+            i: 0,
+            note_id: "note".to_string(),
+            event: "orphaned".to_string(),
+            txid: "tx".to_string(),
+            rebroadcast: true,
+            at: Utc::now().to_rfc3339(),
+            by: "".to_string(),
+            sig_alg: "".to_string(),
+            sig: "".to_string(),
+            prev_hash: "".to_string(),
+            seq: 1,
+        };
+        record.sign(&key)?;
+        record.verify()?;
+        Ok(())
+    }
 
     #[test]
     fn test_append_to_log() -> Result<(), PcwError> {
         let mut log: Vec<ReissueRecord> = vec![];
-        let mut record1 = ReissueRecord { /* fields with sig signed */ };
+        let mut record1 = ReissueRecord { /* fields */ };
         append_to_log(&mut log, record1, None)?;
         let mut record2 = ReissueRecord { /* fields */ };
         append_to_log(&mut log, record2, Some(&log[0]))?;
         assert_eq!(log[1].seq, 2);
-        assert_eq!(log[1].prev_hash, /* compute expected from record1 without sig */);
+        // Assert log[1].prev_hash == hash of record1 without sig triplet
         Ok(())
     }
 }
