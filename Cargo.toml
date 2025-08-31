@@ -27,5 +27,9 @@ unicode-normalization = "0.1.24"
 criterion = "0.7.0"
 proptest = "1.7.0"
 
+[[example]]
+name = "main"
+path = "examples/main.rs"
+
 [profile.dev]
 opt-level = 3
