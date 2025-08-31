@@ -159,7 +159,6 @@ pub struct OutpointMeta {
 }
 
 impl LogRecord for ConflictRecord {
-    // Similar sign/verify as above
     fn sign(&mut self, key: &IdentityKeypair) -> Result<(), PcwError> {
         self.by = hex::encode(key.pub_key.serialize());
         self.sig_alg = "secp256k1-sha256".to_string();
@@ -218,7 +217,6 @@ pub struct OrphanedRecord {
 }
 
 impl LogRecord for OrphanedRecord {
-    // Similar sign/verify as above
     fn sign(&mut self, key: &IdentityKeypair) -> Result<(), PcwError> {
         self.by = hex::encode(key.pub_key.serialize());
         self.sig_alg = "secp256k1-sha256".to_string();
