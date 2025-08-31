@@ -8,7 +8,7 @@ pcw-protocol/
 ├── clippy.toml
 ├── README.md
 ├── LICENSE
-├── failure-handling-diagram.png
+├── diagram.png
 ├── benches/
 │   └── main.rs
 ├── src/
