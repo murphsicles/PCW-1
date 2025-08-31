@@ -2,15 +2,16 @@ use pcw_protocol::*;
 use sv::network::Network;
 use chrono::prelude::*;
 use hex;
+use std::collections::HashSet;
 
 fn main() -> Result<(), PcwError> {
     // Mock keys
-    let priv_a = [1; 32];
+    let priv_a = [1u8; 32];
     let identity_a = IdentityKeypair::new(priv_a)?;
-    let priv_b = [2; 32];
+    let priv_b = [2u8; 32];
     let identity_b = IdentityKeypair::new(priv_b)?;
-    let anchor_a = AnchorKeypair::new([3; 32])?;
-    let anchor_b = AnchorKeypair::new([4; 32])?;
+    let anchor_a = AnchorKeypair::new([3u8; 32])?;
+    let anchor_b = AnchorKeypair::new([4u8; 32])?;
 
     // Policy
     let expiry = Utc::now() + chrono::Duration::days(1);
@@ -33,10 +34,45 @@ fn main() -> Result<(), PcwError> {
     let split = bounded_split(&scope, 2000, 100, 1000)?;
     println!("Split: {:?}", split);
 
-    // Mock UTXOs and build reservation
-    // ... (omit for brevity)
+    // Mock UTXOs
+    let mut u0 = vec![];
+    for i in 0..5 {
+        u0.push(Utxo {
+            outpoint: OutPoint { txid: [i; 32], vout: i as u32 },
+            value: 500,
+            script_pubkey: vec![],
+        });
+    }
+    let r = build_reservations(&u0, &split, 1, 1, 3, 5, true)?;
+    println!("Reservation: {:?}", r);
 
-    // Build tx, receipts, etc.
+    // Build tx for i=0
+    let i = 0;
+    let s_i = r.get(&i).unwrap_or(&vec![]);
+    let priv_keys = vec![[5u8; 32]; s_i.len()];
+    let (note_tx, meta) = build_note_tx(&scope, i, s_i, split[0], &anchor_b.pub_key, &anchor_a.pub_key, 1, 1, &priv_keys)?;
+    println!("Note Tx: {:?}", note_tx);
+    println!("Meta: {:?}", meta);
+
+    // Receipts mock
+    let amounts = split;
+    let addr_payloads = vec![[0u8; 21]; amounts.len()];
+    let mut entries = vec![];
+    for j in 0..amounts.len() {
+        entries.push(Entry { i: j as u32, txid: "mock_txid_".to_string() + &j.to_string() });
+    }
+    let mut manifest = Manifest {
+        invoice_hash: hex::encode(h_i),
+        merkle_root: "".to_string(),
+        count: amounts.len(),
+        entries,
+    };
+    let leaves = compute_leaves(&manifest, &amounts, &addr_payloads)?;
+    let root = merkle_root(leaves.clone());
+    manifest.merkle_root = hex::encode(root);
+    let proof = generate_proof(&leaves, 0, &manifest, &amounts, &addr_payloads)?;
+    verify_proof(&proof, &manifest)?;
+    println!("Proof verified");
 
     Ok(())
 }
