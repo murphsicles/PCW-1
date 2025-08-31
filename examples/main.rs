@@ -5,6 +5,7 @@ use pcw_protocol::{
     build_note_tx, build_reservations, compute_leaves, generate_proof, merkle_root, verify_proof,
 };
 use sv::messages::OutPoint;
+use sv::util::Hash256;
 
 fn main() -> Result<(), PcwError> {
     // Mock keys
@@ -55,8 +56,8 @@ fn main() -> Result<(), PcwError> {
     for i in 0..5 {
         u0.push(Utxo {
             outpoint: OutPoint {
-                txid: [i; 32],
-                vout: i as u32,
+                hash: Hash256([i; 32]),
+                index: i as u32,
             },
             value: 500,
             script_pubkey: vec![],
