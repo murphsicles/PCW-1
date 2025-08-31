@@ -56,7 +56,7 @@ let addr_b = addressing::recipient_address(&scope, 0, &anchor_b).unwrap();
 
 ## State Machine Diagram 📊
 
-![Failure Handling & Exact Behaviors](failure-handling-diagram.png)
+![Failure Handling & Exact Behaviors](diagram.png)
 
 ## Testing 🧪
 
