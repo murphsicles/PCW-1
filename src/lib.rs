@@ -1,7 +1,8 @@
 //! Peer Cash Wallet Protocol (PCW-1): IP-to-IP BSV settlement protocol per spec.
 //!
 //! This library implements the full protocol verbatim from §§1-17, providing deterministic logic for
-//! invoice-scoped settlements using BSV primitives via rust-sv.
+//! invoice-scoped settlements using BSV primitives via rust-sv. All public APIs are re-exported
+//! from submodules for convenience, maintaining the separation of concerns outlined in the spec.
 
 pub use addressing::{recipient_address, sender_change_address};
 pub use broadcast::{BroadcastPolicy, Broadcaster, pacing_schedule};
