@@ -1,7 +1,9 @@
+extern crate pcw_protocol;
+
 use chrono::prelude::*;
 use hex;
-use pcw_protocol::*;
-use sv::network::Network;
+use pcw_protocol::{AnchorKeypair, IdentityKeypair, Policy, Invoice, Scope, bounded_split, build_reservations, build_note_tx, Entry, Manifest, compute_leaves, merkle_root, generate_proof, verify_proof};
+use sv::messages::OutPoint;
 
 fn main() -> Result<(), PcwError> {
     // Mock keys
