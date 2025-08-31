@@ -275,5 +275,71 @@ pub fn append_to_log<T: LogRecord>(log: &mut Vec<T>, mut record: T, prev: Option
 #[cfg(test)]
 mod tests {
     use super::*;
-    // Tests for sign/verify each record, append chaining
+    use crate::keys::IdentityKeypair;
+    use hex;
+
+    #[test]
+    fn test_reissue_record_sign_verify() -> Result<(), PcwError> {
+        let priv_k = [1; 32];
+        let key = IdentityKeypair::new(priv_k)?;
+        let mut record = ReissueRecord {
+            invoice_hash: "test".to_string(),
+            i: 0,
+            note_id: "note".to_string(),
+            event: "reissue".to_string(),
+            version: 1,
+            supersedes: "old".to_string(),
+            txid_new: "new".to_string(),
+            addr_recv: "addr_b".to_string(),
+            addr_change: "addr_a".to_string(),
+            fee: 100,
+            feerate_used: 1,
+            at: Utc::now().to_rfc3339(),
+            by: "".to_string(),
+            sig_alg: "".to_string(),
+            sig: "".to_string(),
+            prev_hash: "".to_string(),
+            seq: 1,
+        };
+        record.sign(&key)?;
+        record.verify()?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_cancel_record_sign_verify() -> Result<(), PcwError> {
+        let priv_k = [1; 32];
+        let key = IdentityKeypair::new(priv_k)?;
+        let mut record = CancelRecord {
+            invoice_hash: "test".to_string(),
+            i: 0,
+            note_id: "note".to_string(),
+            event: "cancel".to_string(),
+            reason: "test".to_string(),
+            version: 1,
+            at: Utc::now().to_rfc3339(),
+            by: "".to_string(),
+            sig_alg: "".to_string(),
+            sig: "".to_string(),
+            prev_hash: "".to_string(),
+            seq: 1,
+        };
+        record.sign(&key)?;
+        record.verify()?;
+        Ok(())
+    }
+
+    // Similar tests for ConflictRecord, OrphanedRecord
+
+    #[test]
+    fn test_append_to_log() -> Result<(), PcwError> {
+        let mut log: Vec<ReissueRecord> = vec![];
+        let mut record1 = ReissueRecord { /* fields with sig signed */ };
+        append_to_log(&mut log, record1, None)?;
+        let mut record2 = ReissueRecord { /* fields */ };
+        append_to_log(&mut log, record2, Some(&log[0]))?;
+        assert_eq!(log[1].seq, 2);
+        assert_eq!(log[1].prev_hash, /* compute expected from record1 without sig */);
+        Ok(())
+    }
 }
