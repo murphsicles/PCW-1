@@ -1,3 +1,9 @@
+//! Module for broadcast and pacing logic in the PCW-1 protocol.
+//!
+//! This module implements broadcast policies and scheduling as per §9, providing
+//! deterministic pacing strategies (all_at_once, paced, bursts) using SHA-256
+//! and uniform random draws for timing.
+
 use async_trait::async_trait;
 use crate::errors::PcwError;
 use crate::scope::Scope;
@@ -29,7 +35,10 @@ pub fn pacing_schedule(scope: &Scope, n: usize, policy: &BroadcastPolicy) -> Vec
     let mut ctr = 0u32;
     let mut schedule = vec![Duration::ZERO; n];
     let now = Utc::now();
-    let start = policy.window_start.as_ref().map(|s| Utc::parse_from_rfc3339(s).unwrap_or(now)).unwrap_or(now);
+    let start = policy.window_start
+        .as_ref()
+        .map(|s| Utc::parse_from_rfc3339(s).unwrap_or(now))
+        .unwrap_or(now);
     match policy.strategy_default.as_str() {
         "all_at_once" => {
             let d = (start - now).to_std().unwrap_or(Duration::ZERO);
@@ -40,8 +49,9 @@ pub fn pacing_schedule(scope: &Scope, n: usize, policy: &BroadcastPolicy) -> Vec
         "paced" => {
             schedule[0] = (start - now).to_std().unwrap_or(Duration::ZERO);
             for i in 1..n {
-                let delta_ms = draw_uniform(&s_pace, &mut ctr, policy.max_spacing_ms - policy.min_spacing_ms + 1)? + policy.min_spacing_ms;
-                schedule[i] = schedule[i-1] + Duration::from_millis(delta_ms);
+                let delta_ms = draw_uniform(&s_pace, &mut ctr, policy.max_spacing_ms - policy.min_spacing_ms + 1)
+                    .unwrap_or(policy.min_spacing_ms); // Fallback to min on error
+                schedule[i] = schedule[i - 1] + Duration::from_millis(delta_ms);
             }
             if let Some(end_str) = &policy.window_end {
                 let end = Utc::parse_from_rfc3339(end_str).unwrap_or(now);
@@ -59,13 +69,14 @@ pub fn pacing_schedule(scope: &Scope, n: usize, policy: &BroadcastPolicy) -> Vec
             let mut batch_times = vec![Duration::ZERO; num_bursts];
             batch_times[0] = (start - now).to_std().unwrap_or(Duration::ZERO);
             for k in 1..num_bursts {
-                batch_times[k] = batch_times[k-1] + Duration::from_millis(policy.burst_gap_ms);
+                batch_times[k] = batch_times[k - 1] + Duration::from_millis(policy.burst_gap_ms);
             }
             for b in 0..num_bursts {
                 let start_idx = b * beta;
                 let end_idx = min(start_idx + beta, n);
                 for idx in start_idx..end_idx {
-                    let intra = draw_uniform(&s_pace, &mut ctr, policy.min_spacing_ms + 1)?;
+                    let intra = draw_uniform(&s_pace, &mut ctr, policy.min_spacing_ms + 1)
+                        .unwrap_or(0); // Fallback to 0 on error
                     schedule[idx] = batch_times[b] + Duration::from_millis(intra);
                 }
             }
@@ -81,6 +92,7 @@ pub fn pacing_schedule(scope: &Scope, n: usize, policy: &BroadcastPolicy) -> Vec
         }
         _ => vec![],
     }
+    schedule
 }
 
 /// PRNG next_u64: H(s_pace || LE32(ctr)) first 8 bytes BE (§9.5, similar to §5.2).
@@ -123,5 +135,51 @@ pub trait Broadcaster {
 #[cfg(test)]
 mod tests {
     use super::*;
-    // Tests for schedule determinism, bounds, bursts intra/gap
+    use crate::scope::Scope;
+
+    #[test]
+    fn test_pacing_schedule_all_at_once() {
+        let scope = Scope::new([0; 32], [0; 32]);
+        let policy = BroadcastPolicy {
+            authority: "either".to_string(),
+            strategy_default: "all_at_once".to_string(),
+            min_spacing_ms: 100,
+            max_spacing_ms: 500,
+            burst_size: 3,
+            burst_gap_ms: 1000,
+            window_start: None,
+            window_end: None,
+            rebroadcast_interval_s: 60,
+            hold_time_max_s: 300,
+            confirm_depth: 6,
+        };
+        let schedule = pacing_schedule(&scope, 5, &policy);
+        assert_eq!(schedule.len(), 5);
+        assert!(schedule.iter().all(|d| *d == schedule[0]));
+    }
+
+    #[test]
+    fn test_pacing_schedule_paced() {
+        let scope = Scope::new([0; 32], [0; 32]);
+        let policy = BroadcastPolicy {
+            authority: "either".to_string(),
+            strategy_default: "paced".to_string(),
+            min_spacing_ms: 100,
+            max_spacing_ms: 500,
+            burst_size: 3,
+            burst_gap_ms: 1000,
+            window_start: None,
+            window_end: None,
+            rebroadcast_interval_s: 60,
+            hold_time_max_s: 300,
+            confirm_depth: 6,
+        };
+        let schedule = pacing_schedule(&scope, 5, &policy);
+        assert_eq!(schedule.len(), 5);
+        for i in 1..5 {
+            assert!(schedule[i] >= schedule[i - 1]);
+            assert!(schedule[i].as_millis() >= 100);
+            assert!(schedule[i].as_millis() <= 500 * i as u64);
+        }
+    }
 }
