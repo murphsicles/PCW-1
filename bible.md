@@ -1737,7 +1737,8 @@ for i in 0 … N−2:
     rem  := rem − a[i]
 a[N−1] := rem
 
-# Fisher–Yates permutation to decorrelate indices from sizes
+**Fisher–Yates permutation to decorrelate indices from sizes**
+
 ctrp := 0
 for j in (N−1) down to 1:
     (r, ctrp) := draw_uniform(S_perm, ctrp, j + 1)
@@ -1745,26 +1746,29 @@ for j in (N−1) down to 1:
 
 Coin selection with reservation
 
-U := snapshot_available_utxos()           # payer-owned, spendable, filtered
-R := {}                                   # reservation table: i ↦ S_i
+U := snapshot_available_utxos()           payer-owned, spendable, filtered
+R := {}                                   reservation table: i ↦ S_i
 
-for i in note_indices_in_fixed_order():   # e.g., by descending a[i], then i
+for i in note_indices_in_fixed_order():  e.g., by descending a[i], then i
     target := a[i]
     (S_i, fee, change) := select_inputs_disjoint(U, target, feerate_floor, dust)
     R[i] := S_i
-    U := U \ S_i                           # remove reserved inputs (strict non-overlap)
+    U := U \ S_i                           remove reserved inputs (strict non-overlap)
 
 
 Change arithmetic and size estimate
 
-# m inputs, n outputs (n ∈ {1,2}); P2PKH sizes
+**m inputs, n outputs**
+
+(n ∈ {1,2}); P2PKH sizes
 size_bytes(m, n) := 10 + 148×m + 34×n
 fee(m, n)        := ceil( feerate_floor × size_bytes(m, n) )
 
 sum_in := Σ value(input ∈ S_i)
 target := a[i]
 
-# Try no-change first
+**Try no-change first**
+
 fee1 := fee(m=|S_i|, n=1)
 if sum_in = target + fee1:
     outputs := [ (addrB_i, target) ]                     # exact match, n = 1
