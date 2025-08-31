@@ -1,6 +1,6 @@
 # Peer Cash Wallet Protocol (PCW-1) 🚀
 
-![Rust](https://img.shields.io/badge/rust-edition%202024-orange) ![Dependencies](https://img.shields.io/badge/deps-up%20to%20date-green) ![License](https://img.shields.io/badge/license-MIT-blue) ![CI](https://github.com/murphsicles/PCW-1/workflows/Rust%20CI/badge.svg)
+![Rust](https://img.shields.io/badge/rust-edition%202024-orange) ![Dependencies](https://img.shields.io/badge/Dependencies-Up%20to%20date-green?url=https://deps.rs/repo/github/murphsicles/PCW-1) ![License](https://img.shields.io/badge/license-MIT-blue) ![CI](https://github.com/murphsicles/PCW-1/workflows/Rust%20CI/badge.svg)
 
 A Rust library implementing the Peer Cash Wallet Protocol for IP-to-IP BSV settlement, verbatim from the spec. This crate provides structs, functions, and traits for deterministic derivations, bounded splitting, disjoint coin selection, transaction formation, broadcast strategies, receipts, and failure handling.
 
