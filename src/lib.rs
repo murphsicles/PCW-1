@@ -4,6 +4,27 @@
 //! invoice-scoped settlements using BSV primitives via rust-sv. All public APIs are re-exported
 //! from submodules for convenience, maintaining the separation of concerns outlined in the spec.
 
+// Declare internal modules
+mod scope;
+mod selection;
+mod split;
+mod tx;
+mod utils;
+
+// Placeholder mod declarations for missing modules (replace with actual files as implemented)
+mod addressing;
+mod broadcast;
+mod errors;
+mod failure;
+mod invoice;
+mod json;
+mod keys;
+mod logging;
+mod policy;
+mod protocol;
+mod receipts;
+
+// Re-export public items
 pub use addressing::{recipient_address, sender_change_address};
 pub use broadcast::{BroadcastPolicy, Broadcaster, pacing_schedule};
 pub use errors::PcwError;
