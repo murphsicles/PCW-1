@@ -1,3 +1,9 @@
+//! Module for receipt management in the PCW-1 protocol.
+//!
+//! This module implements the receipt system as per §10.2-§10.5, including manifest
+//! handling, leaf computation, Merkle root generation, proof generation, and verification.
+//! Receipts provide auditable, private proof of payment via Merkle trees.
+
 use crate::errors::PcwError;
 use crate::utils::{le32, le8, sha256};
 use hex;
@@ -12,6 +18,7 @@ pub struct Manifest {
     pub entries: Vec<Entry>,
 }
 
+/// Entry within a manifest (§10.4).
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Entry {
     pub i: u32,
@@ -19,7 +26,11 @@ pub struct Entry {
 }
 
 /// Compute leaves per §10.2.
-pub fn compute_leaves(manifest: &Manifest, amounts: &[u64], addr_payloads: &[[u8; 21]]) -> Result<Vec<[u8; 32]>, PcwError> {
+pub fn compute_leaves(
+    manifest: &Manifest,
+    amounts: &[u64],
+    addr_payloads: &[[u8; 21]],
+) -> Result<Vec<[u8; 32]>, PcwError> {
     if manifest.count != amounts.len() || manifest.count != addr_payloads.len() || manifest.count != manifest.entries.len() {
         return Err(PcwError::Other("Mismatched lengths §10.2".to_string()));
     }
@@ -39,23 +50,24 @@ pub fn compute_leaves(manifest: &Manifest, amounts: &[u64], addr_payloads: &[[u8
     Ok(leaves)
 }
 
-/// Merkle root per §10.3: Binary SHA256(left || right), dup odd leaf.
-pub fn merkle_root(mut leaves: Vec<[u8; 32]>) -> [u8; 32] {
+/// Merkle root per §10.3: Binary SHA256(left || right), duplicate odd leaf.
+pub fn merkle_root(leaves: &[[u8; 32]]) -> [u8; 32] {
     if leaves.is_empty() {
         return [0; 32];
     }
-    while leaves.len() > 1 {
+    let mut current = leaves.to_vec();
+    while current.len() > 1 {
         let mut next = vec![];
-        for i in (0..leaves.len()).step_by(2) {
-            let left = leaves[i];
-            let right = if i + 1 < leaves.len() { leaves[i + 1] } else { left }; // Dup odd
+        for i in (0..current.len()).step_by(2) {
+            let left = current[i];
+            let right = if i + 1 < current.len() { current[i + 1] } else { left }; // Duplicate odd
             let mut concat = left.to_vec();
             concat.extend_from_slice(&right);
             next.push(sha256(&concat));
         }
-        leaves = next;
+        current = next;
     }
-    leaves[0]
+    current[0]
 }
 
 /// Proof for single leaf §10.5.
@@ -67,6 +79,7 @@ pub struct Proof {
     pub path: Vec<PathElement>,
 }
 
+/// Leaf data for a proof (§10.5).
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Leaf {
     pub i: u32,
@@ -75,6 +88,7 @@ pub struct Leaf {
     pub addr_payload: String, // hex 21-byte
 }
 
+/// Path element in a Merkle proof (§10.5).
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PathElement {
     pub pos: String, // "L" or "R"
@@ -82,7 +96,13 @@ pub struct PathElement {
 }
 
 /// Generate single proof for i (§10.5).
-pub fn generate_proof(leaves: &[[u8; 32]], i: usize, manifest: &Manifest, amounts: &[u64], addr_payloads: &[[u8; 21]]) -> Result<Proof, PcwError> {
+pub fn generate_proof(
+    leaves: &[[u8; 32]],
+    i: usize,
+    manifest: &Manifest,
+    amounts: &[u64],
+    addr_payloads: &[[u8; 21]],
+) -> Result<Proof, PcwError> {
     if i >= leaves.len() {
         return Err(PcwError::Other("Index out of bounds §10.5".to_string()));
     }
@@ -182,14 +202,14 @@ mod tests {
     #[test]
     fn test_merkle_root_even() {
         let leaves = vec![[0; 32], [1; 32]];
-        let root = merkle_root(leaves);
+        let root = merkle_root(&leaves);
         assert_ne!(root, [0; 32]);
     }
 
     #[test]
     fn test_merkle_root_odd() {
         let leaves = vec![[0; 32]];
-        let root = merkle_root(leaves);
+        let root = merkle_root(&leaves);
         assert_eq!(root, [0; 32]); // For N=1, root = leaf
     }
 
@@ -235,5 +255,68 @@ mod tests {
         assert!(verify_proof(&proof, &manifest).is_err());
     }
 
-    // Additional tests for mismatched lengths, invalid hex, wrong root
+    #[test]
+    fn test_verify_mismatched_lengths() -> Result<(), PcwError> {
+        let manifest = Manifest {
+            invoice_hash: "test_hash".to_string(),
+            merkle_root: "".to_string(),
+            count: 2,
+            entries: vec![
+                Entry { i: 0, txid: "txid0".to_string() },
+                Entry { i: 1, txid: "txid1".to_string() },
+            ],
+        };
+        let amounts = [100]; // Mismatched length
+        let addr_payloads = [[0; 21], [1; 21]];
+        assert!(compute_leaves(&manifest, &amounts, &addr_payloads).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn test_verify_invalid_hex() {
+        let proof = Proof {
+            invoice_hash: "test_hash".to_string(),
+            merkle_root: "root".to_string(),
+            leaf: Leaf {
+                i: 0,
+                txid: "invalid".to_string(), // Invalid hex
+                amount: 100,
+                addr_payload: hex::encode([0; 21]),
+            },
+            path: vec![],
+        };
+        let manifest = Manifest {
+            invoice_hash: "test_hash".to_string(),
+            merkle_root: "root".to_string(),
+            count: 1,
+            entries: vec![
+                Entry { i: 0, txid: "correct_txid".to_string() },
+            ],
+        };
+        assert!(verify_proof(&proof, &manifest).is_err());
+    }
+
+    #[test]
+    fn test_verify_wrong_root() {
+        let proof = Proof {
+            invoice_hash: "test_hash".to_string(),
+            merkle_root: "wrong_root".to_string(),
+            leaf: Leaf {
+                i: 0,
+                txid: "txid0".to_string(),
+                amount: 100,
+                addr_payload: hex::encode([0; 21]),
+            },
+            path: vec![],
+        };
+        let manifest = Manifest {
+            invoice_hash: "test_hash".to_string(),
+            merkle_root: "correct_root".to_string(),
+            count: 1,
+            entries: vec![
+                Entry { i: 0, txid: "txid0".to_string() },
+            ],
+        };
+        assert!(verify_proof(&proof, &manifest).is_err());
+    }
 }
