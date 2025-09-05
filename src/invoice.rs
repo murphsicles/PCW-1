@@ -8,7 +8,7 @@ use crate::json::canonical_json;
 use crate::keys::IdentityKeypair;
 use crate::utils::sha256;
 use chrono::prelude::*;
-use secp256k1::{Message, Secp256k1, ecdsa::Signature, PublicKey, SecretKey};
+use secp256k1::{Message, ecdsa::Signature, PublicKey, SecretKey};
 use serde::{Deserialize, Serialize};
 use hex;
 
