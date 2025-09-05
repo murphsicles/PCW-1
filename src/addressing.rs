@@ -7,7 +7,7 @@
 use crate::errors::PcwError;
 use crate::scope::Scope;
 use crate::utils::{base58check, h160, point_add, scalar_mul, ser_p};
-use secp256k1::{PublicKey, SecretKey, Secp256k1};
+use secp256k1::{PublicKey, Secp256k1, SecretKey};
 
 /// Derives a recipient address for a given note index.
 ///
@@ -28,7 +28,11 @@ pub fn recipient_address(scope: &Scope, i: u32, anchor_b: &PublicKey) -> Result<
 /// This function generates a change address per note, ensuring no overlap with
 /// other notes in the same invoice, using a scalar derived from {Z, H_I, "snd", i}
 /// (per §6).
-pub fn sender_change_address(scope: &Scope, i: u32, anchor_a: &PublicKey) -> Result<String, PcwError> {
+pub fn sender_change_address(
+    scope: &Scope,
+    i: u32,
+    anchor_a: &PublicKey,
+) -> Result<String, PcwError> {
     let s_i = derive_scalar(scope, "snd", i)?;
     let tweak_point = scalar_mul(&s_i, &secp256k1::constants::GENERATOR)?;
     let p_ai = point_add(anchor_a, &tweak_point)?;
@@ -40,7 +44,7 @@ pub fn sender_change_address(scope: &Scope, i: u32, anchor_a: &PublicKey) -> Res
 #[cfg(test)]
 mod tests {
     use super::*;
-    use secp256k1::{PublicKey, SecretKey, Secp256k1};
+    use secp256k1::{PublicKey, Secp256k1, SecretKey};
 
     #[test]
     fn test_recipient_address() -> Result<(), PcwError> {
@@ -49,7 +53,10 @@ mod tests {
         let secret_key = SecretKey::from_slice(&[1; 32]).expect("32 bytes, within curve order");
         let anchor_b = PublicKey::from_secret_key(&secp, &secret_key);
         let addr = recipient_address(&scope, 0, &anchor_b)?;
-        assert!(addr.starts_with("1"), "Address should start with '1' for mainnet P2PKH");
+        assert!(
+            addr.starts_with("1"),
+            "Address should start with '1' for mainnet P2PKH"
+        );
         Ok(())
     }
 }
