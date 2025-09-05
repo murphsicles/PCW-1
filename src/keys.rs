@@ -5,7 +5,7 @@
 //! for ECDH key derivation (§3.2) using the secp256k1 curve.
 
 use crate::errors::PcwError;
-use secp256k1::{PublicKey, SecretKey, Secp256k1};
+use secp256k1::{PublicKey, Secp256k1, SecretKey};
 
 /// Identity keypair for off-chain authentication (§§3.1, 13.1).
 /// Never used on-chain to maintain privacy.
