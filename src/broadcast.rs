@@ -4,19 +4,19 @@
 //! deterministic pacing strategies (all_at_once, paced, bursts) using SHA-256
 //! and uniform random draws for timing.
 
-use async_trait::async_trait;
 use crate::errors::PcwError;
 use crate::scope::Scope;
 use crate::utils::{le32, sha256};
+use async_trait::async_trait;
 use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
-use tokio::time::{sleep, Duration};
 use std::cmp::min;
+use tokio::time::{Duration, sleep};
 
 /// BroadcastPolicy per §9.3: Fields for strategy, spacing, etc.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct BroadcastPolicy {
-    pub authority: String, // "either"
+    pub authority: String,        // "either"
     pub strategy_default: String, // "paced" | "all_at_once" | "bursts"
     pub min_spacing_ms: u64,
     pub max_spacing_ms: u64,
@@ -35,7 +35,8 @@ pub fn pacing_schedule(scope: &Scope, n: usize, policy: &BroadcastPolicy) -> Vec
     let mut ctr = 0u32;
     let mut schedule = vec![Duration::ZERO; n];
     let now = Utc::now();
-    let start = policy.window_start
+    let start = policy
+        .window_start
         .as_ref()
         .map(|s| Utc::parse_from_rfc3339(s).unwrap_or(now))
         .unwrap_or(now);
@@ -49,8 +50,12 @@ pub fn pacing_schedule(scope: &Scope, n: usize, policy: &BroadcastPolicy) -> Vec
         "paced" => {
             schedule[0] = (start - now).to_std().unwrap_or(Duration::ZERO);
             for i in 1..n {
-                let delta_ms = draw_uniform(&s_pace, &mut ctr, policy.max_spacing_ms - policy.min_spacing_ms + 1)
-                    .unwrap_or(policy.min_spacing_ms); // Fallback to min on error
+                let delta_ms = draw_uniform(
+                    &s_pace,
+                    &mut ctr,
+                    policy.max_spacing_ms - policy.min_spacing_ms + 1,
+                )
+                .unwrap_or(policy.min_spacing_ms); // Fallback to min on error
                 schedule[i] = schedule[i - 1] + Duration::from_millis(delta_ms);
             }
             if let Some(end_str) = &policy.window_end {
