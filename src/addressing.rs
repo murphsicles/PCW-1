@@ -14,7 +14,11 @@ use secp256k1::{PublicKey, Secp256k1, SecretKey};
 /// This function uses the recipient's anchor key, tweaked with a scalar derived from
 /// the ECDH shared secret (Z) and invoice hash (H_I), to create a P2PKH address
 /// that only the recipient can spend (per §5).
-pub fn recipient_address(scope: &Scope, i: u32, anchor_b: &PublicKey) -> Result<String, PcwError> {
+pub fn recipient_address(
+    scope: &Scope,
+    i: u32,
+    anchor_b: &PublicKey,
+) -> Result<String, PcwError> {
     let t_i = derive_scalar(scope, "recv", i)?;
     let tweak_point = scalar_mul(&t_i, &secp256k1::constants::GENERATOR)?;
     let p_bi = point_add(anchor_b, &tweak_point)?;
