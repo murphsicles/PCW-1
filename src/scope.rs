@@ -12,7 +12,7 @@ use proptest::prelude::*;
 /// Per-invoice scope {Z, H_I} (§3.2).
 #[derive(Clone, Debug)]
 pub struct Scope {
-    pub z: [u8; 32], // Shared secret from ECDH
+    pub z: [u8; 32],  // Shared secret from ECDH
     pub h_i: [u8; 32], // Hash of canonical invoice JSON
 }
 
@@ -24,7 +24,11 @@ impl Scope {
 }
 
 /// Derive scalar for domain ("recv"/"snd") and i, with reject-zero bump (§4.2, §7.2).
-pub fn derive_scalar(scope: &Scope, domain: &str, i: u32) -> Result<[u8; 32], PcwError> {
+pub fn derive_scalar(
+    scope: &Scope,
+    domain: &str,
+    i: u32,
+) -> Result<[u8; 32], PcwError> {
     if domain.is_empty() || domain.len() > 255 {
         return Err(PcwError::Other("Domain must be 1-255 bytes §4.2".to_string()));
     }
