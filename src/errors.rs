@@ -4,6 +4,10 @@
 //! encountered during protocol execution, with references to specific sections of
 //! the PCW-1 spec (e.g., §§5.1, 7.3, 10.5).
 
+use chrono::ParseError;
+use secp256k1::Error;
+use serde_json::Error as SerdeJsonError;
+use sv::util::Error as SvError;
 use thiserror::Error;
 
 /// PCW-1 Errors: Rejections and failures per spec.
@@ -67,19 +71,19 @@ pub enum PcwError {
 
     /// Error propagated from rust-sv utilities.
     #[error("rust-sv error: {0}")]
-    SvError(#[from] sv::util::Error),
+    SvError(#[from] SvError),
 
     /// Error propagated from secp256k1 library.
     #[error("secp256k1 error: {0}")]
-    SecpError(#[from] secp256k1::Error),
+    SecpError(#[from] Error),
 
     /// Error propagated from serde JSON parsing.
     #[error("serde error: {0}")]
-    SerdeError(#[from] serde_json::Error),
+    SerdeError(#[from] SerdeJsonError),
 
     /// Error propagated from chrono parsing.
     #[error("chrono error: {0}")]
-    ChronoError(#[from] chrono::ParseError),
+    ChronoError(#[from] ParseError),
 
     /// Catch-all for other unspecified errors.
     #[error("Other: {0}")]
