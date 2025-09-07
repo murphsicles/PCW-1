@@ -116,7 +116,11 @@ fn next_u64(s_pace: &[u8; 32], ctr: &mut u32) -> u64 {
 }
 
 /// Unbiased draw in [0, range-1] with rejection (§9.5, §5.4).
-fn draw_uniform(s_pace: &[u8; 32], ctr: &mut u32, range: u64) -> Result<u64, PcwError> {
+fn draw_uniform(
+    s_pace: &[u8; 32],
+    ctr: &mut u32,
+    range: u64,
+) -> Result<u64, PcwError> {
     if range == 0 {
         return Err(PcwError::Other("Range 0 §9.5".to_string()));
     }
