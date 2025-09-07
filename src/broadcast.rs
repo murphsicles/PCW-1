@@ -30,7 +30,11 @@ pub struct BroadcastPolicy {
 }
 
 /// Deterministic pacing schedule from S_pace (§9.5).
-pub fn pacing_schedule(scope: &Scope, n: usize, policy: &BroadcastPolicy) -> Vec<Duration> {
+pub fn pacing_schedule(
+    scope: &Scope,
+    n: usize,
+    policy: &BroadcastPolicy,
+) -> Vec<Duration> {
     let s_pace = sha256(&[&scope.z[..], &scope.h_i[..], b"pace"].concat());
     let mut ctr = 0u32;
     let mut schedule = vec![Duration::ZERO; n];
@@ -129,6 +133,7 @@ fn draw_uniform(s_pace: &[u8; 32], ctr: &mut u32, range: u64) -> Result<u64, Pcw
 #[async_trait]
 pub trait Broadcaster {
     async fn submit(&self, tx_bytes: &[u8]) -> Result<(), PcwError>;
+
     async fn rebroadcast(&self, tx_bytes: &[u8], interval: Duration) -> Result<(), PcwError> {
         loop {
             self.submit(tx_bytes).await?;
