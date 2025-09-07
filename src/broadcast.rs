@@ -105,7 +105,10 @@ pub fn pacing_schedule(
 }
 
 /// PRNG next_u64: H(s_pace || LE32(ctr)) first 8 bytes BE (§9.5, similar to §5.2).
-fn next_u64(s_pace: &[u8; 32], ctr: &mut u32) -> u64 {
+fn next_u64(
+    s_pace: &[u8; 32],
+    ctr: &mut u32,
+) -> u64 {
     let mut pre = s_pace.to_vec();
     pre.extend_from_slice(&le32(*ctr));
     *ctr += 1;
@@ -138,7 +141,11 @@ fn draw_uniform(
 pub trait Broadcaster {
     async fn submit(&self, tx_bytes: &[u8]) -> Result<(), PcwError>;
 
-    async fn rebroadcast(&self, tx_bytes: &[u8], interval: Duration) -> Result<(), PcwError> {
+    async fn rebroadcast(
+        &self,
+        tx_bytes: &[u8],
+        interval: Duration,
+    ) -> Result<(), PcwError> {
         loop {
             self.submit(tx_bytes).await?;
             sleep(interval).await;
