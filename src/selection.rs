@@ -9,6 +9,8 @@ use sv::messages::OutPoint;
 use std::collections::{HashMap, HashSet};
 use std::cmp::{max, min};
 
+pub use crate::selection::{Reservation, Utxo, build_reservations};
+
 /// UTXO struct for snapshot (§6.1).
 #[derive(Clone, Debug)]
 pub struct Utxo {
@@ -69,6 +71,11 @@ pub fn build_reservations(
         break;
     }
     Ok(r)
+}
+
+/// Result struct for fan-out operation.
+struct FanOutResult {
+    outputs: Vec<Utxo>,
 }
 
 /// Select disjoint inputs for target per stages A-D (§6.4).
@@ -210,11 +217,6 @@ fn fan_out(u: &[Utxo], used: &HashSet<OutPoint>, split: &[u64], feerate: u64, du
         });
     }
     Ok(FanOutResult { outputs })
-}
-
-/// Result struct for fan-out operation.
-struct FanOutResult {
-    outputs: Vec<Utxo>,
 }
 
 /// Build disjoint reservations per §6: Deterministic orders, stages A-D, optional fan-out.
