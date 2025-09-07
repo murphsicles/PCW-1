@@ -48,6 +48,10 @@ pub fn ecdh_z(my_priv: &[u8; 32], their_pub: &PublicKey) -> Result<[u8; 32], Pcw
     let secp = Secp256k1::new();
     let sec_key = SecretKey::from_slice(my_priv)?;
     let shared_point = their_pub.mul_tweak(&secp, &sec_key.scalar())?;
+    // Validate shared point is on curve (safety per §3.2)
+    if !secp.is_valid_point(&shared_point) {
+        return Err(PcwError::Other("Invalid ECDH shared point".to_string()));
+    }
     let serialized = shared_point.serialize();
     let mut z = [0u8; 32];
     z.copy_from_slice(&serialized[1..33]); // x-coordinate, big-endian §2
