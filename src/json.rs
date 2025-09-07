@@ -12,7 +12,7 @@ use std::collections::BTreeMap;
 use unicode_normalization::UnicodeNormalization;
 
 /// Canonical JSON serialization per §2: sorted keys, NFC strings, compact, no whitespace,
-/// base-10 ints, lowercase hex. Uses BTreeMap for sort, custom string handling.
+/// base-10 integers, lowercase hex. Uses BTreeMap for sort, custom string handling.
 pub fn canonical_json<T: Serialize>(t: &T) -> Result<Vec<u8>, PcwError> {
     let val = to_value(t)?;
     let canonical = canonical_value(&val)?;
@@ -27,7 +27,16 @@ fn canonical_value(val: &Value) -> Result<Value, PcwError> {
         Value::Null => Ok(Value::Null),
         Value::Bool(b) => Ok(Value::Bool(*b)),
         Value::Number(n) => Ok(Value::Number(n.clone())), // Ensures base-10
-        Value::String(s) => Ok(Value::String(s.nfc().collect::<String>())), // NFC norm §2
+        Value::String(s) => {
+            // Normalize to NFC and handle potential hex strings (lowercase per §2)
+            let normalized = s.nfc().collect::<String>();
+            if normalized.starts_with("0x") && normalized.len() > 2 {
+                let hex = normalized[2..].to_lowercase();
+                Ok(Value::String(format!("0x{}", hex)))
+            } else {
+                Ok(Value::String(normalized))
+            }
+        }
         Value::Array(arr) => {
             let mut new_arr = Vec::with_capacity(arr.len());
             for v in arr {
@@ -60,7 +69,7 @@ mod tests {
         });
         let bytes = canonical_json(&input)?;
         let s = String::from_utf8(bytes).unwrap();
-        assert_eq!(s, r#"{"a":1,"b":2,"c":"café"}"#); // Sorted, compact, NFC (é is composed)
+        assert_eq!(s, r#"{"a":1,"b":2,"c":"café"}"#); // Sorted, compact, NFC
         Ok(())
     }
 
@@ -88,8 +97,7 @@ mod tests {
         let input = json!({"hash": "0xFFAA"});
         let bytes = canonical_json(&input)?;
         let s = String::from_utf8(bytes).unwrap();
-        // Note: serde_json treats "0xFFAA" as a string, so it remains as-is unless parsed
-        assert_eq!(s, r#"{"hash":"0xFFAA"}"#); // Spec assumes lowercase hex, but input is string
+        assert_eq!(s, r#"{"hash":"0xffaa"}"#); // Lowercase hex per §2
         Ok(())
     }
 }
