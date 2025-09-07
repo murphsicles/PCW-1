@@ -60,9 +60,13 @@ pub fn point_add(p1: &PublicKey, p2: &PublicKey) -> Result<PublicKey, PcwError> 
 }
 
 /// Scalar mul: scalar * G (§4.3).
-pub fn scalar_mul(scalar: &[u8; 32], _g: &secp256k1::constants::GENERATOR) -> Result<PublicKey, PcwError> {
+pub fn scalar_mul(
+    scalar: &[u8; 32],
+    _g: &secp256k1::constants::GENERATOR,
+) -> Result<PublicKey, PcwError> {
     let secp = secp256k1::Secp256k1::new();
-    let secret_key = SecretKey::from_slice(scalar).map_err(|e| PcwError::Other(format!("Invalid scalar: {}", e)))?;
+    let secret_key = SecretKey::from_slice(scalar)
+        .map_err(|e| PcwError::Other(format!("Invalid scalar: {}", e)))?;
     Ok(PublicKey::from_secret_key(&secp, &secret_key))
 }
 
