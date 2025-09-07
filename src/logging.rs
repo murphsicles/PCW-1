@@ -9,8 +9,9 @@ use crate::json::canonical_json;
 use crate::keys::IdentityKeypair;
 use crate::utils::sha256;
 use chrono::prelude::*;
-use serde::Serialize;
+use hex;
 use secp256k1::{Message, Secp256k1, ecdsa::Signature, PublicKey, SecretKey};
+use serde::Serialize;
 use std::collections::HashMap;
 
 /// Trait for signed, append-only logs (§§13.6-13.7).
@@ -23,6 +24,13 @@ pub trait LogRecord: Serialize {
     fn prev_hash(&self) -> String;
     /// Get the sequence number of the record.
     fn seq(&self) -> u64;
+}
+
+/// Metadata for a conflicted outpoint.
+#[derive(Serialize, Clone, Debug)]
+pub struct OutpointMeta {
+    pub txid: String,
+    pub vout: u32,
 }
 
 /// Reissue record (§11.6).
@@ -162,13 +170,6 @@ pub struct ConflictRecord {
     pub seq: u64,
 }
 
-/// Metadata for a conflicted outpoint.
-#[derive(Serialize, Clone, Debug)]
-pub struct OutpointMeta {
-    pub txid: String,
-    pub vout: u32,
-}
-
 impl LogRecord for ConflictRecord {
     fn sign(&mut self, key: &IdentityKeypair) -> Result<(), PcwError> {
         self.by = hex::encode(key.pub_key.serialize());
@@ -269,7 +270,11 @@ impl LogRecord for OrphanedRecord {
 }
 
 /// Append to log with chaining (§13.7).
-pub fn append_to_log<T: LogRecord>(log: &mut Vec<T>, mut record: T, prev: Option<&T>) -> Result<(), PcwError> {
+pub fn append_to_log<T: LogRecord>(
+    log: &mut Vec<T>,
+    mut record: T,
+    prev: Option<&T>,
+) -> Result<(), PcwError> {
     if let Some(p) = prev {
         let mut p_unsigned = p.clone();
         p_unsigned.sig = "".to_string(); // Remove sig for preimage
@@ -290,7 +295,6 @@ pub fn append_to_log<T: LogRecord>(log: &mut Vec<T>, mut record: T, prev: Option
 mod tests {
     use super::*;
     use crate::keys::IdentityKeypair;
-    use hex;
 
     #[test]
     fn test_reissue_record_sign_verify() -> Result<(), PcwError> {
@@ -352,7 +356,10 @@ mod tests {
             i: 0,
             note_id: "note".to_string(),
             event: "conflict_external".to_string(),
-            outpoint: OutpointMeta { txid: "tx".to_string(), vout: 0 },
+            outpoint: OutpointMeta {
+                txid: "tx".to_string(),
+                vout: 0,
+            },
             at: Utc::now().to_rfc3339(),
             by: "".to_string(),
             sig_alg: "".to_string(),
@@ -443,13 +450,16 @@ mod tests {
         assert_eq!(log.len(), 2);
         assert_eq!(log[0].seq, 1);
         assert_eq!(log[1].seq, 2);
-        assert_eq!(log[1].prev_hash, hex::encode(sha256(&canonical_json(&{
-            let mut r = log[0].clone();
-            r.sig = "".to_string();
-            r.by = "".to_string();
-            r.sig_alg = "".to_string();
-            r
-        })?)));
+        assert_eq!(
+            log[1].prev_hash,
+            hex::encode(sha256(&canonical_json(&{
+                let mut r = log[0].clone();
+                r.sig = "".to_string();
+                r.by = "".to_string();
+                r.sig_alg = "".to_string();
+                r
+            })?))
+        );
         Ok(())
     }
 }
