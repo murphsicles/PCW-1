@@ -7,6 +7,7 @@
 
 use crate::errors::PcwError;
 use crate::utils::{le32, sha256};
+use proptest::prelude::*;
 
 /// Per-invoice scope {Z, H_I} (§3.2).
 #[derive(Clone, Debug)]
@@ -49,7 +50,6 @@ pub fn derive_scalar(scope: &Scope, domain: &str, i: u32) -> Result<[u8; 32], Pc
 #[cfg(test)]
 mod tests {
     use super::*;
-    use proptest::prelude::*;
 
     #[test]
     fn test_derive_scalar_basic() {
@@ -85,7 +85,11 @@ mod tests {
 
     proptest! {
         #[test]
-        fn prop_derive_scalar_non_zero(z in prop::array::uniform32(0u8..), h_i in prop::array::uniform32(0u8..), i in 0u32..1000u32) {
+        fn prop_derive_scalar_non_zero(
+            z in prop::array::uniform32(0u8..),
+            h_i in prop::array::uniform32(0u8..),
+            i in 0u32..1000u32,
+        ) {
             let scope = Scope::new(z, h_i);
             let scalar = derive_scalar(&scope, "recv", i).unwrap();
             prop_assert_ne!(scalar, [0u8; 32]);
