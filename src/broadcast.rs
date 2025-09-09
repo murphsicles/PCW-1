@@ -30,11 +30,7 @@ pub struct BroadcastPolicy {
 }
 
 /// Deterministic pacing schedule from S_pace (§9.5).
-pub fn pacing_schedule(
-    scope: &Scope,
-    n: usize,
-    policy: &BroadcastPolicy,
-) -> Vec<Duration> {
+pub fn pacing_schedule(scope: &Scope, n: usize, policy: &BroadcastPolicy) -> Vec<Duration> {
     let s_pace = sha256(&[&scope.z[..], &scope.h_i[..], b"pace"].concat());
     let mut ctr = 0u32;
     let mut schedule = vec![Duration::ZERO; n];
@@ -84,8 +80,8 @@ pub fn pacing_schedule(
                 let start_idx = b * beta;
                 let end_idx = min(start_idx + beta, n);
                 for idx in start_idx..end_idx {
-                    let intra = draw_uniform(&s_pace, &mut ctr, policy.min_spacing_ms + 1)
-                        .unwrap_or(0); // Fallback to 0 on error
+                    let intra =
+                        draw_uniform(&s_pace, &mut ctr, policy.min_spacing_ms + 1).unwrap_or(0); // Fallback to 0 on error
                     schedule[idx] = batch_times[b] + Duration::from_millis(intra);
                 }
             }
@@ -105,10 +101,7 @@ pub fn pacing_schedule(
 }
 
 /// PRNG next_u64: H(s_pace || LE32(ctr)) first 8 bytes BE (§9.5, similar to §5.2).
-fn next_u64(
-    s_pace: &[u8; 32],
-    ctr: &mut u32,
-) -> u64 {
+fn next_u64(s_pace: &[u8; 32], ctr: &mut u32) -> u64 {
     let mut pre = s_pace.to_vec();
     pre.extend_from_slice(&le32(*ctr));
     *ctr += 1;
@@ -119,11 +112,7 @@ fn next_u64(
 }
 
 /// Unbiased draw in [0, range-1] with rejection (§9.5, §5.4).
-fn draw_uniform(
-    s_pace: &[u8; 32],
-    ctr: &mut u32,
-    range: u64,
-) -> Result<u64, PcwError> {
+fn draw_uniform(s_pace: &[u8; 32], ctr: &mut u32, range: u64) -> Result<u64, PcwError> {
     if range == 0 {
         return Err(PcwError::Other("Range 0 §9.5".to_string()));
     }
@@ -141,11 +130,7 @@ fn draw_uniform(
 pub trait Broadcaster {
     async fn submit(&self, tx_bytes: &[u8]) -> Result<(), PcwError>;
 
-    async fn rebroadcast(
-        &self,
-        tx_bytes: &[u8],
-        interval: Duration,
-    ) -> Result<(), PcwError> {
+    async fn rebroadcast(&self, tx_bytes: &[u8], interval: Duration) -> Result<(), PcwError> {
         loop {
             self.submit(tx_bytes).await?;
             sleep(interval).await;
