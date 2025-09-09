@@ -10,13 +10,16 @@ use crate::keys::IdentityKeypair;
 use crate::policy::Policy;
 use crate::scope::Scope;
 use crate::utils::ecdh_z;
+use secp256k1::PublicKey;
+use serde_json;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
-use serde_json;
-use secp256k1::PublicKey;
 
 /// Async handshake: Exchange pubs, compute Z (§3.5).
-pub async fn handshake(stream: &mut TcpStream, my_identity: &IdentityKeypair) -> Result<[u8; 32], PcwError> {
+pub async fn handshake(
+    stream: &mut TcpStream,
+    my_identity: &IdentityKeypair,
+) -> Result<[u8; 32], PcwError> {
     // Send my public key
     let my_pub = my_identity.pub_key.serialize();
     stream.write_all(&my_pub).await?;
@@ -37,7 +40,10 @@ pub async fn handshake(stream: &mut TcpStream, my_identity: &IdentityKeypair) ->
 }
 
 /// Exchange policy: Sender (Bob) sends, receiver (Alice) receives/verify (§3.5, §14.1).
-pub async fn exchange_policy(stream: &mut TcpStream, policy: Option<Policy>) -> Result<Policy, PcwError> {
+pub async fn exchange_policy(
+    stream: &mut TcpStream,
+    policy: Option<Policy>,
+) -> Result<Policy, PcwError> {
     if let Some(p) = policy {
         let bytes = serde_json::to_vec(&p)?;
         let len = (bytes.len() as u32).to_le_bytes();
@@ -101,9 +107,9 @@ mod tests {
     use super::*;
     use crate::keys::IdentityKeypair;
     use secp256k1::Secp256k1;
-    use tokio::net::TcpListener;
     use std::io::Read;
     use std::net::TcpStream as StdTcpStream;
+    use tokio::net::TcpListener;
 
     #[tokio::test]
     async fn test_handshake_symmetry() -> Result<(), PcwError> {
