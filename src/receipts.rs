@@ -5,7 +5,7 @@
 //! Receipts provide auditable, private proof of payment via Merkle trees.
 
 use crate::errors::PcwError;
-use crate::utils::{le32, le8, sha256};
+use crate::utils::{le8, le32, sha256};
 use hex;
 use serde::{Deserialize, Serialize};
 
@@ -31,14 +31,18 @@ pub fn compute_leaves(
     amounts: &[u64],
     addr_payloads: &[[u8; 21]],
 ) -> Result<Vec<[u8; 32]>, PcwError> {
-    if manifest.count != amounts.len() || manifest.count != addr_payloads.len() || manifest.count != manifest.entries.len() {
+    if manifest.count != amounts.len()
+        || manifest.count != addr_payloads.len()
+        || manifest.count != manifest.entries.len()
+    {
         return Err(PcwError::Other("Mismatched lengths §10.2".to_string()));
     }
     let mut leaves = vec![[0; 32]; manifest.count];
     for (idx, entry) in manifest.entries.iter().enumerate() {
         let mut preimage = b"leaf".to_vec();
         preimage.extend_from_slice(&le32(entry.i));
-        let txid_bytes = hex::decode(&entry.txid).map_err(|_| PcwError::Other("Invalid txid hex §10.2".to_string()))?;
+        let txid_bytes = hex::decode(&entry.txid)
+            .map_err(|_| PcwError::Other("Invalid txid hex §10.2".to_string()))?;
         if txid_bytes.len() != 32 {
             return Err(PcwError::Other("Txid not 32 bytes §10.2".to_string()));
         }
@@ -60,7 +64,11 @@ pub fn merkle_root(leaves: &[[u8; 32]]) -> [u8; 32] {
         let mut next = vec![];
         for i in (0..current.len()).step_by(2) {
             let left = current[i];
-            let right = if i + 1 < current.len() { current[i + 1] } else { left }; // Duplicate odd
+            let right = if i + 1 < current.len() {
+                current[i + 1]
+            } else {
+                left
+            }; // Duplicate odd
             let mut concat = left.to_vec();
             concat.extend_from_slice(&right);
             next.push(sha256(&concat));
@@ -91,7 +99,7 @@ pub struct Leaf {
 /// Path element in a Merkle proof (§10.5).
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PathElement {
-    pub pos: String, // "L" or "R"
+    pub pos: String,  // "L" or "R"
     pub hash: String, // hex 32-byte
 }
 
@@ -112,12 +120,27 @@ pub fn generate_proof(
     while current.len() > 1 {
         let is_left = index % 2 == 0;
         let sibling_idx = if is_left { index + 1 } else { index - 1 };
-        let sibling = if sibling_idx >= current.len() { current[index] } else { current[sibling_idx] };
-        path.push(PathElement { pos: if is_left { "L".to_string() } else { "R".to_string() }, hash: hex::encode(sibling) });
+        let sibling = if sibling_idx >= current.len() {
+            current[index]
+        } else {
+            current[sibling_idx]
+        };
+        path.push(PathElement {
+            pos: if is_left {
+                "L".to_string()
+            } else {
+                "R".to_string()
+            },
+            hash: hex::encode(sibling),
+        });
         let mut next = vec![];
         for j in (0..current.len()).step_by(2) {
             let left = current[j];
-            let right = if j + 1 < current.len() { current[j + 1] } else { left };
+            let right = if j + 1 < current.len() {
+                current[j + 1]
+            } else {
+                left
+            };
             let mut concat = left.to_vec();
             concat.extend_from_slice(&right);
             next.push(sha256(&concat));
@@ -142,7 +165,11 @@ pub fn generate_proof(
 
 /// Verify proof (§10.5).
 pub fn verify_proof(proof: &Proof, manifest: &Manifest) -> Result<(), PcwError> {
-    let entry = manifest.entries.iter().find(|e| e.i == proof.leaf.i).ok_or(PcwError::Other("Invalid i §10.5".to_string()))?;
+    let entry = manifest
+        .entries
+        .iter()
+        .find(|e| e.i == proof.leaf.i)
+        .ok_or(PcwError::Other("Invalid i §10.5".to_string()))?;
     if entry.txid != proof.leaf.txid {
         return Err(PcwError::Other("Txid mismatch §10.5".to_string()));
     }
@@ -156,14 +183,22 @@ pub fn verify_proof(proof: &Proof, manifest: &Manifest) -> Result<(), PcwError> 
     preimage.extend_from_slice(&le8(proof.leaf.amount));
     let addr_bytes = hex::decode(&proof.leaf.addr_payload)?;
     if addr_bytes.len() != 21 {
-        return Err(PcwError::Other("Addr payload not 21 bytes §10.2".to_string()));
+        return Err(PcwError::Other(
+            "Addr payload not 21 bytes §10.2".to_string(),
+        ));
     }
     preimage.extend_from_slice(&addr_bytes);
     let mut l = sha256(&preimage);
     for elem in &proof.path {
         let s = hex::decode(&elem.hash)?;
-        let s_arr: [u8; 32] = s.try_into().map_err(|_| PcwError::Other("Sibling not 32 bytes".to_string()))?;
-        let mut concat = if elem.pos == "L" { [l, s_arr].concat() } else { [s_arr, l].concat() };
+        let s_arr: [u8; 32] = s
+            .try_into()
+            .map_err(|_| PcwError::Other("Sibling not 32 bytes".to_string()))?;
+        let mut concat = if elem.pos == "L" {
+            [l, s_arr].concat()
+        } else {
+            [s_arr, l].concat()
+        };
         l = sha256(&concat);
     }
     if hex::encode(l) != proof.merkle_root {
@@ -187,8 +222,16 @@ mod tests {
             merkle_root: "".to_string(),
             count: 2,
             entries: vec![
-                Entry { i: 0, txid: "0000000000000000000000000000000000000000000000000000000000000000".to_string() },
-                Entry { i: 1, txid: "1111111111111111111111111111111111111111111111111111111111111111".to_string() },
+                Entry {
+                    i: 0,
+                    txid: "0000000000000000000000000000000000000000000000000000000000000000"
+                        .to_string(),
+                },
+                Entry {
+                    i: 1,
+                    txid: "1111111111111111111111111111111111111111111111111111111111111111"
+                        .to_string(),
+                },
             ],
         };
         let amounts = [100, 200];
@@ -219,9 +262,10 @@ mod tests {
             invoice_hash: "test_hash".to_string(),
             merkle_root: "".to_string(),
             count: 1,
-            entries: vec![
-                Entry { i: 0, txid: "txid0".to_string() },
-            ],
+            entries: vec![Entry {
+                i: 0,
+                txid: "txid0".to_string(),
+            }],
         };
         let amounts = [100];
         let addr_payloads = [[0; 21]];
@@ -248,9 +292,10 @@ mod tests {
             invoice_hash: "test_hash".to_string(),
             merkle_root: "root".to_string(),
             count: 1,
-            entries: vec![
-                Entry { i: 0, txid: "correct_txid".to_string() },
-            ],
+            entries: vec![Entry {
+                i: 0,
+                txid: "correct_txid".to_string(),
+            }],
         };
         assert!(verify_proof(&proof, &manifest).is_err());
     }
@@ -262,8 +307,14 @@ mod tests {
             merkle_root: "".to_string(),
             count: 2,
             entries: vec![
-                Entry { i: 0, txid: "txid0".to_string() },
-                Entry { i: 1, txid: "txid1".to_string() },
+                Entry {
+                    i: 0,
+                    txid: "txid0".to_string(),
+                },
+                Entry {
+                    i: 1,
+                    txid: "txid1".to_string(),
+                },
             ],
         };
         let amounts = [100]; // Mismatched length
@@ -289,9 +340,10 @@ mod tests {
             invoice_hash: "test_hash".to_string(),
             merkle_root: "root".to_string(),
             count: 1,
-            entries: vec![
-                Entry { i: 0, txid: "correct_txid".to_string() },
-            ],
+            entries: vec![Entry {
+                i: 0,
+                txid: "correct_txid".to_string(),
+            }],
         };
         assert!(verify_proof(&proof, &manifest).is_err());
     }
@@ -313,9 +365,10 @@ mod tests {
             invoice_hash: "test_hash".to_string(),
             merkle_root: "correct_root".to_string(),
             count: 1,
-            entries: vec![
-                Entry { i: 0, txid: "txid0".to_string() },
-            ],
+            entries: vec![Entry {
+                i: 0,
+                txid: "txid0".to_string(),
+            }],
         };
         assert!(verify_proof(&proof, &manifest).is_err());
     }
