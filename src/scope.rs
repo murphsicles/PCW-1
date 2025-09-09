@@ -12,7 +12,7 @@ use proptest::prelude::*;
 /// Per-invoice scope {Z, H_I} (§3.2).
 #[derive(Clone, Debug)]
 pub struct Scope {
-    pub z: [u8; 32],  // Shared secret from ECDH
+    pub z: [u8; 32],   // Shared secret from ECDH
     pub h_i: [u8; 32], // Hash of canonical invoice JSON
 }
 
@@ -24,13 +24,11 @@ impl Scope {
 }
 
 /// Derive scalar for domain ("recv"/"snd") and i, with reject-zero bump (§4.2, §7.2).
-pub fn derive_scalar(
-    scope: &Scope,
-    domain: &str,
-    i: u32,
-) -> Result<[u8; 32], PcwError> {
+pub fn derive_scalar(scope: &Scope, domain: &str, i: u32) -> Result<[u8; 32], PcwError> {
     if domain.is_empty() || domain.len() > 255 {
-        return Err(PcwError::Other("Domain must be 1-255 bytes §4.2".to_string()));
+        return Err(PcwError::Other(
+            "Domain must be 1-255 bytes §4.2".to_string(),
+        ));
     }
     let mut preimage = vec![];
     preimage.extend_from_slice(&scope.z);
@@ -39,12 +37,14 @@ pub fn derive_scalar(
     preimage.extend_from_slice(&le32(i));
     let mut scalar = sha256(&preimage);
     let mut ctr = 0u32;
-    while scalar == [0u8; 32] { // Reject-zero
+    while scalar == [0u8; 32] {
+        // Reject-zero
         ctr += 1;
         let mut bump_preimage = preimage.clone();
         bump_preimage.extend_from_slice(&le32(ctr));
         scalar = sha256(&bump_preimage);
-        if ctr > 1000 { // Safety bound, theoretical
+        if ctr > 1000 {
+            // Safety bound, theoretical
             return Err(PcwError::ZeroScalar("Exhausted bump ctr".to_string()));
         }
     }
