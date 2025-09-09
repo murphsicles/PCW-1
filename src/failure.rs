@@ -71,14 +71,18 @@ impl NoteState {
             (NoteState::Broadcast, Event::MempoolAccept) => Ok(NoteState::Seen),
             (NoteState::Seen, Event::ConfirmDepthReached) => Ok(NoteState::Confirmed),
             (NoteState::Queued, Event::HoldTimeout) => Ok(NoteState::Reissued),
-            (s, Event::ExplicitCancel) if matches!(
-                s,
-                NoteState::Constructed
-                    | NoteState::Signed
-                    | NoteState::Queued
-                    | NoteState::Broadcast
-                    | NoteState::Seen
-            ) => Ok(NoteState::Cancelled),
+            (s, Event::ExplicitCancel)
+                if matches!(
+                    s,
+                    NoteState::Constructed
+                        | NoteState::Signed
+                        | NoteState::Queued
+                        | NoteState::Broadcast
+                        | NoteState::Seen
+                ) =>
+            {
+                Ok(NoteState::Cancelled)
+            }
             (_, Event::Superseded) => Ok(NoteState::Obsolete),
             (_, Event::ExternalConflict) => Ok(NoteState::Conflict),
             (NoteState::Confirmed, Event::ReorgOrphan) => Ok(NoteState::Orphaned),
@@ -124,14 +128,18 @@ impl InvoiceState {
             (InvoiceState::Broadcasting, Event::MempoolAccept) => Ok(InvoiceState::Closing),
             (InvoiceState::Closing, Event::ConfirmDepthReached) => Ok(InvoiceState::Completed),
             (InvoiceState::FanOutPending, Event::HoldTimeout) => Ok(InvoiceState::InsufficientUtxo),
-            (s, Event::ExplicitCancel) if matches!(
-                s,
-                InvoiceState::Open
-                    | InvoiceState::FanOutPending
-                    | InvoiceState::Building
-                    | InvoiceState::Ready
-                    | InvoiceState::Broadcasting
-            ) => Ok(InvoiceState::Stopped),
+            (s, Event::ExplicitCancel)
+                if matches!(
+                    s,
+                    InvoiceState::Open
+                        | InvoiceState::FanOutPending
+                        | InvoiceState::Building
+                        | InvoiceState::Ready
+                        | InvoiceState::Broadcasting
+                ) =>
+            {
+                Ok(InvoiceState::Stopped)
+            }
             (_, Event::Superseded) => Ok(InvoiceState::Expired),
             (_, Event::ExternalConflict) => Ok(InvoiceState::Expired),
             (InvoiceState::Completed, Event::ReorgOrphan) => Ok(InvoiceState::Broadcasting),
