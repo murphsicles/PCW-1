@@ -10,7 +10,7 @@ use crate::keys::IdentityKeypair;
 use crate::utils::sha256;
 use chrono::prelude::*;
 use hex;
-use secp256k1::{Message, Secp256k1, ecdsa::Signature, PublicKey, SecretKey};
+use secp256k1::{Message, PublicKey, Secp256k1, SecretKey, ecdsa::Signature};
 use serde::Serialize;
 use std::collections::HashMap;
 
