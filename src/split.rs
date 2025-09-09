@@ -45,7 +45,9 @@ fn draw_uniform(seed: &[u8; 32], ctr: &mut u32, range: u64) -> Result<u64, PcwEr
         return Err(PcwError::Other("Range 0 §5.4".to_string()));
     }
     if range > (u64::MAX / 2) {
-        return Err(PcwError::Other("Range too large for rejection sampling".to_string()));
+        return Err(PcwError::Other(
+            "Range too large for rejection sampling".to_string(),
+        ));
     }
     let m = 1u64 << 64;
     let lim = (m / range) * range;
@@ -73,7 +75,14 @@ fn choose_n(seed: &[u8; 32], ctr: &mut u32, n_min: u64, n_max: u64) -> Result<u6
 }
 
 /// Prefix-clamped construction (§5.5).
-fn prefix_clamp(t: u64, v_min: u64, v_max: u64, n: u64, seed: &[u8; 32], ctr: &mut u32) -> Result<Vec<u64>, PcwError> {
+fn prefix_clamp(
+    t: u64,
+    v_min: u64,
+    v_max: u64,
+    n: u64,
+    seed: &[u8; 32],
+    ctr: &mut u32,
+) -> Result<Vec<u64>, PcwError> {
     let mut a = vec![0u64; n as usize];
     let mut rem = t;
     for i in 0..(n - 1) as usize {
@@ -81,7 +90,9 @@ fn prefix_clamp(t: u64, v_min: u64, v_max: u64, n: u64, seed: &[u8; 32], ctr: &m
         let low = max(v_min, rem.saturating_sub(v_max * slots));
         let high = min(v_max, rem - v_min * slots);
         if low > high {
-            return Err(PcwError::Other("Invariant violation in prefix-clamp §5.7".to_string()));
+            return Err(PcwError::Other(
+                "Invariant violation in prefix-clamp §5.7".to_string(),
+            ));
         }
         let r = draw_uniform(seed, ctr, high - low + 1)?;
         a[i] = low + r;
