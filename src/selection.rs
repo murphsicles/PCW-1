@@ -5,9 +5,9 @@
 //! It manages disjoint input sets (S_i) for each note in a payment, ensuring privacy and auditability.
 
 use crate::errors::PcwError;
-use sv::messages::OutPoint;
-use std::collections::{HashMap, HashSet};
 use std::cmp::{max, min};
+use std::collections::{HashMap, HashSet};
+use sv::messages::OutPoint;
 
 pub use crate::selection::{Reservation, Utxo, build_reservations};
 
@@ -33,7 +33,12 @@ pub fn build_reservations(
     fanout_allowed: bool,
 ) -> Result<Reservation, PcwError> {
     let mut u_sorted = u0.to_vec();
-    u_sorted.sort_by(|a, b| a.value.cmp(&b.value).then(a.outpoint.txid.cmp(&b.outpoint.txid)).then(a.outpoint.vout.cmp(&b.outpoint.vout)));
+    u_sorted.sort_by(|a, b| {
+        a.value
+            .cmp(&b.value)
+            .then(a.outpoint.txid.cmp(&b.outpoint.txid))
+            .then(a.outpoint.vout.cmp(&b.outpoint.vout))
+    });
     let mut note_indices = (0..split.len()).collect::<Vec<_>>();
     note_indices.sort_by(|&i, &j| split[j].cmp(&split[i]).then_with(|| i.cmp(&j)));
     let mut used = HashSet::new();
@@ -44,7 +49,16 @@ pub fn build_reservations(
         for &i in &note_indices {
             let target = split[i];
             let base_fee = feerate_floor * 10; // Base tx size (approx. 10 bytes)
-            if let Some(s_i) = select_inputs(&u_sorted, &used, target, base_fee, feerate_floor, dust, k_max, m_max)? {
+            if let Some(s_i) = select_inputs(
+                &u_sorted,
+                &used,
+                target,
+                base_fee,
+                feerate_floor,
+                dust,
+                k_max,
+                m_max,
+            )? {
                 let m = s_i.len();
                 let adjusted_fee = base_fee + feerate_floor * (148 * m as u64 + 34); // Adjust for inputs and change
                 let total_value: u64 = s_i.iter().map(|u| u.value).sum();
@@ -58,7 +72,15 @@ pub fn build_reservations(
             } else {
                 if fanout_allowed && !fanout_done {
                     let fan_out = fan_out(&u_sorted, &used, split, feerate_floor, dust)?;
-                    u_sorted = [u_sorted.iter().filter(|u| !used.contains(&u.outpoint)).cloned().collect::<Vec<_>>(), fan_out.outputs].concat();
+                    u_sorted = [
+                        u_sorted
+                            .iter()
+                            .filter(|u| !used.contains(&u.outpoint))
+                            .cloned()
+                            .collect::<Vec<_>>(),
+                        fan_out.outputs,
+                    ]
+                    .concat();
                     used.clear();
                     r.clear();
                     fanout_done = true;
@@ -89,8 +111,17 @@ fn select_inputs(
     k_max: usize,
     m_max: usize,
 ) -> Result<Vec<Utxo>, PcwError> {
-    let mut available = u.iter().filter(|utxo| !used.contains(&utxo.outpoint)).cloned().collect::<Vec<_>>();
-    available.sort_by(|a, b| a.value.cmp(&b.value).then(a.outpoint.txid.cmp(&b.outpoint.txid)).then(a.outpoint.vout.cmp(&b.outpoint.vout)));
+    let mut available = u
+        .iter()
+        .filter(|utxo| !used.contains(&utxo.outpoint))
+        .cloned()
+        .collect::<Vec<_>>();
+    available.sort_by(|a, b| {
+        a.value
+            .cmp(&b.value)
+            .then(a.outpoint.txid.cmp(&b.outpoint.txid))
+            .then(a.outpoint.vout.cmp(&b.outpoint.vout))
+    });
     // Stage A: Exact single
     for utxo in &available {
         let m = 1;
@@ -101,7 +132,11 @@ fn select_inputs(
     }
     // Stage B: Exact few
     for card in 2..=k_max {
-        if let Some(selected) = subset_sum(&available, target + base_fee + feerate * (148 * card as u64 + 34), card)? {
+        if let Some(selected) = subset_sum(
+            &available,
+            target + base_fee + feerate * (148 * card as u64 + 34),
+            card,
+        )? {
             return Ok(selected);
         }
     }
@@ -160,9 +195,11 @@ fn select_inputs(
 /// Exact subset sum for Stage B (§6.4): DP with backtrack for small card.
 fn subset_sum(available: &[Utxo], target: u64, card: usize) -> Result<Option<Vec<Utxo>>, PcwError> {
     let n = available.len();
-    let mut dp = vec![vec![false; (target as usize + 1).min(usize::MAX)]; (card + 1).min(usize::MAX)];
+    let mut dp =
+        vec![vec![false; (target as usize + 1).min(usize::MAX)]; (card + 1).min(usize::MAX)];
     dp[0][0] = true;
-    let mut prev = vec![vec![None; (target as usize + 1).min(usize::MAX)]; (card + 1).min(usize::MAX)]; // (item idx, prev t)
+    let mut prev =
+        vec![vec![None; (target as usize + 1).min(usize::MAX)]; (card + 1).min(usize::MAX)]; // (item idx, prev t)
     for i in 0..n {
         for c in (1..=card).rev() {
             for t in (available[i].value as usize..=(target as usize).min(usize::MAX)).rev() {
@@ -201,8 +238,18 @@ fn subset_sum(available: &[Utxo], target: u64, card: usize) -> Result<Option<Vec
 /// 4. Wait for confirmation (per policy depth).
 /// 5. Fetch the new UTXOs with their real txid/vout/script_pubkey.
 /// For testing, dummy outpoints are used.
-fn fan_out(u: &[Utxo], used: &HashSet<OutPoint>, split: &[u64], feerate: u64, dust: u64) -> Result<FanOutResult, PcwError> {
-    let available = u.iter().filter(|utxo| !used.contains(&utxo.outpoint)).cloned().collect::<Vec<_>>();
+fn fan_out(
+    u: &[Utxo],
+    used: &HashSet<OutPoint>,
+    split: &[u64],
+    feerate: u64,
+    dust: u64,
+) -> Result<FanOutResult, PcwError> {
+    let available = u
+        .iter()
+        .filter(|utxo| !used.contains(&utxo.outpoint))
+        .cloned()
+        .collect::<Vec<_>>();
     let total = available.iter().map(|u| u.value).sum::<u64>();
     let v_max = split.iter().cloned().max().unwrap_or(0);
     let num_out = ((total + v_max - 1) / v_max) as usize + 1; // Buffer
@@ -211,7 +258,10 @@ fn fan_out(u: &[Utxo], used: &HashSet<OutPoint>, split: &[u64], feerate: u64, du
     for k in 0..num_out {
         let dummy_txid = [k as u8; 32];
         outputs.push(Utxo {
-            outpoint: OutPoint { txid: dummy_txid, vout: 0 },
+            outpoint: OutPoint {
+                txid: dummy_txid,
+                vout: 0,
+            },
             value: out_value,
             script_pubkey: vec![], // Dummy for testing
         });
@@ -230,7 +280,12 @@ pub fn build_reservations(
     fanout_allowed: bool,
 ) -> Result<Reservation, PcwError> {
     let mut u_sorted = u0.to_vec();
-    u_sorted.sort_by(|a, b| a.value.cmp(&b.value).then(a.outpoint.txid.cmp(&b.outpoint.txid)).then(a.outpoint.vout.cmp(&b.outpoint.vout)));
+    u_sorted.sort_by(|a, b| {
+        a.value
+            .cmp(&b.value)
+            .then(a.outpoint.txid.cmp(&b.outpoint.txid))
+            .then(a.outpoint.vout.cmp(&b.outpoint.vout))
+    });
     let mut note_indices = (0..split.len()).collect::<Vec<_>>();
     note_indices.sort_by(|&i, &j| split[j].cmp(&split[i]).then_with(|| i.cmp(&j)));
     let mut used = HashSet::new();
@@ -241,7 +296,16 @@ pub fn build_reservations(
         for &i in &note_indices {
             let target = split[i];
             let base_fee = feerate_floor * 10; // Base tx size (approx. 10 bytes)
-            if let Some(s_i) = select_inputs(&u_sorted, &used, target, base_fee, feerate_floor, dust, k_max, m_max)? {
+            if let Some(s_i) = select_inputs(
+                &u_sorted,
+                &used,
+                target,
+                base_fee,
+                feerate_floor,
+                dust,
+                k_max,
+                m_max,
+            )? {
                 let m = s_i.len();
                 let adjusted_fee = base_fee + feerate_floor * (148 * m as u64 + 34); // Adjust for inputs and change
                 let total_value: u64 = s_i.iter().map(|u| u.value).sum();
@@ -255,7 +319,15 @@ pub fn build_reservations(
             } else {
                 if fanout_allowed && !fanout_done {
                     let fan_out = fan_out(&u_sorted, &used, split, feerate_floor, dust)?;
-                    u_sorted = [u_sorted.iter().filter(|u| !used.contains(&u.outpoint)).cloned().collect::<Vec<_>>(), fan_out.outputs].concat();
+                    u_sorted = [
+                        u_sorted
+                            .iter()
+                            .filter(|u| !used.contains(&u.outpoint))
+                            .cloned()
+                            .collect::<Vec<_>>(),
+                        fan_out.outputs,
+                    ]
+                    .concat();
                     used.clear();
                     r.clear();
                     fanout_done = true;
@@ -281,8 +353,17 @@ fn select_inputs(
     k_max: usize,
     m_max: usize,
 ) -> Result<Vec<Utxo>, PcwError> {
-    let mut available = u.iter().filter(|utxo| !used.contains(&utxo.outpoint)).cloned().collect::<Vec<_>>();
-    available.sort_by(|a, b| a.value.cmp(&b.value).then(a.outpoint.txid.cmp(&b.outpoint.txid)).then(a.outpoint.vout.cmp(&b.outpoint.vout)));
+    let mut available = u
+        .iter()
+        .filter(|utxo| !used.contains(&utxo.outpoint))
+        .cloned()
+        .collect::<Vec<_>>();
+    available.sort_by(|a, b| {
+        a.value
+            .cmp(&b.value)
+            .then(a.outpoint.txid.cmp(&b.outpoint.txid))
+            .then(a.outpoint.vout.cmp(&b.outpoint.vout))
+    });
     // Stage A: Exact single
     for utxo in &available {
         let m = 1;
@@ -293,7 +374,11 @@ fn select_inputs(
     }
     // Stage B: Exact few
     for card in 2..=k_max {
-        if let Some(selected) = subset_sum(&available, target + base_fee + feerate * (148 * card as u64 + 34), card)? {
+        if let Some(selected) = subset_sum(
+            &available,
+            target + base_fee + feerate * (148 * card as u64 + 34),
+            card,
+        )? {
             return Ok(selected);
         }
     }
@@ -352,9 +437,11 @@ fn select_inputs(
 /// Exact subset sum for Stage B (§6.4): DP with backtrack for small card.
 fn subset_sum(available: &[Utxo], target: u64, card: usize) -> Result<Option<Vec<Utxo>>, PcwError> {
     let n = available.len();
-    let mut dp = vec![vec![false; (target as usize + 1).min(usize::MAX)]; (card + 1).min(usize::MAX)];
+    let mut dp =
+        vec![vec![false; (target as usize + 1).min(usize::MAX)]; (card + 1).min(usize::MAX)];
     dp[0][0] = true;
-    let mut prev = vec![vec![None; (target as usize + 1).min(usize::MAX)]; (card + 1).min(usize::MAX)]; // (item idx, prev t)
+    let mut prev =
+        vec![vec![None; (target as usize + 1).min(usize::MAX)]; (card + 1).min(usize::MAX)]; // (item idx, prev t)
     for i in 0..n {
         for c in (1..=card).rev() {
             for t in (available[i].value as usize..=(target as usize).min(usize::MAX)).rev() {
@@ -390,13 +477,14 @@ mod tests {
 
     #[test]
     fn test_select_inputs_stage_a() -> Result<(), PcwError> {
-        let utxos = vec![
-            Utxo {
-                outpoint: OutPoint { txid: [0; 32], vout: 0 },
-                value: 150,
-                script_pubkey: vec![],
+        let utxos = vec![Utxo {
+            outpoint: OutPoint {
+                txid: [0; 32],
+                vout: 0,
             },
-        ];
+            value: 150,
+            script_pubkey: vec![],
+        }];
         let used = HashSet::new();
         let selected = select_inputs(&utxos, &used, 100, 10, 1, 50, 5, 10)?;
         assert_eq!(selected.len(), 1);
@@ -406,13 +494,14 @@ mod tests {
 
     #[test]
     fn test_select_inputs_stage_c() -> Result<(), PcwError> {
-        let utxos = vec![
-            Utxo {
-                outpoint: OutPoint { txid: [0; 32], vout: 0 },
-                value: 200,
-                script_pubkey: vec![],
+        let utxos = vec![Utxo {
+            outpoint: OutPoint {
+                txid: [0; 32],
+                vout: 0,
             },
-        ];
+            value: 200,
+            script_pubkey: vec![],
+        }];
         let used = HashSet::new();
         let selected = select_inputs(&utxos, &used, 100, 10, 1, 50, 5, 10)?;
         assert_eq!(selected.len(), 1);
@@ -422,13 +511,14 @@ mod tests {
 
     #[test]
     fn test_build_reservations_with_fanout() -> Result<(), PcwError> {
-        let utxos = vec![
-            Utxo {
-                outpoint: OutPoint { txid: [0; 32], vout: 0 },
-                value: 100,
-                script_pubkey: vec![],
+        let utxos = vec![Utxo {
+            outpoint: OutPoint {
+                txid: [0; 32],
+                vout: 0,
             },
-        ];
+            value: 100,
+            script_pubkey: vec![],
+        }];
         let split = [150]; // Requires fan-out to meet target
         let r = build_reservations(&utxos, &split, 1, 50, 5, 10, true)?;
         assert_eq!(r.len(), 1);
@@ -438,13 +528,14 @@ mod tests {
 
     #[test]
     fn test_fan_out_basic() -> Result<(), PcwError> {
-        let utxos = vec![
-            Utxo {
-                outpoint: OutPoint { txid: [0; 32], vout: 0 },
-                value: 300,
-                script_pubkey: vec![],
+        let utxos = vec![Utxo {
+            outpoint: OutPoint {
+                txid: [0; 32],
+                vout: 0,
             },
-        ];
+            value: 300,
+            script_pubkey: vec![],
+        }];
         let used = HashSet::new();
         let split = [200];
         let fan_out = fan_out(&utxos, &used, &split, 1, 50)?;
