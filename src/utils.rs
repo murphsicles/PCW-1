@@ -6,10 +6,10 @@
 //! secure construction of transactions and addresses.
 
 use crate::errors::PcwError;
-use sha2::{Digest, Sha256};
-use ripemd::Ripemd160;
 use base58::ToBase58;
-use secp256k1::{PublicKey, SecretKey, SECP256K1};
+use ripemd::Ripemd160;
+use secp256k1::{PublicKey, SECP256K1, SecretKey};
+use sha2::{Digest, Sha256};
 use unicode_normalization::UnicodeNormalization;
 
 /// SHA-256 hash (§2).
@@ -80,7 +80,7 @@ pub fn nfc_normalize(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use secp256k1::{SecretKey, PublicKey};
+    use secp256k1::{PublicKey, SecretKey};
 
     #[test]
     fn test_sha256() {
