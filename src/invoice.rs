@@ -8,9 +8,9 @@ use crate::json::canonical_json;
 use crate::keys::IdentityKeypair;
 use crate::utils::sha256;
 use chrono::prelude::*;
-use secp256k1::{Message, ecdsa::Signature, PublicKey, SecretKey};
-use serde::{Deserialize, Serialize};
 use hex;
+use secp256k1::{Message, PublicKey, SecretKey, ecdsa::Signature};
+use serde::{Deserialize, Serialize};
 
 /// Invoice struct per §3.4, §14.2: Canonical fields, sorted order.
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -19,8 +19,8 @@ pub struct Invoice {
     pub terms: String,
     pub unit: String,
     pub total: u64,
-    pub policy_hash: String,  // hex H_policy
-    pub expiry: String,       // ISO-8601 UTC, optional but recommended
+    pub policy_hash: String, // hex H_policy
+    pub expiry: String,      // ISO-8601 UTC, optional but recommended
     pub sig_key: String,
     pub sig_alg: String,
     pub sig: String,
