@@ -78,7 +78,7 @@ pub fn merkle_root(leaves: &[[u8; 32]]) -> [u8; 32] {
     current[0]
 }
 
-/// Proof for single leaf §10.5.
+/// Proof for single leaf (§10.5).
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Proof {
     pub invoice_hash: String,
