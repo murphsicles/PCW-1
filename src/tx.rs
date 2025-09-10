@@ -158,7 +158,8 @@ pub fn build_note_tx(
             &Hash256(sighash.0),
             SIGHASH_ALL | SIGHASH_FORKID,
         )?;
-        let pub_key = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_keys[j])?);
+        let pub_key =
+            PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_keys[j])?);
         tx.inputs[j].unlock_script = create_unlock_script(&sig, &ser_p(&pub_key));
     }
     // Finalize metadata
@@ -228,7 +229,7 @@ mod tests {
     #[test]
     fn test_build_note_tx_no_change() -> Result<(), PcwError> {
         let secp = Secp256k1::new();
-        let scope = Scope::new([0u8; 32], [0u8; 32]);
+        let scope = Scope::new([1; 32], [2; 32])?;
         let utxo = Utxo {
             outpoint: OutPoint {
                 hash: [0; 32],
@@ -261,7 +262,7 @@ mod tests {
     #[test]
     fn test_build_note_tx_with_change() -> Result<(), PcwError> {
         let secp = Secp256k1::new();
-        let scope = Scope::new([0u8; 32], [0u8; 32]);
+        let scope = Scope::new([1; 32], [2; 32])?;
         let utxo = Utxo {
             outpoint: OutPoint {
                 hash: [0; 32],
@@ -294,7 +295,7 @@ mod tests {
     #[test]
     fn test_build_note_tx_dust_reject() {
         let secp = Secp256k1::new();
-        let scope = Scope::new([0u8; 32], [0u8; 32]);
+        let scope = Scope::new([1; 32], [2; 32]).expect("Valid scope");
         let utxo = Utxo {
             outpoint: OutPoint {
                 hash: [0; 32],
@@ -323,7 +324,7 @@ mod tests {
     #[test]
     fn test_build_note_tx_underfunded() {
         let secp = Secp256k1::new();
-        let scope = Scope::new([0u8; 32], [0u8; 32]);
+        let scope = Scope::new([1; 32], [2; 32]).expect("Valid scope");
         let utxo = Utxo {
             outpoint: OutPoint {
                 hash: [0; 32],
