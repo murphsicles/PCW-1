@@ -4,11 +4,10 @@
 //! hashing (SHA-256, H160), address encoding (Base58Check), and elliptic curve operations
 //! (point addition, scalar multiplication). These functions support the deterministic and
 //! secure construction of transactions and addresses.
-
 use crate::errors::PcwError;
 use base58::ToBase58;
 use ripemd::Ripemd160;
-use secp256k1::{PublicKey, SECP256K1, SecretKey};
+use secp256k1::{PublicKey, SecretKey};
 use sha2::{Digest, Sha256};
 use unicode_normalization::UnicodeNormalization;
 
@@ -53,19 +52,22 @@ pub fn base58check(version: u8, payload: &[u8]) -> Result<String, PcwError> {
 /// Point add: P1 + P2 using secp256k1 (§4.3).
 pub fn point_add(p1: &PublicKey, p2: &PublicKey) -> Result<PublicKey, PcwError> {
     let secp = secp256k1::Secp256k1::new();
-    let p1_point = p1.clone().into();
-    let p2_point = p2.clone().into();
+    let p1_point = p1.clone();
+    let p2_point = p2.clone();
     let combined = p1_point.combine(&p2_point)?;
-    Ok(PublicKey::from_combination(&secp, &combined))
+    Ok(combined)
 }
 
 /// Scalar mul: scalar * G (§4.3).
 pub fn scalar_mul(
     scalar: &[u8; 32],
-    _g: &secp256k1::constants::GENERATOR,
+    _g: &secp256k1::constants::GENERATOR_POINT,
 ) -> Result<PublicKey, PcwError> {
+    if *scalar == [0; 32] {
+        return Err(PcwError::Other("Zero scalar §4.3".to_string()));
+    }
     let secp = secp256k1::Secp256k1::new();
-    let secret_key = SecretKey::from_slice(scalar)
+    let secret_key = SecretKey::from_byte_array(scalar)
         .map_err(|e| PcwError::Other(format!("Invalid scalar: {}", e)))?;
     Ok(PublicKey::from_secret_key(&secp, &secret_key))
 }
@@ -80,7 +82,7 @@ pub fn nfc_normalize(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use secp256k1::{PublicKey, SecretKey};
+    use secp256k1::{PublicKey, Secp256k1, SecretKey};
 
     #[test]
     fn test_sha256() {
@@ -122,10 +124,10 @@ mod tests {
 
     #[test]
     fn test_point_add() -> Result<(), PcwError> {
-        let secp = secp256k1::Secp256k1::new();
-        let sk1 = SecretKey::from_slice(&[1u8; 32]).unwrap();
+        let secp = Secp256k1::new();
+        let sk1 = SecretKey::from_byte_array(&[1u8; 32]).unwrap();
         let pk1 = PublicKey::from_secret_key(&secp, &sk1);
-        let sk2 = SecretKey::from_slice(&[2u8; 32]).unwrap();
+        let sk2 = SecretKey::from_byte_array(&[2u8; 32]).unwrap();
         let pk2 = PublicKey::from_secret_key(&secp, &sk2);
         let _sum = point_add(&pk1, &pk2)?; // Should not panic
         Ok(())
@@ -134,14 +136,14 @@ mod tests {
     #[test]
     fn test_scalar_mul() -> Result<(), PcwError> {
         let scalar = [1u8; 32];
-        let _pk = scalar_mul(&scalar, &secp256k1::constants::GENERATOR)?; // Should not panic
+        let _pk = scalar_mul(&scalar, &secp256k1::constants::GENERATOR_POINT)?; // Should not panic
         Ok(())
     }
 
     #[test]
     fn test_scalar_mul_invalid() {
         let scalar = [0u8; 32]; // Invalid scalar (zero)
-        let result = scalar_mul(&scalar, &secp256k1::constants::GENERATOR);
+        let result = scalar_mul(&scalar, &secp256k1::constants::GENERATOR_POINT);
         assert!(result.is_err()); // Should fail due to invalid scalar
     }
 
