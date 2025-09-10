@@ -60,8 +60,9 @@ mod tests {
     #[test]
     fn test_recipient_address() -> Result<(), PcwError> {
         let secp = Secp256k1::new();
-        let scope = Scope::new([0; 32], [0; 32]);
-        let secret_key = SecretKey::from_byte_array(&[1; 32]).expect("32 bytes, within curve order");
+        let scope = Scope::new([1; 32], [2; 32])?;
+        let secret_key =
+            SecretKey::from_byte_array(&[1; 32]).expect("32 bytes, within curve order");
         let anchor_b = PublicKey::from_secret_key(&secp, &secret_key);
         let addr = recipient_address(&secp, &scope, 0, &anchor_b)?;
         assert!(
