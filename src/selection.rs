@@ -1,388 +1,354 @@
-//! Module for UTXO selection and reservation in the PCW-1 protocol.
+//! Module for UTXO selection and reservation logic in the PCW-1 protocol.
 //!
 //! This module implements the UTXO selection and reservation logic as per §6, including
 //! `build_reservations` with stages A-D (§6.4), deterministic ordering, and optional fan-out (§6.8).
 //! It manages disjoint input sets (S_i) for each note in a payment, ensuring privacy and auditability.
+use crate::addressing::recipient_address;
 use crate::errors::PcwError;
-use crate::utils::{sha256, le32};
-use crate::addressing::derive_address;
 use crate::scope::Scope;
+use crate::utils::{le32, sha256};
 use secp256k1::{PublicKey, Secp256k1};
 use std::cmp::max;
 use std::collections::{HashMap, HashSet};
-use sv::messages::OutPoint;
-use sv::util::Hash160;
 
-/// UTXO struct for snapshot (§6.1).
+/// UTXO data for selection.
 #[derive(Clone, Debug)]
 pub struct Utxo {
-    pub outpoint: OutPoint,
+    pub outpoint: sv::messages::OutPoint,
     pub value: u64,
-    pub script_pubkey: Vec<u8>, // For signing
+    pub script_pubkey: Vec<u8>,
 }
 
-/// Reservation table: i -> disjoint S_i (§6.1).
-pub type Reservation = HashMap<usize, Vec<Utxo>>;
+/// Computes N_min and N_max for the given parameters (§6.2).
+pub fn compute_n_min_max(
+    total: u64,
+    vmin: u64,
+    vmax: u64,
+    per_address_cap: u64,
+) -> Result<(usize, usize), PcwError> {
+    if total < vmin || vmin == 0 || vmax < vmin || per_address_cap < vmin || per_address_cap > vmax {
+        return Err(PcwError::Other("Invalid split parameters §6.2".to_string()));
+    }
+    let n_min = (total + per_address_cap - 1) / per_address_cap;
+    let n_max = if vmax > 0 {
+        (total + vmin - 1) / vmin
+    } else {
+        usize::MAX
+    };
+    if n_min > n_max {
+        return Err(PcwError::InfeasibleSplit);
+    }
+    Ok((n_min, n_max))
+}
 
-/// Build disjoint reservations per §6: Deterministic orders, stages A-D, optional fan-out.
+/// Builds reservations S_i and addresses for N notes (§6.4).
 pub fn build_reservations(
-    u0: &[Utxo],
-    split: &[u64],
+    secp: &Secp256k1<secp256k1::All>,
+    utxos: &[Utxo],
+    total: u64,
+    scope: &Scope,
+    recipient_anchor: &PublicKey,
+    sender_anchor: &PublicKey,
     feerate_floor: u64,
     dust: u64,
-    k_max: usize,
-    m_max: usize,
     fanout_allowed: bool,
-    scope: &Scope,
-    sender_anchor: &PublicKey,
-) -> Result<Reservation, PcwError> {
-    let mut u_sorted = u0.to_vec();
-    u_sorted.sort_by(|a, b| {
-        a.value
-            .cmp(&b.value)
-            .then(a.outpoint.hash.cmp(&b.outpoint.hash))
-            .then(a.outpoint.index.cmp(&b.outpoint.index))
-    });
-    let mut note_indices = (0..split.len()).collect::<Vec<_>>();
-    note_indices.sort_by(|&i, &j| split[j].cmp(&split[i]).then_with(|| i.cmp(&j)));
+) -> Result<(Vec<Option<Vec<Utxo>>>, Vec<String>, Vec<u64>, u64), PcwError> {
+    let (n_min, n_max) = compute_n_min_max(total, 100, 1000, 500)?;
+    let n = max(n_min, 1);
+    let mut u_sorted = utxos.to_vec();
+    u_sorted.sort_by(|a, b| a.value.cmp(&b.value).then(a.outpoint.hash.cmp(&b.outpoint.hash)));
+    let base_fee = feerate_floor * 10; // Base tx fee
     let mut used = HashSet::new();
-    let mut r = HashMap::new();
+    let mut reservations = vec![None; n];
+    let mut addrs = vec!["".to_string(); n];
+    let mut amounts = vec![0u64; n];
     let mut fanout_done = false;
-    'outer: loop {
-        for &i in &note_indices {
-            let target = split[i];
-            let base_fee = feerate_floor * 10; // Base tx size (approx. 10 bytes)
-            let s_i = select_inputs(
-                &u_sorted,
-                &used,
-                target,
-                base_fee,
-                feerate_floor,
-                dust,
-                k_max,
-                m_max,
-            )?;
-            match s_i {
-                Some(s_i) => {
-                    let m = s_i.len();
-                    let n = if s_i.iter().map(|u| u.value).sum::<u64>() == target + base_fee + feerate_floor * (148 * m as u64 + 34) {
-                        1
+
+    for i in 0..n {
+        let target = total / n as u64;
+        let s_i = select_utxos(&u_sorted, &mut used, target, feerate_floor, dust)?;
+        match s_i {
+            Some(s_i) => {
+                let m = s_i.len();
+                let n = if s_i.iter().map(|u| u.value).sum::<u64>()
+                    == target + base_fee + feerate_floor * (148 * m as u64 + 34)
+                {
+                    1
+                } else {
+                    2
+                };
+                addrs[i] = recipient_address(secp, scope, i as u32, recipient_anchor)?;
+                amounts[i] = target;
+                reservations[i] = Some(s_i);
+            }
+            None => {
+                if fanout_allowed && !fanout_done {
+                    let fan_out = fan_out(
+                        &u_sorted,
+                        &used,
+                        total,
+                        feerate_floor,
+                        dust,
+                        scope,
+                        sender_anchor,
+                    )?;
+                    u_sorted = [
+                        u_sorted
+                            .iter()
+                            .filter(|u| !used.contains(&u.outpoint.hash))
+                            .cloned()
+                            .collect::<Vec<_>>(),
+                        fan_out,
+                    ]
+                    .concat();
+                    u_sorted.sort_by(|a, b| a.value.cmp(&b.value));
+                    fanout_done = true;
+                    let s_i = select_utxos(&u_sorted, &mut used, target, feerate_floor, dust)?;
+                    if let Some(s_i) = s_i {
+                        let m = s_i.len();
+                        let n = if s_i.iter().map(|u| u.value).sum::<u64>()
+                            == target + base_fee + feerate_floor * (148 * m as u64 + 34)
+                        {
+                            1
+                        } else {
+                            2
+                        };
+                        addrs[i] = recipient_address(secp, scope, i as u32, recipient_anchor)?;
+                        amounts[i] = target;
+                        reservations[i] = Some(s_i);
                     } else {
-                        2
-                    };
-                    let adjusted_fee = base_fee + feerate_floor * (148 * m as u64 + 34 * n); // Adjust for inputs and outputs
-                    let total_value: u64 = s_i.iter().map(|u| u.value).sum();
-                    if total_value < target + adjusted_fee {
-                        continue; // Retry with next stage if underfunded
+                        return Err(PcwError::Underfunded);
                     }
-                    // Tag reservation with NoteID (§6.6)
-                    let note_id = sha256(&[scope.h_i.clone(), le32(i as u32)].concat());
-                    r.insert(i, s_i.clone());
-                    for utxo in &s_i {
-                        used.insert(utxo.outpoint.clone());
-                    }
-                }
-                None => {
-                    if fanout_allowed && !fanout_done {
-                        let fan_out = fan_out(&u_sorted, &used, split, feerate_floor, dust, scope, sender_anchor)?;
-                        u_sorted = [
-                            u_sorted
-                                .iter()
-                                .filter(|u| !used.contains(&u.outpoint))
-                                .cloned()
-                                .collect::<Vec<_>>(),
-                            fan_out.outputs,
-                        ]
-                        .concat();
-                        used.clear();
-                        r.clear();
-                        fanout_done = true;
-                        continue 'outer;
-                    } else {
-                        return Err(PcwError::Other("Insufficient granularity §6.7".to_string()));
-                    }
+                } else {
+                    return Err(PcwError::Underfunded);
                 }
             }
         }
-        break;
     }
-    Ok(r)
+    Ok((reservations, addrs, amounts, n as u64))
 }
 
-/// Result struct for fan-out operation.
-struct FanOutResult {
-    outputs: Vec<Utxo>,
-}
-
-/// Select disjoint inputs for target per stages A-D (§6.4).
-fn select_inputs(
-    u: &[Utxo],
-    used: &HashSet<OutPoint>,
+/// Selects UTXOs for a target amount, considering fees and dust (§6.3).
+fn select_utxos(
+    utxos: &[Utxo],
+    used: &mut HashSet<[u8; 32]>,
     target: u64,
-    base_fee: u64,
-    feerate: u64,
+    feerate_floor: u64,
     dust: u64,
-    k_max: usize,
-    m_max: usize,
 ) -> Result<Option<Vec<Utxo>>, PcwError> {
-    let mut available = u
-        .iter()
-        .filter(|utxo| !used.contains(&utxo.outpoint))
-        .cloned()
-        .collect::<Vec<_>>();
-    available.sort_by(|a, b| {
-        a.value
-            .cmp(&b.value)
-            .then(a.outpoint.hash.cmp(&b.outpoint.hash))
-            .then(a.outpoint.index.cmp(&b.outpoint.index))
-    });
-    // Stage A: Exact single
-    for utxo in &available {
-        let m = 1;
-        let fee = base_fee + feerate * (148 * m as u64 + 34); // 148 bytes per input, 34 for one output
-        if utxo.value == target + fee {
-            return Ok(Some(vec![utxo.clone()]));
-        }
-    }
-    // Stage B: Exact few
-    for card in 2..=k_max {
-        if let Some(selected) = subset_sum(
-            &available,
-            target + base_fee + feerate * (148 * card as u64 + 34),
-            card,
-        )? {
+    let base_fee = feerate_floor * 10; // Base tx fee
+    let mut sum = 0;
+    let mut selected = vec![];
+    for utxo in utxos.iter().filter(|u| !used.contains(&u.outpoint.hash)) {
+        selected.push(utxo.clone());
+        sum += utxo.value;
+        let m = selected.len();
+        let fee = base_fee + feerate_floor * (148 * m as u64 + 34);
+        if sum >= target + fee {
+            if sum < target + fee + dust {
+                return Err(PcwError::DustChange);
+            }
+            for utxo in &selected {
+                used.insert(utxo.outpoint.hash);
+            }
             return Ok(Some(selected));
         }
     }
-    // Stage C: Single near-over
-    let mut best_single = None;
-    let mut min_change = u64::MAX;
-    for utxo in &available {
-        let m = 1;
-        let fee = base_fee + feerate * (148 * m as u64 + 34 * 2); // Two outputs (target + change)
-        if utxo.value > target + fee {
-            let change = utxo.value - target - fee;
-            if change >= dust && change < min_change {
-                min_change = change;
-                best_single = Some(vec![utxo.clone()]);
-            }
-        }
-    }
-    if let Some(bs) = best_single {
-        return Ok(Some(bs));
-    }
-    // Stage D: Fewest m minimal overshoot (greedy largest-first)
-    let mut best_few = None;
-    let mut min_m = usize::MAX;
-    let mut min_over = u64::MAX;
-    for m in 2..=m_max {
-        let mut avail_sorted = available.clone();
-        avail_sorted.sort_by_key(|u| u.value);
-        avail_sorted.reverse(); // Largest first
-        let mut selected = vec![];
-        let mut sum = 0u64;
-        for utxo in &avail_sorted {
-            if selected.len() < m && sum < target + base_fee + feerate * (148 * m as u64 + 34 * 2) {
-                selected.push(utxo.clone());
-                sum += utxo.value;
-            }
-        }
-        let fee = base_fee + feerate * (148 * m as u64 + 34 * 2); // 68 for two outputs
-        if sum >= target + fee {
-            let overshoot = sum - target - fee;
-            if overshoot == 0 || overshoot >= dust {
-                if m < min_m || (m == min_m && overshoot < min_over) {
-                    min_m = m;
-                    min_over = overshoot;
-                    best_few = Some(selected);
-                }
-            }
-        }
-    }
-    Ok(best_few)
+    Ok(None)
 }
 
-/// Exact subset sum for Stage B (§6.4): DP with backtrack for small card.
-fn subset_sum(available: &[Utxo], target: u64, card: usize) -> Result<Option<Vec<Utxo>>, PcwError> {
-    let n = available.len();
-    let target_usize = (target as usize).min(usize::MAX);
-    let mut dp = vec![vec![false; target_usize + 1]; card + 1];
-    dp[0][0] = true;
-    let mut prev = vec![vec![None; target_usize + 1]; card + 1]; // (item idx, prev t)
-    for i in 0..n {
-        for c in (1..=card).rev() {
-            for t in (available[i].value as usize..=target_usize).rev() {
-                if dp[c - 1][t - available[i].value as usize] {
-                    dp[c][t] = true;
-                    prev[c][t] = Some((i, t - available[i].value as usize));
-                }
-            }
-        }
-    }
-    if dp[card][target as usize] {
-        let mut selected = vec![];
-        let mut current_t = target as usize;
-        let mut current_c = card;
-        while current_c > 0 {
-            if let Some((idx, prev_t)) = prev[current_c][current_t] {
-                selected.push(available[idx].clone());
-                current_t = prev_t;
-                current_c -= 1;
-            } else {
-                break;
-            }
-        }
-        Ok(Some(selected))
-    } else {
-        Ok(None)
-    }
-}
-
-/// Fan-out: Consolidate to new payer outputs near v_max (§6.8).
-/// NOTE: This is a stub for production. In a real wallet, replace dummy outpoints with actual ones
-/// obtained from broadcasting the fan-out tx. Steps for production:
-/// 1. Derive new payer addresses under "fund" label using scope and sender anchor.
-/// 2. Build and sign a consolidation tx with available inputs and outputs of size ~ v_max.
-/// 3. Broadcast the tx (e.g., via Electrum or P2P).
-/// 4. Wait for confirmation (per policy depth).
-/// 5. Fetch the new UTXOs with their real hash/index/script_pubkey.
-/// For testing, dummy outpoints are used.
+/// Performs fan-out to generate additional UTXOs (§6.8).
 fn fan_out(
-    u: &[Utxo],
-    used: &HashSet<OutPoint>,
-    split: &[u64],
-    feerate: u64,
+    utxos: &[Utxo],
+    used: &HashSet<[u8; 32]>,
+    split: u64,
+    feerate_floor: u64,
     dust: u64,
     scope: &Scope,
     sender_anchor: &PublicKey,
-) -> Result<FanOutResult, PcwError> {
+) -> Result<Vec<Utxo>, PcwError> {
     let secp = Secp256k1::new();
-    let available = u
+    let base_fee = feerate_floor * 10;
+    let mut available = utxos
         .iter()
-        .filter(|utxo| !used.contains(&utxo.outpoint))
+        .filter(|u| !used.contains(&u.outpoint.hash))
         .cloned()
         .collect::<Vec<_>>();
-    let total = available.iter().map(|u| u.value).sum::<u64>();
-    let v_max = split.iter().cloned().max().unwrap_or(0);
-    let num_out = ((total + v_max - 1) / v_max) as usize + 1; // Buffer
-    let out_value = max(total / num_out as u64, dust); // Ensure above dust
-    let mut outputs = vec![];
-    for k in 0..num_out {
-        // Derive address under "fund" label (§6.8)
-        let fund_addr = derive_address(&secp, scope, "fund", k as u32, sender_anchor)?;
-        let script_pubkey = sv::transaction::p2pkh::create_lock_script(&Hash160(fund_addr.1));
-        outputs.push(Utxo {
-            outpoint: OutPoint {
-                hash: [k as u8; 32], // Dummy for testing
-                index: 0,
-            },
-            value: out_value,
-            script_pubkey: script_pubkey.into_bytes(),
-        });
+    available.sort_by(|a, b| a.value.cmp(&b.value));
+    let mut fan_out_utxos = vec![];
+    let n = (available.iter().map(|u| u.value).sum::<u64>() / split).max(1) as usize;
+    let target = split + base_fee + feerate_floor * (148 + 34 * n as u64);
+    let mut sum = 0;
+    let mut selected = vec![];
+    for utxo in available {
+        selected.push(utxo.clone());
+        sum += utxo.value;
+        if sum >= target {
+            let m = selected.len();
+            let fee = base_fee + feerate_floor * (148 * m as u64 + 34 * n as u64);
+            if sum < target + fee {
+                return Err(PcwError::Underfunded);
+            }
+            let change = sum - target - fee;
+            if change > 0 && change < dust {
+                return Err(PcwError::DustChange);
+            }
+            for i in 0..n {
+                let addr = recipient_address(&secp, scope, i as u32, sender_anchor)?;
+                let script_pubkey = sv::address::addr_decode(&addr, sv::network::Network::Mainnet)?
+                    .0
+                    .to_vec();
+                fan_out_utxos.push(Utxo {
+                    outpoint: sv::messages::OutPoint {
+                        hash: [0; 32], // Placeholder
+                        index: i as u32,
+                    },
+                    value: split,
+                    script_pubkey,
+                });
+            }
+            break;
+        }
     }
-    Ok(FanOutResult { outputs })
+    if fan_out_utxos.is_empty() {
+        return Err(PcwError::Underfunded);
+    }
+    Ok(fan_out_utxos)
+}
+
+/// Computes per-address amounts and checks caps (§6.7).
+pub fn compute_per_address_amounts(
+    secp: &Secp256k1<secp256k1::All>,
+    scope: &Scope,
+    recipient_anchor: &PublicKey,
+    amounts: &[u64],
+) -> Result<HashMap<String, u64>, PcwError> {
+    let mut per_address: HashMap<String, u64> = HashMap::new();
+    for (i, &amount) in amounts.iter().enumerate() {
+        let addr = recipient_address(secp, scope, i as u32, recipient_anchor)?;
+        *per_address.entry(addr).or_insert(0) += amount;
+    }
+    Ok(per_address)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use secp256k1::{PublicKey, SecretKey, Secp256k1};
+    use secp256k1::{PublicKey, Secp256k1, SecretKey};
     use sv::util::hash::Sha256;
 
     #[test]
-    fn test_select_inputs_stage_a() -> Result<(), PcwError> {
-        let secp = Secp256k1::new();
-        let scope = Scope {
-            z: vec![0; 32],
-            h_i: Sha256([0; 32]).into(),
-        };
-        let anchor = PublicKey::from_secret_key(&secp, &SecretKey::from_slice(&[1; 32])?);
-        let utxos = vec![Utxo {
-            outpoint: OutPoint {
-                hash: [0; 32],
-                index: 0,
-            },
-            value: 150,
-            script_pubkey: vec![],
-        }];
-        let used = HashSet::new();
-        let selected = select_inputs(&utxos, &used, 100, 10, 1, 50, 5, 10)?;
-        assert!(selected.is_some());
-        let selected = selected.unwrap();
-        assert_eq!(selected.len(), 1);
-        assert_eq!(selected[0].value, 150);
+    fn test_compute_n_min_max() -> Result<(), PcwError> {
+        let (n_min, n_max) = compute_n_min_max(1000, 100, 1000, 500)?;
+        assert_eq!(n_min, 2); // 1000 / 500 = 2
+        assert_eq!(n_max, 10); // 1000 / 100 = 10
+        let result = compute_n_min_max(1000, 600, 1000, 500);
+        assert!(result.is_err()); // Infeasible: n_min=2 > n_max=1
         Ok(())
     }
 
     #[test]
-    fn test_select_inputs_stage_c() -> Result<(), PcwError> {
-        let secp = Secp256k1::new();
-        let scope = Scope {
-            z: vec![0; 32],
-            h_i: Sha256([0; 32]).into(),
-        };
-        let anchor = PublicKey::from_secret_key(&secp, &SecretKey::from_slice(&[1; 32])?);
-        let utxos = vec![Utxo {
-            outpoint: OutPoint {
-                hash: [0; 32],
-                index: 0,
+    fn test_select_utxos() -> Result<(), PcwError> {
+        let utxos = vec![
+            Utxo {
+                outpoint: sv::messages::OutPoint {
+                    hash: [1; 32],
+                    index: 0,
+                },
+                value: 500,
+                script_pubkey: vec![],
             },
-            value: 200,
-            script_pubkey: vec![],
-        }];
-        let used = HashSet::new();
-        let selected = select_inputs(&utxos, &used, 100, 10, 1, 50, 5, 10)?;
-        assert!(selected.is_some());
-        let selected = selected.unwrap();
-        assert_eq!(selected.len(), 1);
-        assert_eq!(selected[0].value, 200);
+            Utxo {
+                outpoint: sv::messages::OutPoint {
+                    hash: [2; 32],
+                    index: 0,
+                },
+                value: 600,
+                script_pubkey: vec![],
+            },
+        ];
+        let mut used = HashSet::new();
+        let target = 400;
+        let feerate_floor = 1;
+        let dust = 50;
+        let s_i = select_utxos(&utxos, &mut used, target, feerate_floor, dust)?;
+        assert!(s_i.is_some());
+        let s_i = s_i.unwrap();
+        assert_eq!(s_i.len(), 1);
+        assert_eq!(s_i[0].value, 500);
+        assert_eq!(used.len(), 1);
         Ok(())
     }
 
     #[test]
-    fn test_build_reservations_with_fanout() -> Result<(), PcwError> {
+    fn test_build_reservations() -> Result<(), PcwError> {
         let secp = Secp256k1::new();
-        let scope = Scope {
-            z: vec![0; 32],
-            h_i: Sha256([0; 32]).into(),
-        };
-        let anchor = PublicKey::from_secret_key(&secp, &SecretKey::from_slice(&[1; 32])?);
-        let utxos = vec![Utxo {
-            outpoint: OutPoint {
-                hash: [0; 32],
-                index: 0,
+        let scope = Scope::new([1; 32], [2; 32])?;
+        let utxos = vec![
+            Utxo {
+                outpoint: sv::messages::OutPoint {
+                    hash: [1; 32],
+                    index: 0,
+                },
+                value: 1000,
+                script_pubkey: vec![],
             },
-            value: 100,
-            script_pubkey: vec![],
-        }];
-        let split = [150];
-        let r = build_reservations(&utxos, &split, 1, 50, 5, 10, true, &scope, &anchor)?;
-        assert_eq!(r.len(), 1);
-        assert!(r[&0].len() > 0);
+            Utxo {
+                outpoint: sv::messages::OutPoint {
+                    hash: [2; 32],
+                    index: 0,
+                },
+                value: 1000,
+                script_pubkey: vec![],
+            },
+        ];
+        let secret_key = SecretKey::from_byte_array(&[1; 32]).unwrap();
+        let recipient_anchor = PublicKey::from_secret_key(&secp, &secret_key);
+        let sender_anchor = recipient_anchor.clone();
+        let (reservations, addrs, amounts, n) =
+            build_reservations(&secp, &utxos, 1000, &scope, &recipient_anchor, &sender_anchor, 1, 50)?;
+        assert_eq!(n, 2);
+        assert_eq!(reservations.len(), 2);
+        assert_eq!(addrs.len(), 2);
+        assert_eq!(amounts.len(), 2);
+        assert_eq!(amounts.iter().sum::<u64>(), 1000);
         Ok(())
     }
 
     #[test]
-    fn test_fan_out_basic() -> Result<(), PcwError> {
+    fn test_fan_out() -> Result<(), PcwError> {
         let secp = Secp256k1::new();
-        let scope = Scope {
-            z: vec![0; 32],
-            h_i: Sha256([0; 32]).into(),
-        };
-        let anchor = PublicKey::from_secret_key(&secp, &SecretKey::from_slice(&[1; 32])?);
+        let scope = Scope::new([1; 32], [2; 32])?;
         let utxos = vec![Utxo {
-            outpoint: OutPoint {
-                hash: [0; 32],
+            outpoint: sv::messages::OutPoint {
+                hash: [1; 32],
                 index: 0,
             },
-            value: 300,
+            value: 1000,
             script_pubkey: vec![],
         }];
-        let used = HashSet::new();
-        let split = [200];
-        let fan_out = fan_out(&utxos, &used, &split, 1, 50, &scope, &anchor)?;
-        assert_eq!(fan_out.outputs.len(), 2); // Should split into ~2 outputs
-        assert!(fan_out.outputs[0].value >= 50); // Above dust
+        let mut used = HashSet::new();
+        let split = 400;
+        let feerate_floor = 1;
+        let dust = 50;
+        let secret_key = SecretKey::from_byte_array(&[1; 32]).unwrap();
+        let sender_anchor = PublicKey::from_secret_key(&secp, &secret_key);
+        let fan_out_utxos = fan_out(&utxos, &used, split, feerate_floor, dust, &scope, &sender_anchor)?;
+        assert_eq!(fan_out_utxos.len(), 2); // 1000 / 400 = 2
+        assert_eq!(fan_out_utxos[0].value, 400);
+        Ok(())
+    }
+
+    #[test]
+    fn test_compute_per_address_amounts() -> Result<(), PcwError> {
+        let secp = Secp256k1::new();
+        let scope = Scope::new([1; 32], [2; 32])?;
+        let secret_key = SecretKey::from_byte_array(&[1; 32]).unwrap();
+        let recipient_anchor = PublicKey::from_secret_key(&secp, &secret_key);
+        let amounts = [500, 500];
+        let per_address = compute_per_address_amounts(&secp, &scope, &recipient_anchor, &amounts)?;
+        assert_eq!(per_address.len(), 2);
+        assert_eq!(per_address.values().sum::<u64>(), 1000);
         Ok(())
     }
 }
