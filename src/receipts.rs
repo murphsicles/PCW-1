@@ -39,10 +39,9 @@ pub fn compute_leaves(
     for (idx, entry) in manifest.entries.iter().enumerate() {
         let mut preimage = b"leaf".to_vec();
         preimage.extend_from_slice(&le32(entry.i));
-        let txid_bytes = hex::decode(&entry.txid)
-            .map_err(|e| PcwError::Other(format!("Invalid txid hex §10.2: {}", e)))?;
+        let txid_bytes = hex::decode(&entry.txid)?;
         if txid_bytes.len() != 32 {
-            return Err(PcwError::Other("Txid not 32 bytes §10.2".to_string()));
+            return Err(PcwError::Other("Txid not 32 bytes".to_string()));
         }
         preimage.extend_from_slice(&txid_bytes);
         preimage.extend_from_slice(&le8(amounts[idx]));
@@ -97,8 +96,8 @@ pub struct Leaf {
 /// Path element in a Merkle proof (§10.5).
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PathElement {
-    pub pos: String, // "L" or "R"
-    pub hash: String, // hex 32-byte
+    pub pos: String,    // "L" or "R"
+    pub hash: String,   // hex 32-byte
 }
 
 /// Generate single proof for i (§10.5).
@@ -173,15 +172,13 @@ pub fn verify_proof(proof: &Proof, manifest: &Manifest) -> Result<(), PcwError> 
     }
     let mut preimage = b"leaf".to_vec();
     preimage.extend_from_slice(&le32(proof.leaf.i));
-    let txid_bytes = hex::decode(&proof.leaf.txid)
-        .map_err(|e| PcwError::Other(format!("Invalid txid hex §10.5: {}", e)))?;
+    let txid_bytes = hex::decode(&proof.leaf.txid)?;
     if txid_bytes.len() != 32 {
-        return Err(PcwError::Other("Txid not 32 bytes §10.2".to_string()));
+        return Err(PcwError::Other("Txid not 32 bytes".to_string()));
     }
     preimage.extend_from_slice(&txid_bytes);
     preimage.extend_from_slice(&le8(proof.leaf.amount));
-    let addr_bytes = hex::decode(&proof.leaf.addr_payload)
-        .map_err(|e| PcwError::Other(format!("Invalid addr_payload hex §10.5: {}", e)))?;
+    let addr_bytes = hex::decode(&proof.leaf.addr_payload)?;
     if addr_bytes.len() != 21 {
         return Err(PcwError::Other(
             "Addr payload not 21 bytes §10.2".to_string(),
@@ -190,12 +187,11 @@ pub fn verify_proof(proof: &Proof, manifest: &Manifest) -> Result<(), PcwError> 
     preimage.extend_from_slice(&addr_bytes);
     let mut l = sha256(&preimage);
     for elem in &proof.path {
-        let s = hex::decode(&elem.hash)
-            .map_err(|e| PcwError::Other(format!("Invalid path hash hex §10.5: {}", e)))?;
+        let s = hex::decode(&elem.hash)?;
         let s_arr: [u8; 32] = s
             .try_into()
             .map_err(|_| PcwError::Other("Sibling not 32 bytes".to_string()))?;
-        let mut concat = if elem.pos == "L" {
+        let concat = if elem.pos == "L" {
             [l, s_arr].concat()
         } else {
             [s_arr, l].concat()
@@ -206,7 +202,7 @@ pub fn verify_proof(proof: &Proof, manifest: &Manifest) -> Result<(), PcwError> 
         return Err(PcwError::InvalidProof);
     }
     if proof.invoice_hash != manifest.invoice_hash {
-        return Err(PcwError::Other("Invoice hash mismatch §10.5".to_string()));
+        return Err(PcwError::Other("Invoice hash mismatch".to_string()));
     }
     Ok(())
 }
