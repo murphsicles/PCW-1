@@ -8,6 +8,7 @@ repository = "https://github.com/murphsicles/PCW-1"
 readme = "README.md"
 
 [dependencies]
+async-trait = "0.1"
 base58 = "0.2.0"
 chrono = "0.4.41"
 hex = "0.4.3"
