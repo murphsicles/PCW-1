@@ -16,9 +16,7 @@ fn ecdh_z(my_priv: &[u8; 32], their_pub: &PublicKey) -> Result<[u8; 32], PcwErro
     let secp = Secp256k1::new();
     let secret_key = SecretKey::from_byte_array(my_priv)?;
     let shared_point = their_pub.mul_tweak(&secp, &secret_key)?;
-    Ok(shared_point
-        .serialize()
-        [1..33]
+    Ok(shared_point.serialize()[1..33]
         .try_into()
         .map_err(|_| PcwError::Other("Invalid ECDH point".to_string()))?)
 }
