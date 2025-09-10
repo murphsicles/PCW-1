@@ -3,22 +3,19 @@
 //! This module implements the note transaction building and signing logic as per §7-§8,
 //! including the creation of `NoteTx` and `NoteMeta` structures. It handles the construction
 //! of standard P2PKH transactions with deterministic addressing, signing, and metadata logging.
-
 use crate::addressing::{recipient_address, sender_change_address};
 use crate::errors::PcwError;
 use crate::scope::Scope;
-use crate::scope::derive_scalar;
+use crate::selection::Utxo;
 use crate::utils::{base58check, h160, le32, point_add, scalar_mul, ser_p, sha256};
-use chrono::prelude::*;
-use hex;
-use secp256k1::{PublicKey, SECP256K1, SecretKey};
+use chrono::{DateTime, Utc};
+use secp256k1::{PublicKey, Secp256k1, SecretKey};
 use serde::{Deserialize, Serialize};
-use sv::messages::{OutPoint, Tx, TxIn, TxOut};
+use sv::messages::Tx;
 use sv::script::op_codes::*;
-use sv::transaction::generate_signature;
 use sv::transaction::p2pkh::{create_lock_script, create_unlock_script};
 use sv::transaction::sighash::{SIGHASH_ALL, SIGHASH_FORKID, SigHashCache, sighash};
-use sv::util::Hash256;
+use sv::util::{Hash160, Hash256};
 
 /// NoteMeta per §8.3: Canonical fields for log/audit.
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -44,8 +41,8 @@ pub struct NoteMeta {
 /// InputMeta for NoteMeta.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct InputMeta {
-    pub txid: String,
-    pub vout: u32,
+    pub hash: String,
+    pub index: u32,
     pub value: u64,
     pub script_pubkey: String,
 }
@@ -76,39 +73,44 @@ pub fn build_note_tx(
     if s_i.len() != priv_keys.len() {
         return Err(PcwError::Other("Mismatched inputs/priv_keys".to_string()));
     }
-    let addr_b = recipient_address(scope, i, anchor_b)?;
-    let t_i = derive_scalar(scope, "recv", i)?; // Fixed import issue
-    let tweak_b = scalar_mul(&t_i, &secp256k1::constants::GENERATOR)?;
-    let p_bi = point_add(anchor_b, &tweak_b)?;
+    let secp = Secp256k1::new();
+    let addr_b = recipient_address(&secp, scope, i, anchor_b)?;
+    let t_i = scalar_mul(&scope.derive_scalar("recv", i)?, &secp)?;
+    let p_bi = point_add(anchor_b, &t_i)?;
     let h160_b = h160(&ser_p(&p_bi));
+    let h160_b_hash = Hash160(h160_b);
     let m = s_i.len();
     let mut s_i_sorted = s_i.to_vec();
     s_i_sorted.sort_by(|a, b| {
         a.value
             .cmp(&b.value)
-            .then(a.outpoint.txid.cmp(&b.outpoint.txid))
-            .then(a.outpoint.vout.cmp(&b.outpoint.vout))
+            .then(a.outpoint.hash.cmp(&b.outpoint.hash))
+            .then(a.outpoint.index.cmp(&b.outpoint.index))
     });
     let sum_in: u64 = s_i_sorted.iter().map(|u| u.value).sum();
-    let base_size = 10 + 148 * m as u64; // Base tx size without outputs
-    let mut tx = Tx::new(1, vec![], vec![], 0);
-
+    let base_size = 10 + 148 * m as u64; // Base tx size without outputs (§7.3)
+    let mut tx = Tx {
+        version: 1,
+        inputs: vec![],
+        outputs: vec![],
+        lock_time: 0,
+    };
     // Initial fee estimate with one output
     let mut fee = ((feerate_floor * (base_size + 34)) + 999) / 1000; // 34 bytes for one output
     let mut change = sum_in.saturating_sub(amount + fee);
     let mut n = 1;
-
     if change > 0 && change < dust {
         return Err(PcwError::DustChange);
     }
     if sum_in < amount + fee {
         return Err(PcwError::Underfunded);
     }
-
     // Add recipient output
-    let lock_b = create_lock_script(&h160_b.to_vec());
-    tx.outputs.push(TxOut::new(amount, lock_b));
-
+    let lock_b = create_lock_script(&h160_b_hash);
+    tx.outputs.push(sv::messages::TxOut {
+        value: amount,
+        script: lock_b,
+    });
     // Determine if change output is needed
     let mut addr_a = String::new();
     let mut h160_a = [0; 20];
@@ -117,24 +119,29 @@ pub fn build_note_tx(
         fee = ((feerate_floor * (base_size + 68)) + 999) / 1000; // 68 bytes for two outputs
         change = sum_in.saturating_sub(amount + fee);
         if change > 0 && change >= dust {
-            addr_a = sender_change_address(scope, i, anchor_a)?;
-            let s_i_scalar = derive_scalar(scope, "snd", i)?;
-            let tweak_a = scalar_mul(&s_i_scalar, &secp256k1::constants::GENERATOR)?;
+            addr_a = sender_change_address(&secp, scope, i, anchor_a)?;
+            let s_i_scalar = scope.derive_scalar("snd", i)?;
+            let tweak_a = scalar_mul(&s_i_scalar, &secp)?;
             let p_ai = point_add(anchor_a, &tweak_a)?;
             h160_a = h160(&ser_p(&p_ai));
-            let lock_a = create_lock_script(&h160_a.to_vec());
-            tx.outputs.push(TxOut::new(change, lock_a));
+            let h160_a_hash = Hash160(h160_a);
+            let lock_a = create_lock_script(&h160_a_hash);
+            tx.outputs.push(sv::messages::TxOut {
+                value: change,
+                script: lock_a,
+            });
         } else if change > 0 {
             return Err(PcwError::DustChange);
         }
     }
-
     // Add inputs
     for utxo in &s_i_sorted {
-        tx.inputs
-            .push(TxIn::new(utxo.outpoint.clone(), vec![], 0xFFFFFFFF));
+        tx.inputs.push(sv::messages::TxIn {
+            prevout: utxo.outpoint.clone(),
+            unlock_script: vec![],
+            sequence: 0xFFFFFFFF,
+        });
     }
-
     // Sign transactions
     let mut cache = SigHashCache::new();
     for j in 0..m {
@@ -144,21 +151,21 @@ pub fn build_note_tx(
             &s_i_sorted[j].script_pubkey,
             s_i_sorted[j].value,
             SIGHASH_ALL | SIGHASH_FORKID,
+            &mut cache,
         )?;
         let sig = generate_signature(
             &priv_keys[j],
             &Hash256(sighash.0),
             SIGHASH_ALL | SIGHASH_FORKID,
         )?;
-        let pub_key = PublicKey::from_secret_key(SECP256K1, &SecretKey::from_slice(&priv_keys[j])?);
+        let pub_key = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_keys[j])?);
         tx.inputs[j].unlock_script = create_unlock_script(&sig, &ser_p(&pub_key));
     }
-
     // Finalize metadata
     let tx_bytes = tx.serialize();
     let txid_hash = sha256(&sha256(&tx_bytes));
     let txid = hex::encode(txid_hash);
-    let note_id = hex::encode(sha256(&[scope.h_i, le32(i)].concat()));
+    let note_id = hex::encode(sha256(&[scope.h_i.clone(), le32(i)].concat()));
     let meta = NoteMeta {
         i,
         note_id,
@@ -174,8 +181,8 @@ pub fn build_note_tx(
         inputs: s_i_sorted
             .iter()
             .map(|u| InputMeta {
-                txid: hex::encode(u.outpoint.txid),
-                vout: u.outpoint.vout,
+                hash: hex::encode(u.outpoint.hash),
+                index: u.outpoint.index,
                 value: u.value,
                 script_pubkey: hex::encode(&u.script_pubkey),
             })
@@ -189,10 +196,9 @@ pub fn build_note_tx(
             })
             .collect(),
         sig_alg: "secp256k1-sha256".to_string(),
-        created_at: Utc::now().to_rfc3339(),
+        created_at: Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
         status: "signed".to_string(),
     };
-
     Ok((NoteTx(tx), meta))
 }
 
@@ -215,21 +221,24 @@ fn reverse_base58(lock: &Vec<u8>) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use secp256k1::{PublicKey, SecretKey};
+    use crate::selection::Utxo;
+    use secp256k1::SecretKey;
+    use sv::messages::OutPoint;
 
     #[test]
     fn test_build_note_tx_no_change() -> Result<(), PcwError> {
+        let secp = Secp256k1::new();
         let scope = Scope::new([0u8; 32], [0u8; 32]);
         let utxo = Utxo {
             outpoint: OutPoint {
-                txid: [0; 32],
-                vout: 0,
+                hash: [0; 32],
+                index: 0,
             },
             value: 150,
             script_pubkey: vec![],
         };
         let priv_key = [1u8; 32];
-        let anchor_b = PublicKey::from_secret_key(SECP256K1, &SecretKey::from_slice(&priv_key)?);
+        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_key)?);
         let anchor_a = anchor_b.clone(); // For testing
         let (tx, meta) = build_note_tx(
             &scope,
@@ -251,17 +260,18 @@ mod tests {
 
     #[test]
     fn test_build_note_tx_with_change() -> Result<(), PcwError> {
+        let secp = Secp256k1::new();
         let scope = Scope::new([0u8; 32], [0u8; 32]);
         let utxo = Utxo {
             outpoint: OutPoint {
-                txid: [0; 32],
-                vout: 0,
+                hash: [0; 32],
+                index: 0,
             },
             value: 200,
             script_pubkey: vec![],
         };
         let priv_key = [1u8; 32];
-        let anchor_b = PublicKey::from_secret_key(SECP256K1, &SecretKey::from_slice(&priv_key)?);
+        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_key)?);
         let anchor_a = anchor_b.clone(); // For testing
         let (tx, meta) = build_note_tx(
             &scope,
@@ -283,18 +293,18 @@ mod tests {
 
     #[test]
     fn test_build_note_tx_dust_reject() {
+        let secp = Secp256k1::new();
         let scope = Scope::new([0u8; 32], [0u8; 32]);
         let utxo = Utxo {
             outpoint: OutPoint {
-                txid: [0; 32],
-                vout: 0,
+                hash: [0; 32],
+                index: 0,
             },
             value: 151,
             script_pubkey: vec![],
         };
         let priv_key = [1u8; 32];
-        let anchor_b =
-            PublicKey::from_secret_key(SECP256K1, &SecretKey::from_slice(&priv_key).unwrap());
+        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_key)?);
         let anchor_a = anchor_b.clone();
         let result = build_note_tx(
             &scope,
@@ -312,18 +322,18 @@ mod tests {
 
     #[test]
     fn test_build_note_tx_underfunded() {
+        let secp = Secp256k1::new();
         let scope = Scope::new([0u8; 32], [0u8; 32]);
         let utxo = Utxo {
             outpoint: OutPoint {
-                txid: [0; 32],
-                vout: 0,
+                hash: [0; 32],
+                index: 0,
             },
             value: 50,
             script_pubkey: vec![],
         };
         let priv_key = [1u8; 32];
-        let anchor_b =
-            PublicKey::from_secret_key(SECP256K1, &SecretKey::from_slice(&priv_key).unwrap());
+        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_key)?);
         let anchor_a = anchor_b.clone();
         let result = build_note_tx(
             &scope,
@@ -346,7 +356,6 @@ mod tests {
             OP_HASH160,
             0x14,
             0x12,
-            0x34,
             0x56,
             0x78,
             0x9a,
