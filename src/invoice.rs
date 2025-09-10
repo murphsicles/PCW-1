@@ -7,7 +7,7 @@ use crate::json::canonical_json;
 use crate::keys::IdentityKeypair;
 use crate::utils::sha256;
 use chrono::{DateTime, Utc};
-use secp256k1::{ecdsa::Signature, Message, PublicKey, Secp256k1, SecretKey};
+use secp256k1::{Message, PublicKey, Secp256k1, SecretKey, ecdsa::Signature};
 use serde::{Deserialize, Serialize};
 
 /// Invoice struct per §3.4, §14.2: Canonical fields, sorted order.
