@@ -8,7 +8,7 @@ use crate::json::canonical_json;
 use crate::keys::IdentityKeypair;
 use crate::utils::sha256;
 use chrono::{DateTime, Utc};
-use secp256k1::{Message, PublicKey, Secp256k1, SecretKey, ecdsa::Signature};
+use secp256k1::{ecdsa::Signature, Message, PublicKey, Secp256k1, SecretKey};
 use serde::Serialize;
 use std::collections::HashMap;
 
@@ -83,8 +83,8 @@ impl LogRecord for ReissueRecord {
         let bytes = canonical_json(&unsigned)?;
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
-        let pub_key = PublicKey::from_slice(&hex::decode(&self.by).map_err(|e| PcwError::Other(format!("Hex decode error: {}", e)))?)?;
-        let sig = Signature::from_der(&hex::decode(&self.sig).map_err(|e| PcwError::Other(format!("Hex decode error: {}", e)))?)?;
+        let pub_key = PublicKey::from_slice(&hex::decode(&self.by)?)?;
+        let sig = Signature::from_der(&hex::decode(&self.sig)?)?;
         let secp = Secp256k1::new();
         secp.verify_ecdsa(&msg, &sig, &pub_key)?;
         Ok(())
@@ -156,8 +156,8 @@ impl LogRecord for CancelRecord {
         let bytes = canonical_json(&unsigned)?;
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
-        let pub_key = PublicKey::from_slice(&hex::decode(&self.by).map_err(|e| PcwError::Other(format!("Hex decode error: {}", e)))?)?;
-        let sig = Signature::from_der(&hex::decode(&self.sig).map_err(|e| PcwError::Other(format!("Hex decode error: {}", e)))?)?;
+        let pub_key = PublicKey::from_slice(&hex::decode(&self.by)?)?;
+        let sig = Signature::from_der(&hex::decode(&self.sig)?)?;
         let secp = Secp256k1::new();
         secp.verify_ecdsa(&msg, &sig, &pub_key)?;
         Ok(())
@@ -228,8 +228,8 @@ impl LogRecord for ConflictRecord {
         let bytes = canonical_json(&unsigned)?;
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
-        let pub_key = PublicKey::from_slice(&hex::decode(&self.by).map_err(|e| PcwError::Other(format!("Hex decode error: {}", e)))?)?;
-        let sig = Signature::from_der(&hex::decode(&self.sig).map_err(|e| PcwError::Other(format!("Hex decode error: {}", e)))?)?;
+        let pub_key = PublicKey::from_slice(&hex::decode(&self.by)?)?;
+        let sig = Signature::from_der(&hex::decode(&self.sig)?)?;
         let secp = Secp256k1::new();
         secp.verify_ecdsa(&msg, &sig, &pub_key)?;
         Ok(())
@@ -301,8 +301,8 @@ impl LogRecord for OrphanedRecord {
         let bytes = canonical_json(&unsigned)?;
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
-        let pub_key = PublicKey::from_slice(&hex::decode(&self.by).map_err(|e| PcwError::Other(format!("Hex decode error: {}", e)))?)?;
-        let sig = Signature::from_der(&hex::decode(&self.sig).map_err(|e| PcwError::Other(format!("Hex decode error: {}", e)))?)?;
+        let pub_key = PublicKey::from_slice(&hex::decode(&self.by)?)?;
+        let sig = Signature::from_der(&hex::decode(&self.sig)?)?;
         let secp = Secp256k1::new();
         secp.verify_ecdsa(&msg, &sig, &pub_key)?;
         Ok(())
@@ -513,10 +513,7 @@ mod tests {
         assert_eq!(log[1].seq, 2);
         let mut r = log[0].clone();
         r.set_signature("".to_string(), "".to_string(), "".to_string());
-        assert_eq!(
-            log[1].prev_hash,
-            hex::encode(sha256(&canonical_json(&r)?))
-        );
+        assert_eq!(log[1].prev_hash, hex::encode(sha256(&canonical_json(&r)?)));
         Ok(())
     }
 }
