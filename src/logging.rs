@@ -1,36 +1,42 @@
 //! Module for logging in the PCW-1 protocol.
 //!
-//! This module provides a signed, append-only logging system as per §§13.6-13.7,
+//! This module provides a signed, append-only logging system as per §13.6-§13.7,
 //! with record types for reissues, cancellations, conflicts, and orphaned notes.
 //! Logs are chained via previous hashes and signed with identity keypairs.
-
 use crate::errors::PcwError;
 use crate::json::canonical_json;
 use crate::keys::IdentityKeypair;
 use crate::utils::sha256;
-use chrono::prelude::*;
-use hex;
+use chrono::{DateTime, Utc};
 use secp256k1::{Message, PublicKey, Secp256k1, SecretKey, ecdsa::Signature};
 use serde::Serialize;
 use std::collections::HashMap;
 
-/// Trait for signed, append-only logs (§§13.6-13.7).
-pub trait LogRecord: Serialize {
+/// Trait for signed, append-only logs (§13.6-§13.7).
+pub trait LogRecord: Serialize + Clone {
     /// Sign the record with the provided identity keypair.
     fn sign(&mut self, key: &IdentityKeypair) -> Result<(), PcwError>;
     /// Verify the record's signature.
     fn verify(&self) -> Result<(), PcwError>;
     /// Get the previous hash for chaining.
     fn prev_hash(&self) -> String;
+    /// Set the previous hash for chaining.
+    fn set_prev_hash(&mut self, hash: String);
     /// Get the sequence number of the record.
     fn seq(&self) -> u64;
+    /// Set the sequence number of the record.
+    fn set_seq(&mut self, seq: u64);
+    /// Set the timestamp of the record.
+    fn set_at(&mut self, at: String);
+    /// Set the signature fields (by, sig_alg, sig).
+    fn set_signature(&mut self, by: String, sig_alg: String, sig: String);
 }
 
 /// Metadata for a conflicted outpoint.
 #[derive(Serialize, Clone, Debug)]
 pub struct OutpointMeta {
-    pub txid: String,
-    pub vout: u32,
+    pub hash: String,
+    pub index: u32,
 }
 
 /// Reissue record (§11.6).
@@ -57,31 +63,28 @@ pub struct ReissueRecord {
 
 impl LogRecord for ReissueRecord {
     fn sign(&mut self, key: &IdentityKeypair) -> Result<(), PcwError> {
-        self.by = hex::encode(key.pub_key.serialize());
-        self.sig_alg = "secp256k1-sha256".to_string();
+        let by = hex::encode(key.pub_key.serialize());
+        let sig_alg = "secp256k1-sha256".to_string();
         let mut unsigned = self.clone();
-        unsigned.sig = "".to_string();
-        unsigned.by = "".to_string();
-        unsigned.sig_alg = "".to_string();
+        unsigned.set_signature("".to_string(), "".to_string(), "".to_string());
         let bytes = canonical_json(&unsigned)?;
         let hash = sha256(&bytes);
-        let msg = Message::from_slice(&hash)?;
+        let msg = Message::from_digest(hash);
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_slice(&key.priv_key)?);
-        self.sig = hex::encode(sig.serialize_der());
+        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_byte_array(&key.priv_key)?);
+        let sig_hex = hex::encode(sig.serialize_der());
+        self.set_signature(by, sig_alg, sig_hex);
         Ok(())
     }
 
     fn verify(&self) -> Result<(), PcwError> {
         let mut unsigned = self.clone();
-        unsigned.sig = "".to_string();
-        unsigned.by = "".to_string();
-        unsigned.sig_alg = "".to_string();
+        unsigned.set_signature("".to_string(), "".to_string(), "".to_string());
         let bytes = canonical_json(&unsigned)?;
         let hash = sha256(&bytes);
-        let msg = Message::from_slice(&hash)?;
-        let pub_key = PublicKey::from_slice(&hex::decode(&self.by)?)?;
-        let sig = Signature::from_der(&hex::decode(&self.sig)?)?;
+        let msg = Message::from_digest(hash);
+        let pub_key = PublicKey::from_slice(&hex::decode(&self.by).map_err(|e| PcwError::Other(format!("Hex decode error: {}", e)))?)?;
+        let sig = Signature::from_der(&hex::decode(&self.sig).map_err(|e| PcwError::Other(format!("Hex decode error: {}", e)))?)?;
         let secp = Secp256k1::new();
         secp.verify_ecdsa(&msg, &sig, &pub_key)?;
         Ok(())
@@ -91,8 +94,26 @@ impl LogRecord for ReissueRecord {
         self.prev_hash.clone()
     }
 
+    fn set_prev_hash(&mut self, hash: String) {
+        self.prev_hash = hash;
+    }
+
     fn seq(&self) -> u64 {
         self.seq
+    }
+
+    fn set_seq(&mut self, seq: u64) {
+        self.seq = seq;
+    }
+
+    fn set_at(&mut self, at: String) {
+        self.at = at;
+    }
+
+    fn set_signature(&mut self, by: String, sig_alg: String, sig: String) {
+        self.by = by;
+        self.sig_alg = sig_alg;
+        self.sig = sig;
     }
 }
 
@@ -115,31 +136,28 @@ pub struct CancelRecord {
 
 impl LogRecord for CancelRecord {
     fn sign(&mut self, key: &IdentityKeypair) -> Result<(), PcwError> {
-        self.by = hex::encode(key.pub_key.serialize());
-        self.sig_alg = "secp256k1-sha256".to_string();
+        let by = hex::encode(key.pub_key.serialize());
+        let sig_alg = "secp256k1-sha256".to_string();
         let mut unsigned = self.clone();
-        unsigned.sig = "".to_string();
-        unsigned.by = "".to_string();
-        unsigned.sig_alg = "".to_string();
+        unsigned.set_signature("".to_string(), "".to_string(), "".to_string());
         let bytes = canonical_json(&unsigned)?;
         let hash = sha256(&bytes);
-        let msg = Message::from_slice(&hash)?;
+        let msg = Message::from_digest(hash);
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_slice(&key.priv_key)?);
-        self.sig = hex::encode(sig.serialize_der());
+        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_byte_array(&key.priv_key)?);
+        let sig_hex = hex::encode(sig.serialize_der());
+        self.set_signature(by, sig_alg, sig_hex);
         Ok(())
     }
 
     fn verify(&self) -> Result<(), PcwError> {
         let mut unsigned = self.clone();
-        unsigned.sig = "".to_string();
-        unsigned.by = "".to_string();
-        unsigned.sig_alg = "".to_string();
+        unsigned.set_signature("".to_string(), "".to_string(), "".to_string());
         let bytes = canonical_json(&unsigned)?;
         let hash = sha256(&bytes);
-        let msg = Message::from_slice(&hash)?;
-        let pub_key = PublicKey::from_slice(&hex::decode(&self.by)?)?;
-        let sig = Signature::from_der(&hex::decode(&self.sig)?)?;
+        let msg = Message::from_digest(hash);
+        let pub_key = PublicKey::from_slice(&hex::decode(&self.by).map_err(|e| PcwError::Other(format!("Hex decode error: {}", e)))?)?;
+        let sig = Signature::from_der(&hex::decode(&self.sig).map_err(|e| PcwError::Other(format!("Hex decode error: {}", e)))?)?;
         let secp = Secp256k1::new();
         secp.verify_ecdsa(&msg, &sig, &pub_key)?;
         Ok(())
@@ -149,8 +167,26 @@ impl LogRecord for CancelRecord {
         self.prev_hash.clone()
     }
 
+    fn set_prev_hash(&mut self, hash: String) {
+        self.prev_hash = hash;
+    }
+
     fn seq(&self) -> u64 {
         self.seq
+    }
+
+    fn set_seq(&mut self, seq: u64) {
+        self.seq = seq;
+    }
+
+    fn set_at(&mut self, at: String) {
+        self.at = at;
+    }
+
+    fn set_signature(&mut self, by: String, sig_alg: String, sig: String) {
+        self.by = by;
+        self.sig_alg = sig_alg;
+        self.sig = sig;
     }
 }
 
@@ -172,31 +208,28 @@ pub struct ConflictRecord {
 
 impl LogRecord for ConflictRecord {
     fn sign(&mut self, key: &IdentityKeypair) -> Result<(), PcwError> {
-        self.by = hex::encode(key.pub_key.serialize());
-        self.sig_alg = "secp256k1-sha256".to_string();
+        let by = hex::encode(key.pub_key.serialize());
+        let sig_alg = "secp256k1-sha256".to_string();
         let mut unsigned = self.clone();
-        unsigned.sig = "".to_string();
-        unsigned.by = "".to_string();
-        unsigned.sig_alg = "".to_string();
+        unsigned.set_signature("".to_string(), "".to_string(), "".to_string());
         let bytes = canonical_json(&unsigned)?;
         let hash = sha256(&bytes);
-        let msg = Message::from_slice(&hash)?;
+        let msg = Message::from_digest(hash);
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_slice(&key.priv_key)?);
-        self.sig = hex::encode(sig.serialize_der());
+        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_byte_array(&key.priv_key)?);
+        let sig_hex = hex::encode(sig.serialize_der());
+        self.set_signature(by, sig_alg, sig_hex);
         Ok(())
     }
 
     fn verify(&self) -> Result<(), PcwError> {
         let mut unsigned = self.clone();
-        unsigned.sig = "".to_string();
-        unsigned.by = "".to_string();
-        unsigned.sig_alg = "".to_string();
+        unsigned.set_signature("".to_string(), "".to_string(), "".to_string());
         let bytes = canonical_json(&unsigned)?;
         let hash = sha256(&bytes);
-        let msg = Message::from_slice(&hash)?;
-        let pub_key = PublicKey::from_slice(&hex::decode(&self.by)?)?;
-        let sig = Signature::from_der(&hex::decode(&self.sig)?)?;
+        let msg = Message::from_digest(hash);
+        let pub_key = PublicKey::from_slice(&hex::decode(&self.by).map_err(|e| PcwError::Other(format!("Hex decode error: {}", e)))?)?;
+        let sig = Signature::from_der(&hex::decode(&self.sig).map_err(|e| PcwError::Other(format!("Hex decode error: {}", e)))?)?;
         let secp = Secp256k1::new();
         secp.verify_ecdsa(&msg, &sig, &pub_key)?;
         Ok(())
@@ -206,8 +239,26 @@ impl LogRecord for ConflictRecord {
         self.prev_hash.clone()
     }
 
+    fn set_prev_hash(&mut self, hash: String) {
+        self.prev_hash = hash;
+    }
+
     fn seq(&self) -> u64 {
         self.seq
+    }
+
+    fn set_seq(&mut self, seq: u64) {
+        self.seq = seq;
+    }
+
+    fn set_at(&mut self, at: String) {
+        self.at = at;
+    }
+
+    fn set_signature(&mut self, by: String, sig_alg: String, sig: String) {
+        self.by = by;
+        self.sig_alg = sig_alg;
+        self.sig = sig;
     }
 }
 
@@ -230,31 +281,28 @@ pub struct OrphanedRecord {
 
 impl LogRecord for OrphanedRecord {
     fn sign(&mut self, key: &IdentityKeypair) -> Result<(), PcwError> {
-        self.by = hex::encode(key.pub_key.serialize());
-        self.sig_alg = "secp256k1-sha256".to_string();
+        let by = hex::encode(key.pub_key.serialize());
+        let sig_alg = "secp256k1-sha256".to_string();
         let mut unsigned = self.clone();
-        unsigned.sig = "".to_string();
-        unsigned.by = "".to_string();
-        unsigned.sig_alg = "".to_string();
+        unsigned.set_signature("".to_string(), "".to_string(), "".to_string());
         let bytes = canonical_json(&unsigned)?;
         let hash = sha256(&bytes);
-        let msg = Message::from_slice(&hash)?;
+        let msg = Message::from_digest(hash);
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_slice(&key.priv_key)?);
-        self.sig = hex::encode(sig.serialize_der());
+        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_byte_array(&key.priv_key)?);
+        let sig_hex = hex::encode(sig.serialize_der());
+        self.set_signature(by, sig_alg, sig_hex);
         Ok(())
     }
 
     fn verify(&self) -> Result<(), PcwError> {
         let mut unsigned = self.clone();
-        unsigned.sig = "".to_string();
-        unsigned.by = "".to_string();
-        unsigned.sig_alg = "".to_string();
+        unsigned.set_signature("".to_string(), "".to_string(), "".to_string());
         let bytes = canonical_json(&unsigned)?;
         let hash = sha256(&bytes);
-        let msg = Message::from_slice(&hash)?;
-        let pub_key = PublicKey::from_slice(&hex::decode(&self.by)?)?;
-        let sig = Signature::from_der(&hex::decode(&self.sig)?)?;
+        let msg = Message::from_digest(hash);
+        let pub_key = PublicKey::from_slice(&hex::decode(&self.by).map_err(|e| PcwError::Other(format!("Hex decode error: {}", e)))?)?;
+        let sig = Signature::from_der(&hex::decode(&self.sig).map_err(|e| PcwError::Other(format!("Hex decode error: {}", e)))?)?;
         let secp = Secp256k1::new();
         secp.verify_ecdsa(&msg, &sig, &pub_key)?;
         Ok(())
@@ -264,8 +312,26 @@ impl LogRecord for OrphanedRecord {
         self.prev_hash.clone()
     }
 
+    fn set_prev_hash(&mut self, hash: String) {
+        self.prev_hash = hash;
+    }
+
     fn seq(&self) -> u64 {
         self.seq
+    }
+
+    fn set_seq(&mut self, seq: u64) {
+        self.seq = seq;
+    }
+
+    fn set_at(&mut self, at: String) {
+        self.at = at;
+    }
+
+    fn set_signature(&mut self, by: String, sig_alg: String, sig: String) {
+        self.by = by;
+        self.sig_alg = sig_alg;
+        self.sig = sig;
     }
 }
 
@@ -277,16 +343,14 @@ pub fn append_to_log<T: LogRecord>(
 ) -> Result<(), PcwError> {
     if let Some(p) = prev {
         let mut p_unsigned = p.clone();
-        p_unsigned.sig = "".to_string(); // Remove sig for preimage
-        p_unsigned.by = "".to_string();
-        p_unsigned.sig_alg = "".to_string();
+        p_unsigned.set_signature("".to_string(), "".to_string(), "".to_string());
         let p_bytes = canonical_json(&p_unsigned)?;
-        record.prev_hash = hex::encode(sha256(&p_bytes));
+        record.set_prev_hash(hex::encode(sha256(&p_bytes)));
     } else {
-        record.prev_hash = "".to_string();
+        record.set_prev_hash("".to_string());
     }
-    record.seq = log.len() as u64 + 1;
-    record.at = Utc::now().to_rfc3339(); // Set timestamp
+    record.set_seq(log.len() as u64 + 1);
+    record.set_at(Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string());
     log.push(record);
     Ok(())
 }
@@ -312,7 +376,7 @@ mod tests {
             addr_change: "addr_a".to_string(),
             fee: 100,
             feerate_used: 1,
-            at: Utc::now().to_rfc3339(),
+            at: Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
             by: "".to_string(),
             sig_alg: "".to_string(),
             sig: "".to_string(),
@@ -335,7 +399,7 @@ mod tests {
             event: "cancel".to_string(),
             reason: "test".to_string(),
             version: 1,
-            at: Utc::now().to_rfc3339(),
+            at: Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
             by: "".to_string(),
             sig_alg: "".to_string(),
             sig: "".to_string(),
@@ -357,10 +421,10 @@ mod tests {
             note_id: "note".to_string(),
             event: "conflict_external".to_string(),
             outpoint: OutpointMeta {
-                txid: "tx".to_string(),
-                vout: 0,
+                hash: "tx".to_string(),
+                index: 0,
             },
-            at: Utc::now().to_rfc3339(),
+            at: Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
             by: "".to_string(),
             sig_alg: "".to_string(),
             sig: "".to_string(),
@@ -383,7 +447,7 @@ mod tests {
             event: "orphaned".to_string(),
             txid: "tx".to_string(),
             rebroadcast: true,
-            at: Utc::now().to_rfc3339(),
+            at: Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
             by: "".to_string(),
             sig_alg: "".to_string(),
             sig: "".to_string(),
@@ -400,7 +464,6 @@ mod tests {
         let mut log: Vec<ReissueRecord> = Vec::new();
         let priv_k = [1; 32];
         let key = IdentityKeypair::new(priv_k)?;
-
         // Create and sign first record
         let mut record1 = ReissueRecord {
             invoice_hash: "test1".to_string(),
@@ -414,7 +477,7 @@ mod tests {
             addr_change: "addr_a1".to_string(),
             fee: 100,
             feerate_used: 1,
-            at: Utc::now().to_rfc3339(),
+            at: Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
             by: "".to_string(),
             sig_alg: "".to_string(),
             sig: "".to_string(),
@@ -423,7 +486,6 @@ mod tests {
         };
         record1.sign(&key)?;
         append_to_log(&mut log, record1, None)?;
-
         // Create and sign second record
         let mut record2 = ReissueRecord {
             invoice_hash: "test2".to_string(),
@@ -437,7 +499,7 @@ mod tests {
             addr_change: "addr_a2".to_string(),
             fee: 200,
             feerate_used: 2,
-            at: Utc::now().to_rfc3339(),
+            at: Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
             by: "".to_string(),
             sig_alg: "".to_string(),
             sig: "".to_string(),
@@ -446,19 +508,14 @@ mod tests {
         };
         record2.sign(&key)?;
         append_to_log(&mut log, record2, Some(&log[0]))?;
-
         assert_eq!(log.len(), 2);
         assert_eq!(log[0].seq, 1);
         assert_eq!(log[1].seq, 2);
+        let mut r = log[0].clone();
+        r.set_signature("".to_string(), "".to_string(), "".to_string());
         assert_eq!(
             log[1].prev_hash,
-            hex::encode(sha256(&canonical_json(&{
-                let mut r = log[0].clone();
-                r.sig = "".to_string();
-                r.by = "".to_string();
-                r.sig_alg = "".to_string();
-                r
-            })?))
+            hex::encode(sha256(&canonical_json(&r)?))
         );
         Ok(())
     }
