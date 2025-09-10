@@ -1,31 +1,29 @@
 //! Module for policy management in the PCW-1 protocol.
 //!
 //! This module defines the `Policy` struct and its methods for creation, signing,
-//! verification, and hash computation as per §§3.3 and 14.1 of the spec. A policy
+//! verification, and hash computation as per §3.3 and §14.1 of the spec. A policy
 //! defines constraints for note splitting, fee rates, and expiration, signed by
 //! an identity keypair.
-
 use crate::errors::PcwError;
 use crate::json::canonical_json;
 use crate::keys::IdentityKeypair;
 use crate::utils::sha256;
-use chrono::prelude::*;
+use chrono::{DateTime, Utc};
 use secp256k1::{Message, PublicKey, Secp256k1, SecretKey, ecdsa::Signature};
 use serde::{Deserialize, Serialize};
-use sv::network::Network; // For potential extensions, but spec is agnostic
 
 /// Policy struct per §3.3, §14.1: Canonical fields, sorted order.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Policy {
-    pub pk_anchor: String,    // hex(serP(B)), 66 chars
-    pub vmin: u64,            // min per-note amount
-    pub vmax: u64,            // max per-note amount
+    pub pk_anchor: String, // hex(serP(B)), 66 chars
+    pub vmin: u64, // min per-note amount
+    pub vmax: u64, // max per-note amount
     pub per_address_cap: u64, // cap per addr [vmin, vmax]
-    pub feerate_floor: u64,   // min fee-rate units/byte
-    pub expiry: String,       // ISO-8601 UTC
-    pub sig_key: String,      // hex(serP(P_B))
-    pub sig_alg: String,      // "secp256k1-sha256"
-    pub sig: String,          // hex(ECDSA over canonical without sig fields)
+    pub feerate_floor: u64, // min fee-rate units/byte
+    pub expiry: String, // ISO-8601 UTC
+    pub sig_key: String, // hex(serP(P_B))
+    pub sig_alg: String, // "secp256k1-sha256"
+    pub sig: String, // hex(ECDSA over canonical without sig fields)
 }
 
 impl Policy {
@@ -36,7 +34,7 @@ impl Policy {
         vmax: u64,
         per_address_cap: u64,
         feerate_floor: u64,
-        expiry: Utc,
+        expiry: DateTime<Utc>,
     ) -> Result<Self, PcwError> {
         if vmin == 0
             || vmax < vmin
@@ -55,7 +53,7 @@ impl Policy {
             vmax,
             per_address_cap,
             feerate_floor,
-            expiry: expiry.to_rfc3339_opts(SecondsFormat::Secs, true),
+            expiry: expiry.format("%Y-%m-%dT%H:%M:%SZ").to_string(),
             sig_key: "".to_string(),
             sig_alg: "secp256k1-sha256".to_string(),
             sig: "".to_string(),
@@ -72,9 +70,9 @@ impl Policy {
         unsigned.sig_alg = "".to_string();
         let bytes = canonical_json(&unsigned)?;
         let hash = sha256(&bytes);
-        let msg = Message::from_slice(&hash)?;
+        let msg = Message::from_digest(hash);
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_slice(&key.priv_key)?);
+        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_byte_array(&key.priv_key)?);
         self.sig = hex::encode(sig.serialize_der());
         Ok(())
     }
@@ -87,9 +85,13 @@ impl Policy {
         unsigned.sig_alg = "".to_string();
         let bytes = canonical_json(&unsigned)?;
         let hash = sha256(&bytes);
-        let msg = Message::from_slice(&hash)?;
-        let pub_key = PublicKey::from_slice(&hex::decode(&self.sig_key)?)?;
-        let sig = secp256k1::ecdsa::Signature::from_der(&hex::decode(&self.sig)?)?;
+        let msg = Message::from_digest(hash);
+        let pub_key = PublicKey::from_slice(
+            &hex::decode(&self.sig_key).map_err(|e| PcwError::Other(format!("Hex decode error: {}", e)))?
+        )?;
+        let sig = Signature::from_der(
+            &hex::decode(&self.sig).map_err(|e| PcwError::Other(format!("Hex decode error: {}", e)))?
+        )?;
         let secp = Secp256k1::new();
         secp.verify_ecdsa(&msg, &sig, &pub_key)?;
         // Check constraints
@@ -101,7 +103,9 @@ impl Policy {
         {
             return Err(PcwError::Other("Invalid bounds/floor §3.3".to_string()));
         }
-        let expiry = Utc::parse_from_rfc3339(&self.expiry)?;
+        let expiry = DateTime::parse_from_rfc3339(&self.expiry)
+            .map(|dt| dt.with_timezone(&Utc))
+            .map_err(|e| PcwError::Other(format!("Parse expiry error: {}", e)))?;
         if expiry <= Utc::now() {
             return Err(PcwError::PolicyExpired);
         }
@@ -122,7 +126,7 @@ pub fn new_policy(
     vmax: u64,
     per_address_cap: u64,
     feerate_floor: u64,
-    expiry: Utc,
+    expiry: DateTime<Utc>,
 ) -> Result<Policy, PcwError> {
     Policy::new(
         pk_anchor,
