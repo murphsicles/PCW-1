@@ -15,14 +15,14 @@ use tokio::time::{Duration, sleep};
 /// BroadcastPolicy per §9.3: Fields for strategy, spacing, etc.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct BroadcastPolicy {
-    pub authority: String,              // "either"
-    pub strategy_default: String,       // "paced" | "all_at_once" | "bursts"
+    pub authority: String,        // "either"
+    pub strategy_default: String, // "paced" | "all_at_once" | "bursts"
     pub min_spacing_ms: u64,
     pub max_spacing_ms: u64,
     pub burst_size: u64,
     pub burst_gap_ms: u64,
-    pub window_start: Option<String>,   // ISO UTC
-    pub window_end: Option<String>,     // ISO UTC
+    pub window_start: Option<String>, // ISO UTC
+    pub window_end: Option<String>,   // ISO UTC
     pub rebroadcast_interval_s: u64,
     pub hold_time_max_s: u64,
     pub confirm_depth: u64,
