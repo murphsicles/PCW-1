@@ -7,7 +7,7 @@ use crate::json::canonical_json;
 use crate::keys::IdentityKeypair;
 use crate::utils::sha256;
 use chrono::{DateTime, Utc};
-use secp256k1::{Message, PublicKey, SecretKey, Secp256k1, ecdsa::Signature};
+use secp256k1::{ecdsa::Signature, Message, PublicKey, Secp256k1, SecretKey};
 use serde::{Deserialize, Serialize};
 
 /// Invoice struct per §3.4, §14.2: Canonical fields, sorted order.
@@ -17,8 +17,8 @@ pub struct Invoice {
     pub terms: String,
     pub unit: String,
     pub total: u64,
-    pub policy_hash: String, // hex H_policy
-    pub expiry: String, // ISO-8601 UTC, optional but recommended
+    pub policy_hash: String,    // hex H_policy
+    pub expiry: String,         // ISO-8601 UTC, optional but recommended
     pub sig_key: String,
     pub sig_alg: String,
     pub sig: String,
@@ -78,8 +78,7 @@ impl Invoice {
 
     /// Verify invoice signature and policy_hash match (§3.4).
     pub fn verify(&self, expected_policy_hash: &[u8; 32]) -> Result<(), PcwError> {
-        let decoded_policy_hash = hex::decode(&self.policy_hash)
-            .map_err(|e| PcwError::Other(format!("Hex decode error: {}", e)))?;
+        let decoded_policy_hash = hex::decode(&self.policy_hash)?;
         if decoded_policy_hash != expected_policy_hash.to_vec() {
             return Err(PcwError::Other("Policy hash mismatch §3.4".to_string()));
         }
@@ -90,12 +89,8 @@ impl Invoice {
         let bytes = canonical_json(&unsigned)?;
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
-        let pub_key = PublicKey::from_slice(
-            &hex::decode(&self.sig_key).map_err(|e| PcwError::Other(format!("Hex decode error: {}", e)))?
-        )?;
-        let sig = Signature::from_der(
-            &hex::decode(&self.sig).map_err(|e| PcwError::Other(format!("Hex decode error: {}", e)))?
-        )?;
+        let pub_key = PublicKey::from_slice(&hex::decode(&self.sig_key)?)?;
+        let sig = Signature::from_der(&hex::decode(&self.sig)?)?;
         let secp = Secp256k1::new();
         secp.verify_ecdsa(&msg, &sig, &pub_key)?;
         if !self.expiry.is_empty() {
