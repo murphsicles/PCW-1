@@ -26,7 +26,8 @@ pub fn compute_n_min_max(
     vmax: u64,
     per_address_cap: u64,
 ) -> Result<(usize, usize), PcwError> {
-    if total < vmin || vmin == 0 || vmax < vmin || per_address_cap < vmin || per_address_cap > vmax {
+    if total < vmin || vmin == 0 || vmax < vmin || per_address_cap < vmin || per_address_cap > vmax
+    {
         return Err(PcwError::Other("Invalid split parameters §6.2".to_string()));
     }
     let n_min = (total + per_address_cap - 1) / per_address_cap;
@@ -56,7 +57,11 @@ pub fn build_reservations(
     let (n_min, n_max) = compute_n_min_max(total, 100, 1000, 500)?;
     let n = max(n_min, 1);
     let mut u_sorted = utxos.to_vec();
-    u_sorted.sort_by(|a, b| a.value.cmp(&b.value).then(a.outpoint.hash.cmp(&b.outpoint.hash)));
+    u_sorted.sort_by(|a, b| {
+        a.value
+            .cmp(&b.value)
+            .then(a.outpoint.hash.cmp(&b.outpoint.hash))
+    });
     let base_fee = feerate_floor * 10; // Base tx fee
     let mut used = HashSet::new();
     let mut reservations = vec![None; n];
@@ -305,8 +310,16 @@ mod tests {
         let secret_key = SecretKey::from_byte_array(&[1; 32]).unwrap();
         let recipient_anchor = PublicKey::from_secret_key(&secp, &secret_key);
         let sender_anchor = recipient_anchor.clone();
-        let (reservations, addrs, amounts, n) =
-            build_reservations(&secp, &utxos, 1000, &scope, &recipient_anchor, &sender_anchor, 1, 50)?;
+        let (reservations, addrs, amounts, n) = build_reservations(
+            &secp,
+            &utxos,
+            1000,
+            &scope,
+            &recipient_anchor,
+            &sender_anchor,
+            1,
+            50,
+        )?;
         assert_eq!(n, 2);
         assert_eq!(reservations.len(), 2);
         assert_eq!(addrs.len(), 2);
@@ -333,7 +346,15 @@ mod tests {
         let dust = 50;
         let secret_key = SecretKey::from_byte_array(&[1; 32]).unwrap();
         let sender_anchor = PublicKey::from_secret_key(&secp, &secret_key);
-        let fan_out_utxos = fan_out(&utxos, &used, split, feerate_floor, dust, &scope, &sender_anchor)?;
+        let fan_out_utxos = fan_out(
+            &utxos,
+            &used,
+            split,
+            feerate_floor,
+            dust,
+            &scope,
+            &sender_anchor,
+        )?;
         assert_eq!(fan_out_utxos.len(), 2); // 1000 / 400 = 2
         assert_eq!(fan_out_utxos[0].value, 400);
         Ok(())
