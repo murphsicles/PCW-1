@@ -15,13 +15,13 @@ use tokio::time::{Duration, sleep};
 /// BroadcastPolicy per §9.3: Fields for strategy, spacing, etc.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct BroadcastPolicy {
-    pub authority: String, // "either"
-    pub strategy_default: String, // "paced" | "all_at_once" | "bursts"
+    pub authority: String,              // "either"
+    pub strategy_default: String,       // "paced" | "all_at_once" | "bursts"
     pub min_spacing_ms: u64,
     pub max_spacing_ms: u64,
     pub burst_size: u64,
     pub burst_gap_ms: u64,
-    pub window_start: Option<String>, // ISO UTC
+    pub window_start: Option<String>,   // ISO UTC
     pub window_end: Option<String>,
     pub rebroadcast_interval_s: u64,
     pub hold_time_max_s: u64,
@@ -29,12 +29,20 @@ pub struct BroadcastPolicy {
 }
 
 /// Deterministic pacing schedule from S_pace (§9.5).
-pub fn pacing_schedule(scope: &Scope, n: usize, policy: &BroadcastPolicy) -> Result<Vec<Duration>, PcwError> {
+pub fn pacing_schedule(
+    scope: &Scope,
+    n: usize,
+    policy: &BroadcastPolicy,
+) -> Result<Vec<Duration>, PcwError> {
     if policy.min_spacing_ms > policy.max_spacing_ms {
-        return Err(PcwError::Other("min_spacing_ms must be <= max_spacing_ms §9.3".to_string()));
+        return Err(PcwError::Other(
+            "min_spacing_ms must be <= max_spacing_ms §9.3".to_string(),
+        ));
     }
     if policy.strategy_default == "bursts" && policy.burst_size == 0 {
-        return Err(PcwError::Other("burst_size must be > 0 for bursts strategy §9.3".to_string()));
+        return Err(PcwError::Other(
+            "burst_size must be > 0 for bursts strategy §9.3".to_string(),
+        ));
     }
     let s_pace = sha256(&[&scope.z[..], &scope.h_i[..], b"pace"].concat());
     let mut ctr = 0u32;
@@ -91,7 +99,8 @@ pub fn pacing_schedule(scope: &Scope, n: usize, policy: &BroadcastPolicy) -> Res
                 let start_idx = b * beta;
                 let end_idx = min(start_idx + beta, n);
                 for idx in start_idx..end_idx {
-                    let intra = draw_uniform(&s_pace, &mut ctr, policy.min_spacing_ms + 1)?.min(policy.min_spacing_ms);
+                    let intra = draw_uniform(&s_pace, &mut ctr, policy.min_spacing_ms + 1)?
+                        .min(policy.min_spacing_ms);
                     schedule[idx] = batch_times[b] + Duration::from_millis(intra);
                 }
             }
@@ -108,7 +117,10 @@ pub fn pacing_schedule(scope: &Scope, n: usize, policy: &BroadcastPolicy) -> Res
             }
         }
         _ => {
-            return Err(PcwError::Other(format!("Invalid strategy_default: {} §9.3", policy.strategy_default)));
+            return Err(PcwError::Other(format!(
+                "Invalid strategy_default: {} §9.3",
+                policy.strategy_default
+            )));
         }
     }
     Ok(schedule)
@@ -158,7 +170,7 @@ mod tests {
 
     #[test]
     fn test_pacing_schedule_all_at_once() {
-        let scope = Scope::new([0; 32], [0; 32]);
+        let scope = Scope::new([1; 32], [2; 32]).expect("Valid scope");
         let policy = BroadcastPolicy {
             authority: "either".to_string(),
             strategy_default: "all_at_once".to_string(),
@@ -179,7 +191,7 @@ mod tests {
 
     #[test]
     fn test_pacing_schedule_paced() {
-        let scope = Scope::new([0; 32], [0; 32]);
+        let scope = Scope::new([1; 32], [2; 32]).expect("Valid scope");
         let policy = BroadcastPolicy {
             authority: "either".to_string(),
             strategy_default: "paced".to_string(),
@@ -204,7 +216,7 @@ mod tests {
 
     #[test]
     fn test_pacing_schedule_invalid_strategy() {
-        let scope = Scope::new([0; 32], [0; 32]);
+        let scope = Scope::new([1; 32], [2; 32]).expect("Valid scope");
         let policy = BroadcastPolicy {
             authority: "either".to_string(),
             strategy_default: "invalid".to_string(),
