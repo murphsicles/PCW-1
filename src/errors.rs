@@ -2,9 +2,9 @@
 //!
 //! This module defines the `PcwError` enum, which encapsulates all possible errors
 //! encountered during protocol execution, with references to specific sections of
-//! the PCW-1 spec (e.g., §§5.1, 7.3, 10.5).
-
+//! the PCW-1 spec (e.g., §5.1, §7.3, §10.5).
 use chrono::ParseError;
+use hex::FromHexError;
 use secp256k1::Error;
 use serde_json::Error as SerdeJsonError;
 use sv::util::Error as SvError;
@@ -41,7 +41,7 @@ pub enum PcwError {
     #[error("Fee below floor: fee < floor * size §7.3")]
     FeeBelowFloor,
 
-    /// Error when a signature is invalid (§§3.3-3.4).
+    /// Error when a signature is invalid (§3.3-§3.4).
     #[error("Signature invalid: {0} §3.3-§3.4")]
     InvalidSignature(String),
 
@@ -69,6 +69,10 @@ pub enum PcwError {
     #[error("Superseded tx: version < current §9.9")]
     SupersededTx,
 
+    /// Error for I/O-related failures (§9).
+    #[error("I/O error: {0} §9")]
+    Io(String),
+
     /// Error propagated from rust-sv utilities.
     #[error("rust-sv error: {0}")]
     SvError(#[from] SvError),
@@ -84,6 +88,10 @@ pub enum PcwError {
     /// Error propagated from chrono parsing.
     #[error("chrono error: {0}")]
     ChronoError(#[from] ParseError),
+
+    /// Error propagated from hex decoding.
+    #[error("hex decode error: {0}")]
+    HexError(#[from] FromHexError),
 
     /// Catch-all for other unspecified errors.
     #[error("Other: {0}")]
