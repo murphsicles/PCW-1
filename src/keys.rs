@@ -1,13 +1,12 @@
 //! Module for key management in the PCW-1 protocol.
 //!
 //! This module provides `IdentityKeypair` and `AnchorKeypair` structs for off-chain
-//! authentication and on-chain derivations (§§3.1, 13.1), along with an `ecdh_z` function
+//! authentication and on-chain derivations (§3.1, §13.1), along with an `ecdh_z` function
 //! for ECDH key derivation (§3.2) using the secp256k1 curve.
-
 use crate::errors::PcwError;
 use secp256k1::{PublicKey, Secp256k1, SecretKey};
 
-/// Identity keypair for off-chain authentication (§§3.1, 13.1).
+/// Identity keypair for off-chain authentication (§3.1, §13.1).
 /// Never used on-chain to maintain privacy.
 #[derive(Clone, Debug)]
 pub struct IdentityKeypair {
@@ -15,7 +14,7 @@ pub struct IdentityKeypair {
     pub pub_key: PublicKey,
 }
 
-/// Anchor keypair for on-chain derivations (§§3.1, 13.1).
+/// Anchor keypair for on-chain derivations (§3.1, §13.1).
 /// Separate from identity keys to ensure security.
 #[derive(Clone, Debug)]
 pub struct AnchorKeypair {
@@ -27,7 +26,7 @@ impl IdentityKeypair {
     /// Generate from secret (mock for tests; prod use secure rand).
     pub fn new(priv_key: [u8; 32]) -> Result<Self, PcwError> {
         let secp = Secp256k1::new();
-        let sec_key = SecretKey::from_slice(&priv_key)?;
+        let sec_key = SecretKey::from_byte_array(&priv_key)?;
         let pub_key = PublicKey::from_secret_key(&secp, &sec_key);
         Ok(Self { priv_key, pub_key })
     }
@@ -37,7 +36,7 @@ impl AnchorKeypair {
     /// Generate from secret (mock for tests; prod use secure rand).
     pub fn new(priv_key: [u8; 32]) -> Result<Self, PcwError> {
         let secp = Secp256k1::new();
-        let sec_key = SecretKey::from_slice(&priv_key)?;
+        let sec_key = SecretKey::from_byte_array(&priv_key)?;
         let pub_key = PublicKey::from_secret_key(&secp, &sec_key);
         Ok(Self { priv_key, pub_key })
     }
@@ -46,13 +45,12 @@ impl AnchorKeypair {
 /// Compute ECDH Z: x-coordinate of priv * their_pub (§3.2).
 pub fn ecdh_z(my_priv: &[u8; 32], their_pub: &PublicKey) -> Result<[u8; 32], PcwError> {
     let secp = Secp256k1::new();
-    let sec_key = SecretKey::from_slice(my_priv)?;
-    let shared_point = their_pub.mul_tweak(&secp, &sec_key.scalar())?;
-    // Validate shared point is on curve (safety per §3.2)
-    if !secp.is_valid_point(&shared_point) {
+    let sec_key = SecretKey::from_byte_array(my_priv)?;
+    let shared_point = their_pub.mul_tweak(&secp, &sec_key)?;
+    let serialized = shared_point.serialize();
+    if serialized[1..33] == [0u8; 32] {
         return Err(PcwError::Other("Invalid ECDH shared point".to_string()));
     }
-    let serialized = shared_point.serialize();
     let mut z = [0u8; 32];
     z.copy_from_slice(&serialized[1..33]); // x-coordinate, big-endian §2
     Ok(z)
