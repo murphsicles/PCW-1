@@ -9,21 +9,21 @@ use crate::json::canonical_json;
 use crate::keys::IdentityKeypair;
 use crate::utils::sha256;
 use chrono::{DateTime, Utc};
-use secp256k1::{Message, PublicKey, Secp256k1, SecretKey, ecdsa::Signature};
+use secp256k1::{ecdsa::Signature, Message, PublicKey, Secp256k1, SecretKey};
 use serde::{Deserialize, Serialize};
 
 /// Policy struct per §3.3, §14.1: Canonical fields, sorted order.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Policy {
-    pub pk_anchor: String, // hex(serP(B)), 66 chars
-    pub vmin: u64, // min per-note amount
-    pub vmax: u64, // max per-note amount
-    pub per_address_cap: u64, // cap per addr [vmin, vmax]
-    pub feerate_floor: u64, // min fee-rate units/byte
-    pub expiry: String, // ISO-8601 UTC
-    pub sig_key: String, // hex(serP(P_B))
-    pub sig_alg: String, // "secp256k1-sha256"
-    pub sig: String, // hex(ECDSA over canonical without sig fields)
+    pub pk_anchor: String,       // hex(serP(B)), 66 chars
+    pub vmin: u64,              // min per-note amount
+    pub vmax: u64,              // max per-note amount
+    pub per_address_cap: u64,   // cap per addr [vmin, vmax]
+    pub feerate_floor: u64,     // min fee-rate units/byte
+    pub expiry: String,         // ISO-8601 UTC
+    pub sig_key: String,        // hex(serP(P_B))
+    pub sig_alg: String,        // "secp256k1-sha256"
+    pub sig: String,            // hex(ECDSA over canonical without sig fields)
 }
 
 impl Policy {
@@ -86,12 +86,8 @@ impl Policy {
         let bytes = canonical_json(&unsigned)?;
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
-        let pub_key = PublicKey::from_slice(
-            &hex::decode(&self.sig_key).map_err(|e| PcwError::Other(format!("Hex decode error: {}", e)))?
-        )?;
-        let sig = Signature::from_der(
-            &hex::decode(&self.sig).map_err(|e| PcwError::Other(format!("Hex decode error: {}", e)))?
-        )?;
+        let pub_key = PublicKey::from_slice(&hex::decode(&self.sig_key)?)?;
+        let sig = Signature::from_der(&hex::decode(&self.sig)?)?;
         let secp = Secp256k1::new();
         secp.verify_ecdsa(&msg, &sig, &pub_key)?;
         // Check constraints
