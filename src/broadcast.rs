@@ -3,12 +3,11 @@
 //! This module implements broadcast policies and scheduling as per §9, providing
 //! deterministic pacing strategies (all_at_once, paced, bursts) using SHA-256
 //! and uniform random draws for timing.
-
 use crate::errors::PcwError;
 use crate::scope::Scope;
 use crate::utils::{le32, sha256};
 use async_trait::async_trait;
-use chrono::prelude::*;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::cmp::min;
 use tokio::time::{Duration, sleep};
@@ -16,7 +15,7 @@ use tokio::time::{Duration, sleep};
 /// BroadcastPolicy per §9.3: Fields for strategy, spacing, etc.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct BroadcastPolicy {
-    pub authority: String,        // "either"
+    pub authority: String, // "either"
     pub strategy_default: String, // "paced" | "all_at_once" | "bursts"
     pub min_spacing_ms: u64,
     pub max_spacing_ms: u64,
@@ -30,7 +29,13 @@ pub struct BroadcastPolicy {
 }
 
 /// Deterministic pacing schedule from S_pace (§9.5).
-pub fn pacing_schedule(scope: &Scope, n: usize, policy: &BroadcastPolicy) -> Vec<Duration> {
+pub fn pacing_schedule(scope: &Scope, n: usize, policy: &BroadcastPolicy) -> Result<Vec<Duration>, PcwError> {
+    if policy.min_spacing_ms > policy.max_spacing_ms {
+        return Err(PcwError::Other("min_spacing_ms must be <= max_spacing_ms §9.3".to_string()));
+    }
+    if policy.strategy_default == "bursts" && policy.burst_size == 0 {
+        return Err(PcwError::Other("burst_size must be > 0 for bursts strategy §9.3".to_string()));
+    }
     let s_pace = sha256(&[&scope.z[..], &scope.h_i[..], b"pace"].concat());
     let mut ctr = 0u32;
     let mut schedule = vec![Duration::ZERO; n];
@@ -38,7 +43,11 @@ pub fn pacing_schedule(scope: &Scope, n: usize, policy: &BroadcastPolicy) -> Vec
     let start = policy
         .window_start
         .as_ref()
-        .map(|s| Utc::parse_from_rfc3339(s).unwrap_or(now))
+        .map(|s| {
+            DateTime::parse_from_rfc3339(s)
+                .map(|dt| dt.with_timezone(&Utc))
+                .unwrap_or(now)
+        })
         .unwrap_or(now);
     match policy.strategy_default.as_str() {
         "all_at_once" => {
@@ -54,12 +63,14 @@ pub fn pacing_schedule(scope: &Scope, n: usize, policy: &BroadcastPolicy) -> Vec
                     &s_pace,
                     &mut ctr,
                     policy.max_spacing_ms - policy.min_spacing_ms + 1,
-                )
-                .unwrap_or(policy.min_spacing_ms); // Fallback to min on error
+                )?
+                .saturating_add(policy.min_spacing_ms);
                 schedule[i] = schedule[i - 1] + Duration::from_millis(delta_ms);
             }
             if let Some(end_str) = &policy.window_end {
-                let end = Utc::parse_from_rfc3339(end_str).unwrap_or(now);
+                let end = DateTime::parse_from_rfc3339(end_str)
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .map_err(|e| PcwError::Other(format!("Invalid window_end: {} §9.3", e)))?;
                 let end_d = (end - now).to_std().unwrap_or(Duration::ZERO);
                 for d in &mut schedule {
                     if *d > end_d {
@@ -80,13 +91,14 @@ pub fn pacing_schedule(scope: &Scope, n: usize, policy: &BroadcastPolicy) -> Vec
                 let start_idx = b * beta;
                 let end_idx = min(start_idx + beta, n);
                 for idx in start_idx..end_idx {
-                    let intra =
-                        draw_uniform(&s_pace, &mut ctr, policy.min_spacing_ms + 1).unwrap_or(0); // Fallback to 0 on error
+                    let intra = draw_uniform(&s_pace, &mut ctr, policy.min_spacing_ms + 1)?.min(policy.min_spacing_ms);
                     schedule[idx] = batch_times[b] + Duration::from_millis(intra);
                 }
             }
             if let Some(end_str) = &policy.window_end {
-                let end = Utc::parse_from_rfc3339(end_str).unwrap_or(now);
+                let end = DateTime::parse_from_rfc3339(end_str)
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .map_err(|e| PcwError::Other(format!("Invalid window_end: {} §9.3", e)))?;
                 let end_d = (end - now).to_std().unwrap_or(Duration::ZERO);
                 for d in &mut schedule {
                     if *d > end_d {
@@ -95,9 +107,11 @@ pub fn pacing_schedule(scope: &Scope, n: usize, policy: &BroadcastPolicy) -> Vec
                 }
             }
         }
-        _ => vec![],
+        _ => {
+            return Err(PcwError::Other(format!("Invalid strategy_default: {} §9.3", policy.strategy_default)));
+        }
     }
-    schedule
+    Ok(schedule)
 }
 
 /// PRNG next_u64: H(s_pace || LE32(ctr)) first 8 bytes BE (§9.5, similar to §5.2).
@@ -129,7 +143,6 @@ fn draw_uniform(s_pace: &[u8; 32], ctr: &mut u32, range: u64) -> Result<u64, Pcw
 #[async_trait]
 pub trait Broadcaster {
     async fn submit(&self, tx_bytes: &[u8]) -> Result<(), PcwError>;
-
     async fn rebroadcast(&self, tx_bytes: &[u8], interval: Duration) -> Result<(), PcwError> {
         loop {
             self.submit(tx_bytes).await?;
@@ -159,7 +172,7 @@ mod tests {
             hold_time_max_s: 300,
             confirm_depth: 6,
         };
-        let schedule = pacing_schedule(&scope, 5, &policy);
+        let schedule = pacing_schedule(&scope, 5, &policy).expect("Valid schedule");
         assert_eq!(schedule.len(), 5);
         assert!(schedule.iter().all(|d| *d == schedule[0]));
     }
@@ -180,12 +193,32 @@ mod tests {
             hold_time_max_s: 300,
             confirm_depth: 6,
         };
-        let schedule = pacing_schedule(&scope, 5, &policy);
+        let schedule = pacing_schedule(&scope, 5, &policy).expect("Valid schedule");
         assert_eq!(schedule.len(), 5);
         for i in 1..5 {
             assert!(schedule[i] >= schedule[i - 1]);
             assert!(schedule[i].as_millis() >= 100);
             assert!(schedule[i].as_millis() <= 500 * i as u64);
         }
+    }
+
+    #[test]
+    fn test_pacing_schedule_invalid_strategy() {
+        let scope = Scope::new([0; 32], [0; 32]);
+        let policy = BroadcastPolicy {
+            authority: "either".to_string(),
+            strategy_default: "invalid".to_string(),
+            min_spacing_ms: 100,
+            max_spacing_ms: 500,
+            burst_size: 3,
+            burst_gap_ms: 1000,
+            window_start: None,
+            window_end: None,
+            rebroadcast_interval_s: 60,
+            hold_time_max_s: 300,
+            confirm_depth: 6,
+        };
+        let result = pacing_schedule(&scope, 5, &policy);
+        assert!(result.is_err());
     }
 }
