@@ -96,8 +96,8 @@ pub struct Leaf {
 /// Path element in a Merkle proof (§10.5).
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PathElement {
-    pub pos: String,    // "L" or "R"
-    pub hash: String,   // hex 32-byte
+    pub pos: String,  // "L" or "R"
+    pub hash: String, // hex 32-byte
 }
 
 /// Generate single proof for i (§10.5).
