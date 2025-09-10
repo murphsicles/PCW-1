@@ -22,7 +22,7 @@ pub struct BroadcastPolicy {
     pub burst_size: u64,
     pub burst_gap_ms: u64,
     pub window_start: Option<String>,   // ISO UTC
-    pub window_end: Option<String>,
+    pub window_end: Option<String>,     // ISO UTC
     pub rebroadcast_interval_s: u64,
     pub hold_time_max_s: u64,
     pub confirm_depth: u64,
