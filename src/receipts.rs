@@ -3,10 +3,8 @@
 //! This module implements the receipt system as per §10.2-§10.5, including manifest
 //! handling, leaf computation, Merkle root generation, proof generation, and verification.
 //! Receipts provide auditable, private proof of payment via Merkle trees.
-
 use crate::errors::PcwError;
 use crate::utils::{le8, le32, sha256};
-use hex;
 use serde::{Deserialize, Serialize};
 
 /// Manifest per §10.4.
@@ -42,7 +40,7 @@ pub fn compute_leaves(
         let mut preimage = b"leaf".to_vec();
         preimage.extend_from_slice(&le32(entry.i));
         let txid_bytes = hex::decode(&entry.txid)
-            .map_err(|_| PcwError::Other("Invalid txid hex §10.2".to_string()))?;
+            .map_err(|e| PcwError::Other(format!("Invalid txid hex §10.2: {}", e)))?;
         if txid_bytes.len() != 32 {
             return Err(PcwError::Other("Txid not 32 bytes §10.2".to_string()));
         }
@@ -99,7 +97,7 @@ pub struct Leaf {
 /// Path element in a Merkle proof (§10.5).
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PathElement {
-    pub pos: String,  // "L" or "R"
+    pub pos: String, // "L" or "R"
     pub hash: String, // hex 32-byte
 }
 
@@ -175,13 +173,15 @@ pub fn verify_proof(proof: &Proof, manifest: &Manifest) -> Result<(), PcwError> 
     }
     let mut preimage = b"leaf".to_vec();
     preimage.extend_from_slice(&le32(proof.leaf.i));
-    let txid_bytes = hex::decode(&proof.leaf.txid)?;
+    let txid_bytes = hex::decode(&proof.leaf.txid)
+        .map_err(|e| PcwError::Other(format!("Invalid txid hex §10.5: {}", e)))?;
     if txid_bytes.len() != 32 {
         return Err(PcwError::Other("Txid not 32 bytes §10.2".to_string()));
     }
     preimage.extend_from_slice(&txid_bytes);
     preimage.extend_from_slice(&le8(proof.leaf.amount));
-    let addr_bytes = hex::decode(&proof.leaf.addr_payload)?;
+    let addr_bytes = hex::decode(&proof.leaf.addr_payload)
+        .map_err(|e| PcwError::Other(format!("Invalid addr_payload hex §10.5: {}", e)))?;
     if addr_bytes.len() != 21 {
         return Err(PcwError::Other(
             "Addr payload not 21 bytes §10.2".to_string(),
@@ -190,7 +190,8 @@ pub fn verify_proof(proof: &Proof, manifest: &Manifest) -> Result<(), PcwError> 
     preimage.extend_from_slice(&addr_bytes);
     let mut l = sha256(&preimage);
     for elem in &proof.path {
-        let s = hex::decode(&elem.hash)?;
+        let s = hex::decode(&elem.hash)
+            .map_err(|e| PcwError::Other(format!("Invalid path hash hex §10.5: {}", e)))?;
         let s_arr: [u8; 32] = s
             .try_into()
             .map_err(|_| PcwError::Other("Sibling not 32 bytes".to_string()))?;
@@ -213,7 +214,6 @@ pub fn verify_proof(proof: &Proof, manifest: &Manifest) -> Result<(), PcwError> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hex;
 
     #[test]
     fn test_compute_leaves() -> Result<(), PcwError> {
@@ -264,7 +264,8 @@ mod tests {
             count: 1,
             entries: vec![Entry {
                 i: 0,
-                txid: "txid0".to_string(),
+                txid: "0000000000000000000000000000000000000000000000000000000000000000"
+                    .to_string(),
             }],
         };
         let amounts = [100];
@@ -309,11 +310,13 @@ mod tests {
             entries: vec![
                 Entry {
                     i: 0,
-                    txid: "txid0".to_string(),
+                    txid: "0000000000000000000000000000000000000000000000000000000000000000"
+                        .to_string(),
                 },
                 Entry {
                     i: 1,
-                    txid: "txid1".to_string(),
+                    txid: "1111111111111111111111111111111111111111111111111111111111111111"
+                        .to_string(),
                 },
             ],
         };
@@ -355,7 +358,8 @@ mod tests {
             merkle_root: "wrong_root".to_string(),
             leaf: Leaf {
                 i: 0,
-                txid: "txid0".to_string(),
+                txid: "0000000000000000000000000000000000000000000000000000000000000000"
+                    .to_string(),
                 amount: 100,
                 addr_payload: hex::encode([0; 21]),
             },
@@ -367,7 +371,8 @@ mod tests {
             count: 1,
             entries: vec![Entry {
                 i: 0,
-                txid: "txid0".to_string(),
+                txid: "0000000000000000000000000000000000000000000000000000000000000000"
+                    .to_string(),
             }],
         };
         assert!(verify_proof(&proof, &manifest).is_err());
