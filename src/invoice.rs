@@ -17,8 +17,8 @@ pub struct Invoice {
     pub terms: String,
     pub unit: String,
     pub total: u64,
-    pub policy_hash: String, // hex H_policy
-    pub expiry: String,      // ISO-8601 UTC, optional but recommended
+    pub policy_hash: String,    // hex H_policy
+    pub expiry: String,         // ISO-8601 UTC, optional but recommended
     pub sig_key: String,
     pub sig_alg: String,
     pub sig: String,
@@ -70,8 +70,8 @@ impl Invoice {
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
         let secp = Secp256k1::new();
-        let secret_key = SecretKey::from_byte_array(&key.priv_key)?;
-        let sig = secp.sign_ecdsa(&msg, &secret_key);
+        let secret_key = SecretKey::from_byte_array(key.priv_key)?;
+        let sig = secp.sign_ecdsa(msg, &secret_key);
         self.sig = hex::encode(sig.serialize_der());
         Ok(())
     }
@@ -92,7 +92,7 @@ impl Invoice {
         let pub_key = PublicKey::from_slice(&hex::decode(&self.sig_key)?)?;
         let sig = Signature::from_der(&hex::decode(&self.sig)?)?;
         let secp = Secp256k1::new();
-        secp.verify_ecdsa(&msg, &sig, &pub_key)?;
+        secp.verify_ecdsa(msg, &sig, &pub_key)?;
         if !self.expiry.is_empty() {
             let expiry = DateTime::parse_from_rfc3339(&self.expiry)
                 .map(|dt| dt.with_timezone(&Utc))
@@ -114,7 +114,6 @@ impl Invoice {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hex;
 
     #[test]
     fn test_invoice_sig_verify() -> Result<(), PcwError> {
