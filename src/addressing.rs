@@ -23,7 +23,7 @@ pub fn recipient_address(
     if t_i == [0; 32] {
         return Err(PcwError::Other("Zero scalar t_i §7.2".to_string()));
     }
-    let tweak_point = scalar_mul(&t_i, &secp256k1::constants::GENERATOR_POINT)?;
+    let tweak_point = scalar_mul(&t_i, &secp256k1::G)?;
     let p_bi = point_add(anchor_b, &tweak_point)?;
     let ser = ser_p(&p_bi);
     let payload = h160(&ser);
@@ -45,7 +45,7 @@ pub fn sender_change_address(
     if s_i == [0; 32] {
         return Err(PcwError::Other("Zero scalar s_i §7.2".to_string()));
     }
-    let tweak_point = scalar_mul(&s_i, &secp256k1::constants::GENERATOR_POINT)?;
+    let tweak_point = scalar_mul(&s_i, &secp256k1::G)?;
     let p_ai = point_add(anchor_a, &tweak_point)?;
     let ser = ser_p(&p_ai);
     let payload = h160(&ser);
