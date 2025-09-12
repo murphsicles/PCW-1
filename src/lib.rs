@@ -27,7 +27,7 @@ pub use addressing::{recipient_address, sender_change_address};
 pub use broadcast::{BroadcastPolicy, Broadcaster, pacing_schedule};
 pub use errors::PcwError;
 pub use failure::{Event, InvoiceState, NoteState};
-pub use invoice::{Invoice, new_invoice};
+pub use invoice::{Invoice, new};
 pub use json::canonical_json;
 pub use keys::{AnchorKeypair, IdentityKeypair, ecdh_z};
 pub use logging::{
@@ -40,7 +40,7 @@ pub use receipts::{
     verify_proof,
 };
 pub use scope::{Scope, derive_scalar};
-pub use selection::{Reservation, Utxo, build_reservations};
+pub use selection::{Utxo, build_reservations};
 pub use split::bounded_split;
 pub use tx::{NoteMeta, NoteTx, build_note_tx};
 pub use utils::{
