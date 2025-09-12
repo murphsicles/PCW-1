@@ -6,10 +6,10 @@
 use crate::addressing::recipient_address;
 use crate::errors::PcwError;
 use crate::scope::Scope;
-use crate::utils::{le32, sha256};
 use secp256k1::{PublicKey, Secp256k1};
 use std::cmp::max;
 use std::collections::{HashMap, HashSet};
+use sv::util::Hash256;
 
 /// UTXO data for selection.
 #[derive(Clone, Debug)]
@@ -26,7 +26,11 @@ pub fn compute_n_min_max(
     vmax: u64,
     per_address_cap: u64,
 ) -> Result<(usize, usize), PcwError> {
-    if total < vmin || vmin == 0 || vmax < vmin || per_address_cap < vmin || per_address_cap > vmax
+    if total < vmin
+        || vmin == 0
+        || vmax < vmin
+        || per_address_cap < vmin
+        || per_address_cap > vmax
     {
         return Err(PcwError::Other("Invalid split parameters §6.2".to_string()));
     }
@@ -34,12 +38,12 @@ pub fn compute_n_min_max(
     let n_max = if vmax > 0 {
         (total + vmin - 1) / vmin
     } else {
-        usize::MAX
+        u64::MAX
     };
     if n_min > n_max {
         return Err(PcwError::InfeasibleSplit);
     }
-    Ok((n_min, n_max))
+    Ok((n_min.try_into().unwrap(), n_max.try_into().unwrap()))
 }
 
 /// Builds reservations S_i and addresses for N notes (§6.4).
@@ -63,7 +67,7 @@ pub fn build_reservations(
             .then(a.outpoint.hash.cmp(&b.outpoint.hash))
     });
     let base_fee = feerate_floor * 10; // Base tx fee
-    let mut used = HashSet::new();
+    let mut used = HashSet::<Hash256>::new();
     let mut reservations = vec![None; n];
     let mut addrs = vec!["".to_string(); n];
     let mut amounts = vec![0u64; n];
@@ -136,7 +140,7 @@ pub fn build_reservations(
 /// Selects UTXOs for a target amount, considering fees and dust (§6.3).
 fn select_utxos(
     utxos: &[Utxo],
-    used: &mut HashSet<[u8; 32]>,
+    used: &mut HashSet<sv::util::Hash256>,
     target: u64,
     feerate_floor: u64,
     dust: u64,
@@ -165,7 +169,7 @@ fn select_utxos(
 /// Performs fan-out to generate additional UTXOs (§6.8).
 fn fan_out(
     utxos: &[Utxo],
-    used: &HashSet<[u8; 32]>,
+    used: &HashSet<sv::util::Hash256>,
     split: u64,
     feerate_floor: u64,
     dust: u64,
@@ -200,12 +204,12 @@ fn fan_out(
             }
             for i in 0..n {
                 let addr = recipient_address(&secp, scope, i as u32, sender_anchor)?;
-                let script_pubkey = sv::address::addr_decode(&addr, sv::network::Network::Mainnet)?
+                let script_pubkey = sv::address::decode_address(&addr, sv::network::Network::Mainnet)?
                     .0
                     .to_vec();
                 fan_out_utxos.push(Utxo {
                     outpoint: sv::messages::OutPoint {
-                        hash: [0; 32], // Placeholder
+                        hash: Hash256([0; 32]), // Placeholder
                         index: i as u32,
                     },
                     value: split,
@@ -240,7 +244,7 @@ pub fn compute_per_address_amounts(
 mod tests {
     use super::*;
     use secp256k1::{PublicKey, Secp256k1, SecretKey};
-    use sv::util::hash::Sha256;
+    use sv::util::Hash256;
 
     #[test]
     fn test_compute_n_min_max() -> Result<(), PcwError> {
@@ -257,7 +261,7 @@ mod tests {
         let utxos = vec![
             Utxo {
                 outpoint: sv::messages::OutPoint {
-                    hash: [1; 32],
+                    hash: Hash256([1; 32]),
                     index: 0,
                 },
                 value: 500,
@@ -265,7 +269,7 @@ mod tests {
             },
             Utxo {
                 outpoint: sv::messages::OutPoint {
-                    hash: [2; 32],
+                    hash: Hash256([2; 32]),
                     index: 0,
                 },
                 value: 600,
@@ -292,7 +296,7 @@ mod tests {
         let utxos = vec![
             Utxo {
                 outpoint: sv::messages::OutPoint {
-                    hash: [1; 32],
+                    hash: Hash256([1; 32]),
                     index: 0,
                 },
                 value: 1000,
@@ -300,14 +304,14 @@ mod tests {
             },
             Utxo {
                 outpoint: sv::messages::OutPoint {
-                    hash: [2; 32],
+                    hash: Hash256([2; 32]),
                     index: 0,
                 },
                 value: 1000,
                 script_pubkey: vec![],
             },
         ];
-        let secret_key = SecretKey::from_byte_array(&[1; 32]).unwrap();
+        let secret_key = SecretKey::from_byte_array([1; 32]).unwrap();
         let recipient_anchor = PublicKey::from_secret_key(&secp, &secret_key);
         let sender_anchor = recipient_anchor.clone();
         let (reservations, addrs, amounts, n) = build_reservations(
@@ -334,7 +338,7 @@ mod tests {
         let scope = Scope::new([1; 32], [2; 32])?;
         let utxos = vec![Utxo {
             outpoint: sv::messages::OutPoint {
-                hash: [1; 32],
+                hash: Hash256([1; 32]),
                 index: 0,
             },
             value: 1000,
@@ -344,7 +348,7 @@ mod tests {
         let split = 400;
         let feerate_floor = 1;
         let dust = 50;
-        let secret_key = SecretKey::from_byte_array(&[1; 32]).unwrap();
+        let secret_key = SecretKey::from_byte_array([1; 32]).unwrap();
         let sender_anchor = PublicKey::from_secret_key(&secp, &secret_key);
         let fan_out_utxos = fan_out(
             &utxos,
@@ -364,7 +368,7 @@ mod tests {
     fn test_compute_per_address_amounts() -> Result<(), PcwError> {
         let secp = Secp256k1::new();
         let scope = Scope::new([1; 32], [2; 32])?;
-        let secret_key = SecretKey::from_byte_array(&[1; 32]).unwrap();
+        let secret_key = SecretKey::from_byte_array([1; 32]).unwrap();
         let recipient_anchor = PublicKey::from_secret_key(&secp, &secret_key);
         let amounts = [500, 500];
         let per_address = compute_per_address_amounts(&secp, &scope, &recipient_anchor, &amounts)?;
