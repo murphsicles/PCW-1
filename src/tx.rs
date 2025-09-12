@@ -5,14 +5,15 @@
 //! of standard P2PKH transactions with deterministic addressing, signing, and metadata logging.
 use crate::addressing::{recipient_address, sender_change_address};
 use crate::errors::PcwError;
-use crate::scope::Scope;
+use crate::scope::{Scope, derive_scalar};
 use crate::selection::Utxo;
 use crate::utils::{base58check, h160, le32, point_add, scalar_mul, ser_p, sha256};
-use chrono::{DateTime, Utc};
-use secp256k1::{PublicKey, Secp256k1, SecretKey};
+use chrono::Utc;
+use secp256k1::{Message, PublicKey, Secp256k1, SecretKey, ecdsa::Signature};
 use serde::{Deserialize, Serialize};
 use sv::messages::Tx;
 use sv::script::op_codes::*;
+use sv::script::Script;
 use sv::transaction::p2pkh::{create_lock_script, create_unlock_script};
 use sv::transaction::sighash::{SIGHASH_ALL, SIGHASH_FORKID, SigHashCache, sighash};
 use sv::util::{Hash160, Hash256};
@@ -75,7 +76,7 @@ pub fn build_note_tx(
     }
     let secp = Secp256k1::new();
     let addr_b = recipient_address(&secp, scope, i, anchor_b)?;
-    let t_i = scalar_mul(&scope.derive_scalar("recv", i)?, &secp)?;
+    let t_i = scalar_mul(&derive_scalar(scope, "recv", i)?, &secp)?;
     let p_bi = point_add(anchor_b, &t_i)?;
     let h160_b = h160(&ser_p(&p_bi));
     let h160_b_hash = Hash160(h160_b);
@@ -108,8 +109,8 @@ pub fn build_note_tx(
     // Add recipient output
     let lock_b = create_lock_script(&h160_b_hash);
     tx.outputs.push(sv::messages::TxOut {
-        value: amount,
-        script: lock_b,
+        satoshis: amount as i64,
+        lock_script: lock_b,
     });
     // Determine if change output is needed
     let mut addr_a = String::new();
@@ -120,15 +121,15 @@ pub fn build_note_tx(
         change = sum_in.saturating_sub(amount + fee);
         if change > 0 && change >= dust {
             addr_a = sender_change_address(&secp, scope, i, anchor_a)?;
-            let s_i_scalar = scope.derive_scalar("snd", i)?;
+            let s_i_scalar = derive_scalar(scope, "snd", i)?;
             let tweak_a = scalar_mul(&s_i_scalar, &secp)?;
             let p_ai = point_add(anchor_a, &tweak_a)?;
             h160_a = h160(&ser_p(&p_ai));
             let h160_a_hash = Hash160(h160_a);
             let lock_a = create_lock_script(&h160_a_hash);
             tx.outputs.push(sv::messages::TxOut {
-                value: change,
-                script: lock_a,
+                satoshis: change as i64,
+                lock_script: lock_a,
             });
         } else if change > 0 {
             return Err(PcwError::DustChange);
@@ -137,8 +138,8 @@ pub fn build_note_tx(
     // Add inputs
     for utxo in &s_i_sorted {
         tx.inputs.push(sv::messages::TxIn {
-            prevout: utxo.outpoint.clone(),
-            unlock_script: vec![],
+            prev_output: utxo.outpoint.clone(),
+            unlock_script: Script::new(vec![]),
             sequence: 0xFFFFFFFF,
         });
     }
@@ -149,24 +150,21 @@ pub fn build_note_tx(
             &tx,
             j,
             &s_i_sorted[j].script_pubkey,
-            s_i_sorted[j].value,
+            s_i_sorted[j].value.try_into().unwrap(),
             SIGHASH_ALL | SIGHASH_FORKID,
             &mut cache,
         )?;
-        let sig = generate_signature(
-            &priv_keys[j],
-            &Hash256(sighash.0),
-            SIGHASH_ALL | SIGHASH_FORKID,
-        )?;
-        let pub_key =
-            PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_keys[j])?);
+        let msg = Message::from_digest(sighash.0);
+        let secp = Secp256k1::new();
+        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_byte_array(priv_keys[j])?);
+        let pub_key = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(priv_keys[j])?);
         tx.inputs[j].unlock_script = create_unlock_script(&sig, &ser_p(&pub_key));
     }
     // Finalize metadata
-    let tx_bytes = tx.serialize();
+    let tx_bytes = tx.to_bytes();
     let txid_hash = sha256(&sha256(&tx_bytes));
     let txid = hex::encode(txid_hash);
-    let note_id = hex::encode(sha256(&[scope.h_i.clone(), le32(i)].concat()));
+    let note_id = hex::encode(sha256(&[scope.h_i, le32(i)].concat()));
     let meta = NoteMeta {
         i,
         note_id,
@@ -182,7 +180,7 @@ pub fn build_note_tx(
         inputs: s_i_sorted
             .iter()
             .map(|u| InputMeta {
-                hash: hex::encode(u.outpoint.hash),
+                hash: hex::encode(u.outpoint.hash.into_inner()),
                 index: u.outpoint.index,
                 value: u.value,
                 script_pubkey: hex::encode(&u.script_pubkey),
@@ -192,8 +190,8 @@ pub fn build_note_tx(
             .outputs
             .iter()
             .map(|o| OutputMeta {
-                addr: reverse_base58(&o.script).unwrap_or_default(),
-                value: o.value,
+                addr: reverse_base58(&o.lock_script).unwrap_or_default(),
+                value: o.satoshis as u64,
             })
             .collect(),
         sig_alg: "secp256k1-sha256".to_string(),
@@ -232,7 +230,7 @@ mod tests {
         let scope = Scope::new([1; 32], [2; 32])?;
         let utxo = Utxo {
             outpoint: OutPoint {
-                hash: [0; 32],
+                hash: Hash256([0; 32]),
                 index: 0,
             },
             value: 150,
@@ -265,7 +263,7 @@ mod tests {
         let scope = Scope::new([1; 32], [2; 32])?;
         let utxo = Utxo {
             outpoint: OutPoint {
-                hash: [0; 32],
+                hash: Hash256([0; 32]),
                 index: 0,
             },
             value: 200,
@@ -298,7 +296,7 @@ mod tests {
         let scope = Scope::new([1; 32], [2; 32]).expect("Valid scope");
         let utxo = Utxo {
             outpoint: OutPoint {
-                hash: [0; 32],
+                hash: Hash256([0; 32]),
                 index: 0,
             },
             value: 151,
@@ -327,7 +325,7 @@ mod tests {
         let scope = Scope::new([1; 32], [2; 32]).expect("Valid scope");
         let utxo = Utxo {
             outpoint: OutPoint {
-                hash: [0; 32],
+                hash: Hash256([0; 32]),
                 index: 0,
             },
             value: 50,
