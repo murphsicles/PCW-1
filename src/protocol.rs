@@ -7,16 +7,20 @@ use crate::errors::PcwError;
 use crate::invoice::Invoice;
 use crate::keys::IdentityKeypair;
 use crate::policy::Policy;
-use secp256k1::{PublicKey, Secp256k1, SecretKey};
+use secp256k1::{PublicKey, Scalar, Secp256k1, SecretKey};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
 /// Compute ECDH shared secret Z (§3.2).
 fn ecdh_z(my_priv: &[u8; 32], their_pub: &PublicKey) -> Result<[u8; 32], PcwError> {
     let secp = Secp256k1::new();
-    let secret_key = SecretKey::from_byte_array(my_priv)?;
-    let shared_point = their_pub.mul_tweak(&secp, &secret_key)?;
-    Ok(shared_point.serialize()[1..33]
+    let secret_key = SecretKey::from_byte_array(*my_priv)?;
+    let scalar = Scalar::from(&secret_key);
+    let shared_point = their_pub.mul_tweak(&secp, &scalar)?;
+    Ok(shared_point
+        .serialize()
+        .get(1..33)
+        .ok_or_else(|| PcwError::Other("Invalid ECDH point".to_string()))?
         .try_into()
         .map_err(|_| PcwError::Other("Invalid ECDH point".to_string()))?)
 }
@@ -221,7 +225,14 @@ mod tests {
                 expiry,
             )?;
             let policy_hash = policy.h_policy();
-            let invoice = Invoice::new("test", 1000, &policy_hash)?;
+            let invoice = Invoice::new(
+                "test".to_string(),
+                "terms".to_string(),
+                "sat".to_string(),
+                1000,
+                hex::encode(policy_hash),
+                None,
+            )?;
             exchange_invoice(&mut stream, Some(invoice), &policy_hash).await
         });
         let t2 = tokio::spawn(async move {
@@ -246,7 +257,7 @@ mod tests {
         let i2 = t2
             .await
             .map_err(|e| PcwError::Other(format!("Task 2 failed: {}", e)))??;
-        assert_eq!(i1.h_invoice(), i2.h_invoice());
+        assert_eq!(i1.h_i(), i2.h_i());
         Ok(())
     }
 }
