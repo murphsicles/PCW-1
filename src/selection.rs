@@ -26,12 +26,7 @@ pub fn compute_n_min_max(
     vmax: u64,
     per_address_cap: u64,
 ) -> Result<(usize, usize), PcwError> {
-    if total < vmin
-        || vmin == 0
-        || vmax < vmin
-        || per_address_cap < vmin
-        || per_address_cap > vmax
-    {
+    if total < vmin || vmin == 0 || vmax < vmin || per_address_cap < vmin || per_address_cap > vmax {
         return Err(PcwError::Other("Invalid split parameters §6.2".to_string()));
     }
     let n_min = (total + per_address_cap - 1) / per_address_cap;
@@ -204,9 +199,10 @@ fn fan_out(
             }
             for i in 0..n {
                 let addr = recipient_address(&secp, scope, i as u32, sender_anchor)?;
-                let script_pubkey = sv::address::decode_address(&addr, sv::network::Network::Mainnet)?
-                    .0
-                    .to_vec();
+                let script_pubkey =
+                    sv::address::decode_address(&addr, sv::network::Network::Mainnet)?
+                        .0
+                        .to_vec();
                 fan_out_utxos.push(Utxo {
                     outpoint: sv::messages::OutPoint {
                         hash: Hash256([0; 32]), // Placeholder
@@ -323,6 +319,7 @@ mod tests {
             &sender_anchor,
             1,
             50,
+            false,
         )?;
         assert_eq!(n, 2);
         assert_eq!(reservations.len(), 2);
