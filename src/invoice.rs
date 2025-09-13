@@ -17,8 +17,8 @@ pub struct Invoice {
     pub terms: String,
     pub unit: String,
     pub total: u64,
-    pub policy_hash: String,    // hex H_policy
-    pub expiry: String,         // ISO-8601 UTC, optional but recommended
+    pub policy_hash: String, // hex H_policy
+    pub expiry: String,      // ISO-8601 UTC, optional but recommended
     pub sig_key: String,
     pub sig_alg: String,
     pub sig: String,
