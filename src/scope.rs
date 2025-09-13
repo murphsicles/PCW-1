@@ -13,8 +13,8 @@ use proptest::prelude::*;
 /// Per-invoice scope {Z, H_I} (§3.2).
 #[derive(Clone, Debug)]
 pub struct Scope {
-    pub z: [u8; 32],    // Shared secret from ECDH
-    pub h_i: [u8; 32],  // Hash of canonical invoice JSON
+    pub z: [u8; 32],   // Shared secret from ECDH
+    pub h_i: [u8; 32], // Hash of canonical invoice JSON
 }
 
 impl Scope {
