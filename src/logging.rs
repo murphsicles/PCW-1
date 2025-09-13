@@ -71,7 +71,7 @@ impl LogRecord for ReissueRecord {
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_byte_array(&key.priv_key)?);
+        let sig = secp.sign_ecdsa(msg, &SecretKey::from_byte_array(key.priv_key)?);
         let sig_hex = hex::encode(sig.serialize_der());
         self.set_signature(by, sig_alg, sig_hex);
         Ok(())
@@ -86,7 +86,7 @@ impl LogRecord for ReissueRecord {
         let pub_key = PublicKey::from_slice(&hex::decode(&self.by)?)?;
         let sig = Signature::from_der(&hex::decode(&self.sig)?)?;
         let secp = Secp256k1::new();
-        secp.verify_ecdsa(&msg, &sig, &pub_key)?;
+        secp.verify_ecdsa(msg, &sig, &pub_key)?;
         Ok(())
     }
 
@@ -144,7 +144,7 @@ impl LogRecord for CancelRecord {
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_byte_array(&key.priv_key)?);
+        let sig = secp.sign_ecdsa(msg, &SecretKey::from_byte_array(key.priv_key)?);
         let sig_hex = hex::encode(sig.serialize_der());
         self.set_signature(by, sig_alg, sig_hex);
         Ok(())
@@ -159,7 +159,7 @@ impl LogRecord for CancelRecord {
         let pub_key = PublicKey::from_slice(&hex::decode(&self.by)?)?;
         let sig = Signature::from_der(&hex::decode(&self.sig)?)?;
         let secp = Secp256k1::new();
-        secp.verify_ecdsa(&msg, &sig, &pub_key)?;
+        secp.verify_ecdsa(msg, &sig, &pub_key)?;
         Ok(())
     }
 
@@ -216,7 +216,7 @@ impl LogRecord for ConflictRecord {
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_byte_array(&key.priv_key)?);
+        let sig = secp.sign_ecdsa(msg, &SecretKey::from_byte_array(key.priv_key)?);
         let sig_hex = hex::encode(sig.serialize_der());
         self.set_signature(by, sig_alg, sig_hex);
         Ok(())
@@ -231,7 +231,7 @@ impl LogRecord for ConflictRecord {
         let pub_key = PublicKey::from_slice(&hex::decode(&self.by)?)?;
         let sig = Signature::from_der(&hex::decode(&self.sig)?)?;
         let secp = Secp256k1::new();
-        secp.verify_ecdsa(&msg, &sig, &pub_key)?;
+        secp.verify_ecdsa(msg, &sig, &pub_key)?;
         Ok(())
     }
 
@@ -289,7 +289,7 @@ impl LogRecord for OrphanedRecord {
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_byte_array(&key.priv_key)?);
+        let sig = secp.sign_ecdsa(msg, &SecretKey::from_byte_array(key.priv_key)?);
         let sig_hex = hex::encode(sig.serialize_der());
         self.set_signature(by, sig_alg, sig_hex);
         Ok(())
@@ -304,7 +304,7 @@ impl LogRecord for OrphanedRecord {
         let pub_key = PublicKey::from_slice(&hex::decode(&self.by)?)?;
         let sig = Signature::from_der(&hex::decode(&self.sig)?)?;
         let secp = Secp256k1::new();
-        secp.verify_ecdsa(&msg, &sig, &pub_key)?;
+        secp.verify_ecdsa(msg, &sig, &pub_key)?;
         Ok(())
     }
 
