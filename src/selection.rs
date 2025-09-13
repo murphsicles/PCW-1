@@ -26,7 +26,8 @@ pub fn compute_n_min_max(
     vmax: u64,
     per_address_cap: u64,
 ) -> Result<(usize, usize), PcwError> {
-    if total < vmin || vmin == 0 || vmax < vmin || per_address_cap < vmin || per_address_cap > vmax {
+    if total < vmin || vmin == 0 || vmax < vmin || per_address_cap < vmin || per_address_cap > vmax 
+    {
         return Err(PcwError::Other("Invalid split parameters §6.2".to_string()));
     }
     let n_min = (total + per_address_cap - 1) / per_address_cap;
