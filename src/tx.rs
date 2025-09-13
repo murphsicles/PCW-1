@@ -5,17 +5,17 @@
 //! of standard P2PKH transactions with deterministic addressing, signing, and metadata logging.
 use crate::addressing::{recipient_address, sender_change_address};
 use crate::errors::PcwError;
-use crate::scope::{Scope, derive_scalar};
+use crate::scope::{derive_scalar, Scope};
 use crate::selection::Utxo;
 use crate::utils::{base58check, h160, le32, point_add, scalar_mul, ser_p, sha256};
 use chrono::Utc;
-use secp256k1::{Message, PublicKey, Secp256k1, SecretKey, ecdsa::Signature};
+use secp256k1::{ecdsa::Signature, Message, PublicKey, Secp256k1, SecretKey};
 use serde::{Deserialize, Serialize};
 use sv::messages::Tx;
-use sv::script::op_codes::*;
 use sv::script::Script;
+use sv::script::op_codes::*;
 use sv::transaction::p2pkh::{create_lock_script, create_unlock_script};
-use sv::transaction::sighash::{SIGHASH_ALL, SIGHASH_FORKID, SigHashCache, sighash};
+use sv::transaction::sighash::{sighash, SigHashCache, SIGHASH_ALL, SIGHASH_FORKID};
 use sv::util::{Hash160, Hash256};
 
 /// NoteMeta per §8.3: Canonical fields for log/audit.
