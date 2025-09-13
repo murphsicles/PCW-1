@@ -54,7 +54,7 @@ pub fn build_reservations(
     dust: u64,
     fanout_allowed: bool,
 ) -> Result<(Vec<Option<Vec<Utxo>>>, Vec<String>, Vec<u64>, u64), PcwError> {
-    let (n_min, n_max) = compute_n_min_max(total, 100, 1000, 500)?;
+    let (n_min, _n_max) = compute_n_min_max(total, 100, 1000, 500)?;
     let n = max(n_min, 1);
     let mut u_sorted = utxos.to_vec();
     u_sorted.sort_by(|a, b| {
@@ -75,7 +75,7 @@ pub fn build_reservations(
         match s_i {
             Some(s_i) => {
                 let m = s_i.len();
-                let n = if s_i.iter().map(|u| u.value).sum::<u64>()
+                let _n = if s_i.iter().map(|u| u.value).sum::<u64>()
                     == target + base_fee + feerate_floor * (148 * m as u64 + 34)
                 {
                     1
@@ -111,7 +111,7 @@ pub fn build_reservations(
                     let s_i = select_utxos(&u_sorted, &mut used, target, feerate_floor, dust)?;
                     if let Some(s_i) = s_i {
                         let m = s_i.len();
-                        let n = if s_i.iter().map(|u| u.value).sum::<u64>()
+                        let _n = if s_i.iter().map(|u| u.value).sum::<u64>()
                             == target + base_fee + feerate_floor * (148 * m as u64 + 34)
                         {
                             1
@@ -200,10 +200,7 @@ fn fan_out(
             }
             for i in 0..n {
                 let addr = recipient_address(&secp, scope, i as u32, sender_anchor)?;
-                let script_pubkey =
-                    sv::address::decode_address(&addr, sv::network::Network::Mainnet)?
-                        .0
-                        .to_vec();
+                let script_pubkey = sv::address::decode_address(&addr)?.1;
                 fan_out_utxos.push(Utxo {
                     outpoint: sv::messages::OutPoint {
                         hash: Hash256([0; 32]), // Placeholder
