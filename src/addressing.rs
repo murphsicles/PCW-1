@@ -23,7 +23,7 @@ pub fn recipient_address(
     if t_i == [0; 32] {
         return Err(PcwError::Other("Zero scalar t_i §7.2".to_string()));
     }
-    let tweak_point = scalar_mul(&t_i, &secp256k1::G)?;
+    let tweak_point = scalar_mul(&t_i)?;
     let p_bi = point_add(anchor_b, &tweak_point)?;
     let ser = ser_p(&p_bi);
     let payload = h160(&ser);
@@ -45,7 +45,7 @@ pub fn sender_change_address(
     if s_i == [0; 32] {
         return Err(PcwError::Other("Zero scalar s_i §7.2".to_string()));
     }
-    let tweak_point = scalar_mul(&s_i, &secp256k1::G)?;
+    let tweak_point = scalar_mul(&s_i)?;
     let p_ai = point_add(anchor_a, &tweak_point)?;
     let ser = ser_p(&p_ai);
     let payload = h160(&ser);
@@ -61,8 +61,7 @@ mod tests {
     fn test_recipient_address() -> Result<(), PcwError> {
         let secp = Secp256k1::new();
         let scope = Scope::new([1; 32], [2; 32])?;
-        let secret_key =
-            SecretKey::from_byte_array(&[1; 32]).expect("32 bytes, within curve order");
+        let secret_key = SecretKey::from_byte_array([1; 32]).expect("32 bytes, within curve order");
         let anchor_b = PublicKey::from_secret_key(&secp, &secret_key);
         let addr = recipient_address(&secp, &scope, 0, &anchor_b)?;
         assert!(
