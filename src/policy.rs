@@ -15,15 +15,15 @@ use serde::{Deserialize, Serialize};
 /// Policy struct per §3.3, §14.1: Canonical fields, sorted order.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Policy {
-    pub pk_anchor: String,       // hex(serP(B)), 66 chars
-    pub vmin: u64,              // min per-note amount
-    pub vmax: u64,              // max per-note amount
-    pub per_address_cap: u64,   // cap per addr [vmin, vmax]
-    pub feerate_floor: u64,     // min fee-rate units/byte
-    pub expiry: String,         // ISO-8601 UTC
-    pub sig_key: String,        // hex(serP(P_B))
-    pub sig_alg: String,        // "secp256k1-sha256"
-    pub sig: String,            // hex(ECDSA over canonical without sig fields)
+    pub pk_anchor: String,    // hex(serP(B)), 66 chars
+    pub vmin: u64,            // min per-note amount
+    pub vmax: u64,            // max per-note amount
+    pub per_address_cap: u64, // cap per addr [vmin, vmax]
+    pub feerate_floor: u64,   // min fee-rate units/byte
+    pub expiry: String,       // ISO-8601 UTC
+    pub sig_key: String,      // hex(serP(P_B))
+    pub sig_alg: String,      // "secp256k1-sha256"
+    pub sig: String,          // hex(ECDSA over canonical without sig fields)
 }
 
 impl Policy {
@@ -124,7 +124,14 @@ pub fn new_policy(
     feerate_floor: u64,
     expiry: DateTime<Utc>,
 ) -> Result<Policy, PcwError> {
-    Policy::new(pk_anchor, vmin, vmax, per_address_cap, feerate_floor, expiry)
+    Policy::new(
+        pk_anchor,
+        vmin,
+        vmax,
+        per_address_cap,
+        feerate_floor,
+        expiry,
+    )
 }
 
 #[cfg(test)]
@@ -156,16 +163,9 @@ mod tests {
         let priv_k = [1; 32];
         let key = IdentityKeypair::new(priv_k)?;
         let past = Utc::now() - chrono::Duration::days(1);
-        let mut policy = Policy::new(
-            "02".to_string() + &"0".repeat(64),
-            100,
-            1000,
-            500,
-            1,
-            past,
-        )?;
+        let mut policy = Policy::new("02".to_string() + &"0".repeat(64), 100, 1000, 500, 1, past)?;
         policy.sign(&key)?;
-        assert!(policy.verify().is_err());
+        assert!(policy.verify().is_err()); // Should fail due to expiration
         Ok(())
     }
 
@@ -182,7 +182,7 @@ mod tests {
             1,
             expiry,
         );
-        assert!(result.is_err());
+        assert!(result.is_err()); // Should fail due to vmin == 0
         Ok(())
     }
 }
