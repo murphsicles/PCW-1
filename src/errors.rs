@@ -44,8 +44,8 @@ pub enum PcwError {
     #[error("Invoice expired: t >= expiry §3.4")]
     InvoiceExpired,
     /// Error when the scope is misused (wrong domain or missing {Z, H_I}) (§3.2).
-    #[error("Scope misuse: wrong domain or missing {{Z, H_I}} §3.2")]
-    ScopeMisuse,
+    #[error("Scope misuse: {0} §3.2")]
+    ScopeMisuse(String),
     /// Error when a Merkle proof is invalid (recomputed root mismatch) (§10.5).
     #[error("Merkle proof invalid: recomputed root mismatch §10.5")]
     InvalidProof,
