@@ -4,7 +4,7 @@
 //! authentication and on-chain derivations (§3.1, §13.1), along with an `ecdh_z` function
 //! for ECDH key derivation (§3.2) using the secp256k1 curve.
 use crate::errors::PcwError;
-use secp256k1::{PublicKey, Secp256k1, SecretKey};
+use secp256k1::{PublicKey, Scalar, Secp256k1, SecretKey};
 
 /// Identity keypair for off-chain authentication (§3.1, §13.1).
 /// Never used on-chain to maintain privacy.
@@ -26,7 +26,7 @@ impl IdentityKeypair {
     /// Generate from secret (mock for tests; prod use secure rand).
     pub fn new(priv_key: [u8; 32]) -> Result<Self, PcwError> {
         let secp = Secp256k1::new();
-        let sec_key = SecretKey::from_byte_array(&priv_key)?;
+        let sec_key = SecretKey::from_byte_array(priv_key)?;
         let pub_key = PublicKey::from_secret_key(&secp, &sec_key);
         Ok(Self { priv_key, pub_key })
     }
@@ -36,7 +36,7 @@ impl AnchorKeypair {
     /// Generate from secret (mock for tests; prod use secure rand).
     pub fn new(priv_key: [u8; 32]) -> Result<Self, PcwError> {
         let secp = Secp256k1::new();
-        let sec_key = SecretKey::from_byte_array(&priv_key)?;
+        let sec_key = SecretKey::from_byte_array(priv_key)?;
         let pub_key = PublicKey::from_secret_key(&secp, &sec_key);
         Ok(Self { priv_key, pub_key })
     }
@@ -45,8 +45,9 @@ impl AnchorKeypair {
 /// Compute ECDH Z: x-coordinate of priv * their_pub (§3.2).
 pub fn ecdh_z(my_priv: &[u8; 32], their_pub: &PublicKey) -> Result<[u8; 32], PcwError> {
     let secp = Secp256k1::new();
-    let sec_key = SecretKey::from_byte_array(my_priv)?;
-    let shared_point = their_pub.mul_tweak(&secp, &sec_key)?;
+    let sec_key = SecretKey::from_byte_array(*my_priv)?;
+    let scalar = Scalar::from(&sec_key);
+    let shared_point = their_pub.mul_tweak(&secp, &scalar)?;
     let serialized = shared_point.serialize();
     if serialized[1..33] == [0u8; 32] {
         return Err(PcwError::Other("Invalid ECDH shared point".to_string()));
