@@ -218,9 +218,9 @@ mod tests {
         let empty = "";
         let normalized = nfc_normalize(empty);
         assert_eq!(normalized, "");
-        // Malformed Unicode (invalid surrogate)
-        let malformed = "\u{D800}";
+        // Non-normalized Unicode (café with decomposed e + accent)
+        let malformed = "caf\u{0065}\u{0301}";
         let normalized = nfc_normalize(malformed);
-        assert_eq!(normalized, "\u{FFFD}"); // Replacement character
+        assert_eq!(normalized, "café"); // Should normalize to NFC
     }
 }
