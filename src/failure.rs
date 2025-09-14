@@ -1,182 +1,205 @@
-//! Module for failure handling and state management in the PCW-1 protocol.
+//! Module for failure handling and state transitions in the PCW-1 protocol.
 //!
-//! This module defines state machines for notes and invoices, including transition
-//! logic as per §11, to handle failures, reissues, and cancellations deterministically.
-
+//! This module implements the state machines for notes and invoices as per §11,
+//! including `NoteState` for individual note transaction states and `InvoiceState`
+//! for invoice-level states. It also defines `Event` for logging state changes.
 use crate::errors::PcwError;
+use serde::{Deserialize, Serialize};
 
-/// Represents the state of a single note in the protocol (§11.2).
-#[derive(Clone, Debug, PartialEq)]
+/// Note state per §11.2: State machine for note transactions.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum NoteState {
-    /// Note has been constructed but not signed.
-    Constructed,
-    /// Note has been signed but not queued.
     Signed,
-    /// Note is queued for broadcast.
-    Queued,
-    /// Note has been broadcast to the network.
     Broadcast,
-    /// Note is seen in the mempool.
-    Seen,
-    /// Note has reached the required confirmation depth.
     Confirmed,
-    /// Note has been reissued due to a hold timeout.
-    Reissued,
-    /// Note has been explicitly cancelled.
-    Cancelled,
-    /// Note has been orphaned due to a reorg.
-    Orphaned,
-    /// Note is obsolete due to a superseded transaction.
-    Obsolete,
-    /// Note is in conflict due to an external spend.
-    Conflict,
-}
-
-/// Represents events that trigger state transitions for a note (§11.2).
-#[derive(Clone, Debug)]
-pub enum Event {
-    /// Note construction initiated.
-    Construct,
-    /// Note signed with valid keys.
-    Sign,
-    /// Note enqueued for broadcast.
-    Enqueue,
-    /// Note broadcast to the network.
-    Broadcast,
-    /// Note accepted into the mempool.
-    MempoolAccept,
-    /// Note reached the required confirmation depth.
-    ConfirmDepthReached,
-    /// Note hold timeout occurred.
-    HoldTimeout,
-    /// Note explicitly cancelled by user/policy.
-    ExplicitCancel,
-    /// Note superseded by a newer version.
-    Superseded,
-    /// Note conflicted by an external spend.
-    ExternalConflict,
-    /// Note orphaned due to a blockchain reorg.
     ReorgOrphan,
+    Superseded,
 }
 
 impl NoteState {
-    /// Transition per §11.2 diagram, enforcing invariants.
-    pub fn transition(&self, event: Event) -> Result<Self, PcwError> {
+    /// Transition to a new state based on an event (§11.2).
+    pub fn transition(&self, event: &Event) -> Result<Self, PcwError> {
         match (self, event) {
-            (NoteState::Constructed, Event::Sign) => Ok(NoteState::Signed),
-            (NoteState::Signed, Event::Enqueue) => Ok(NoteState::Queued),
-            (NoteState::Queued, Event::Broadcast) => Ok(NoteState::Broadcast),
-            (NoteState::Broadcast, Event::MempoolAccept) => Ok(NoteState::Seen),
-            (NoteState::Seen, Event::ConfirmDepthReached) => Ok(NoteState::Confirmed),
-            (NoteState::Queued, Event::HoldTimeout) => Ok(NoteState::Reissued),
-            (s, Event::ExplicitCancel)
-                if matches!(
-                    s,
-                    NoteState::Constructed
-                        | NoteState::Signed
-                        | NoteState::Queued
-                        | NoteState::Broadcast
-                        | NoteState::Seen
-                ) =>
-            {
-                Ok(NoteState::Cancelled)
-            }
-            (_, Event::Superseded) => Ok(NoteState::Obsolete),
-            (_, Event::ExternalConflict) => Ok(NoteState::Conflict),
-            (NoteState::Confirmed, Event::ReorgOrphan) => Ok(NoteState::Orphaned),
-            (NoteState::Orphaned, Event::Broadcast) => Ok(NoteState::Broadcast),
-            _ => Err(PcwError::Other("Invalid transition §11.2".to_string())),
+            (NoteState::Signed, Event::Broadcast) => Ok(NoteState::Broadcast),
+            (NoteState::Broadcast, Event::Confirm) => Ok(NoteState::Confirmed),
+            (NoteState::Broadcast, Event::Reorg) => Ok(NoteState::ReorgOrphan),
+            (NoteState::Broadcast, Event::Supersede) => Ok(NoteState::Superseded),
+            (NoteState::Confirmed, Event::Reorg) => Ok(NoteState::ReorgOrphan),
+            (NoteState::Confirmed, Event::Supersede) => Ok(NoteState::Superseded),
+            _ => Err(PcwError::Other(format!(
+                "Invalid note state transition from {:?} with event {:?} §11.2",
+                self, event
+            ))),
         }
     }
 }
 
-/// Represents the state of an invoice in the protocol (§11.2).
-#[derive(Clone, Debug, PartialEq)]
+/// Invoice state per §11.2: State machine for invoices.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum InvoiceState {
-    /// Invoice is open and awaiting construction.
-    Open,
-    /// Invoice is pending a fan-out attempt.
-    FanOutPending,
-    /// Invoice is being built with notes.
-    Building,
-    /// Invoice is ready for broadcasting.
-    Ready,
-    /// Invoice is in the process of broadcasting.
-    Broadcasting,
-    /// Invoice is closing after completion.
-    Closing,
-    /// Invoice failed due to insufficient UTXOs.
-    InsufficientUtxo,
-    /// Invoice has expired.
-    Expired,
-    /// Invoice has been stopped manually.
-    Stopped,
-    /// Invoice is fully completed.
-    Completed,
+    Draft,
+    Signed,
+    Broadcast,
+    Confirmed,
+    Failed,
 }
 
 impl InvoiceState {
-    /// Transition per §11.2 diagram, enforcing invariants.
-    pub fn transition(&self, event: Event) -> Result<Self, PcwError> {
+    /// Transition to a new state based on an event (§11.2).
+    pub fn transition(&self, event: &Event) -> Result<Self, PcwError> {
         match (self, event) {
-            (InvoiceState::Open, Event::Construct) => Ok(InvoiceState::FanOutPending),
-            (InvoiceState::FanOutPending, Event::Sign) => Ok(InvoiceState::Building),
-            (InvoiceState::Building, Event::Enqueue) => Ok(InvoiceState::Ready),
-            (InvoiceState::Ready, Event::Broadcast) => Ok(InvoiceState::Broadcasting),
-            (InvoiceState::Broadcasting, Event::MempoolAccept) => Ok(InvoiceState::Closing),
-            (InvoiceState::Closing, Event::ConfirmDepthReached) => Ok(InvoiceState::Completed),
-            (InvoiceState::FanOutPending, Event::HoldTimeout) => Ok(InvoiceState::InsufficientUtxo),
-            (s, Event::ExplicitCancel)
-                if matches!(
-                    s,
-                    InvoiceState::Open
-                        | InvoiceState::FanOutPending
-                        | InvoiceState::Building
-                        | InvoiceState::Ready
-                        | InvoiceState::Broadcasting
-                ) =>
-            {
-                Ok(InvoiceState::Stopped)
-            }
-            (_, Event::Superseded) => Ok(InvoiceState::Expired),
-            (_, Event::ExternalConflict) => Ok(InvoiceState::Expired),
-            (InvoiceState::Completed, Event::ReorgOrphan) => Ok(InvoiceState::Broadcasting),
-            _ => Err(PcwError::Other("Invalid transition §11.2".to_string())),
+            (InvoiceState::Draft, Event::Sign) => Ok(InvoiceState::Signed),
+            (InvoiceState::Signed, Event::Broadcast) => Ok(InvoiceState::Broadcast),
+            (InvoiceState::Broadcast, Event::Confirm) => Ok(InvoiceState::Confirmed),
+            (InvoiceState::Broadcast, Event::Fail) => Ok(InvoiceState::Failed),
+            (InvoiceState::Confirmed, Event::Fail) => Ok(InvoiceState::Failed),
+            _ => Err(PcwError::Other(format!(
+                "Invalid invoice state transition from {:?} with event {:?} §11.2",
+                self, event
+            ))),
         }
     }
+}
+
+/// Event triggering state transitions (§11.2).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub enum Event {
+    Sign,
+    Broadcast,
+    Confirm,
+    Reorg,
+    Supersede,
+    Fail,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::json::canonical_json;
 
     #[test]
-    fn test_note_transition() {
-        let mut state = NoteState::Constructed;
-        state = state.transition(Event::Sign).unwrap();
-        assert_eq!(state, NoteState::Signed);
-
-        state = state.transition(Event::Enqueue).unwrap();
-        assert_eq!(state, NoteState::Queued);
-
-        state = state.transition(Event::Broadcast).unwrap();
+    fn test_note_state_transitions() -> Result<(), PcwError> {
+        let mut state = NoteState::Signed;
+        // Valid transitions
+        state = state.transition(&Event::Broadcast)?;
         assert_eq!(state, NoteState::Broadcast);
-
-        assert!(state.transition(Event::Sign).is_err()); // Invalid transition
+        state = state.transition(&Event::Confirm)?;
+        assert_eq!(state, NoteState::Confirmed);
+        state = state.transition(&Event::Reorg)?;
+        assert_eq!(state, NoteState::ReorgOrphan);
+        // Reset and test Superseded
+        state = NoteState::Broadcast;
+        state = state.transition(&Event::Supersede)?;
+        assert_eq!(state, NoteState::Superseded);
+        // Invalid transition
+        let result = NoteState::Signed.transition(&Event::Supersede);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid note state transition")));
+        Ok(())
     }
 
     #[test]
-    fn test_invoice_transition() {
-        let mut state = InvoiceState::Open;
-        state = state.transition(Event::Construct).unwrap();
-        assert_eq!(state, InvoiceState::FanOutPending);
+    fn test_invoice_state_transitions() -> Result<(), PcwError> {
+        let mut state = InvoiceState::Draft;
+        // Valid transitions
+        state = state.transition(&Event::Sign)?;
+        assert_eq!(state, InvoiceState::Signed);
+        state = state.transition(&Event::Broadcast)?;
+        assert_eq!(state, InvoiceState::Broadcast);
+        state = state.transition(&Event::Confirm)?;
+        assert_eq!(state, InvoiceState::Confirmed);
+        state = state.transition(&Event::Fail)?;
+        assert_eq!(state, InvoiceState::Failed);
+        // Reset and test Broadcast to Failed
+        state = InvoiceState::Broadcast;
+        state = state.transition(&Event::Fail)?;
+        assert_eq!(state, InvoiceState::Failed);
+        // Invalid transition
+        let result = InvoiceState::Draft.transition(&Event::Confirm);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid invoice state transition")));
+        Ok(())
+    }
 
-        state = state.transition(Event::Sign).unwrap();
-        assert_eq!(state, InvoiceState::Building);
+    #[test]
+    fn test_event_serialization() -> Result<(), PcwError> {
+        let event = Event::Sign;
+        let serialized = canonical_json(&event)?;
+        assert_eq!(serialized, b"\"Sign\"");
+        let event = Event::Supersede;
+        let serialized = canonical_json(&event)?;
+        assert_eq!(serialized, b"\"Supersede\"");
+        Ok(())
+    }
 
-        state = state.transition(Event::Enqueue).unwrap();
-        assert_eq!(state, InvoiceState::Ready);
+    #[test]
+    fn test_note_state_invalid_transitions() -> Result<(), PcwError> {
+        // Test all invalid transitions for NoteState
+        let invalid_transitions = [
+            (NoteState::Signed, Event::Sign),
+            (NoteState::Signed, Event::Confirm),
+            (NoteState::Signed, Event::Reorg),
+            (NoteState::Signed, Event::Fail),
+            (NoteState::Broadcast, Event::Sign),
+            (NoteState::Broadcast, Event::Fail),
+            (NoteState::Confirmed, Event::Sign),
+            (NoteState::Confirmed, Event::Broadcast),
+            (NoteState::Confirmed, Event::Confirm),
+            (NoteState::ReorgOrphan, Event::Sign),
+            (NoteState::ReorgOrphan, Event::Broadcast),
+            (NoteState::ReorgOrphan, Event::Confirm),
+            (NoteState::ReorgOrphan, Event::Reorg),
+            (NoteState::ReorgOrphan, Event::Supersede),
+            (NoteState::ReorgOrphan, Event::Fail),
+            (NoteState::Superseded, Event::Sign),
+            (NoteState::Superseded, Event::Broadcast),
+            (NoteState::Superseded, Event::Confirm),
+            (NoteState::Superseded, Event::Reorg),
+            (NoteState::Superseded, Event::Supersede),
+            (NoteState::Superseded, Event::Fail),
+        ];
+        for (state, event) in invalid_transitions {
+            let result = state.transition(&event);
+            assert!(result.is_err());
+            assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid note state transition")));
+        }
+        Ok(())
+    }
 
-        assert!(state.transition(Event::Construct).is_err()); // Invalid transition
+    #[test]
+    fn test_invoice_state_invalid_transitions() -> Result<(), PcwError> {
+        // Test all invalid transitions for InvoiceState
+        let invalid_transitions = [
+            (InvoiceState::Draft, Event::Broadcast),
+            (InvoiceState::Draft, Event::Confirm),
+            (InvoiceState::Draft, Event::Reorg),
+            (InvoiceState::Draft, Event::Supersede),
+            (InvoiceState::Draft, Event::Fail),
+            (InvoiceState::Signed, Event::Sign),
+            (InvoiceState::Signed, Event::Confirm),
+            (InvoiceState::Signed, Event::Reorg),
+            (InvoiceState::Signed, Event::Supersede),
+            (InvoiceState::Signed, Event::Fail),
+            (InvoiceState::Broadcast, Event::Sign),
+            (InvoiceState::Broadcast, Event::Reorg),
+            (InvoiceState::Broadcast, Event::Supersede),
+            (InvoiceState::Confirmed, Event::Sign),
+            (InvoiceState::Confirmed, Event::Broadcast),
+            (InvoiceState::Confirmed, Event::Confirm),
+            (InvoiceState::Confirmed, Event::Reorg),
+            (InvoiceState::Confirmed, Event::Supersede),
+            (InvoiceState::Failed, Event::Sign),
+            (InvoiceState::Failed, Event::Broadcast),
+            (InvoiceState::Failed, Event::Confirm),
+            (InvoiceState::Failed, Event::Reorg),
+            (InvoiceState::Failed, Event::Supersede),
+            (InvoiceState::Failed, Event::Fail),
+        ];
+        for (state, event) in invalid_transitions {
+            let result = state.transition(&event);
+            assert!(result.is_err());
+            assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid invoice state transition")));
+        }
+        Ok(())
     }
 }
