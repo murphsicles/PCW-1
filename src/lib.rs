@@ -31,18 +31,19 @@ pub use invoice::{Invoice, new};
 pub use json::canonical_json;
 pub use keys::{AnchorKeypair, IdentityKeypair, ecdh_z};
 pub use logging::{
-    CancelRecord, ConflictRecord, LogRecord, OrphanedRecord, OutpointMeta, ReissueRecord, append_to_log,
+    CancelRecord, ConflictRecord, LogRecord, OrphanedRecord, OutpointMeta, ReissueRecord,
+    append_to_log,
 };
-pub use policy::{new_policy, Policy};
+pub use policy::{Policy, new_policy};
 pub use protocol::{exchange_invoice, exchange_policy, handshake};
 pub use receipts::{
     Entry, Leaf, Manifest, PathElement, Proof, compute_leaves, generate_proof, merkle_root,
     verify_proof,
 };
-pub use scope::{derive_scalar, Scope};
+pub use scope::{Scope, derive_scalar};
 pub use selection::{Utxo, build_reservations};
 pub use split::bounded_split;
-pub use tx::{build_note_tx, NoteMeta, NoteTx};
+pub use tx::{NoteMeta, NoteTx, build_note_tx};
 pub use utils::{
-    base58check, h160, le32, le8, nfc_normalize, point_add, scalar_mul, ser_p, sha256,
+    base58check, h160, le8, le32, nfc_normalize, point_add, scalar_mul, ser_p, sha256,
 };
