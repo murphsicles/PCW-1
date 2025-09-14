@@ -22,15 +22,15 @@ impl Scope {
     }
 
     /// Derive scalar for domain ("recv"/"snd") and i, with reject-zero bump (§4.2, §7.2).
-    pub fn derive_scalar(scope: &Scope, domain: &str, i: u32) -> Result<[u8; 32], PcwError> {
+    pub fn derive_scalar(&self, domain: &str, i: u32) -> Result<[u8; 32], PcwError> {
         if domain.is_empty() || domain.len() > 255 {
             return Err(PcwError::Other(
                 "Domain must be 1-255 bytes §4.2".to_string(),
             ));
         }
         let mut preimage = vec![];
-        preimage.extend_from_slice(&scope.z);
-        preimage.extend_from_slice(&scope.h_i);
+        preimage.extend_from_slice(&self.z);
+        preimage.extend_from_slice(&self.h_i);
         preimage.extend_from_slice(domain.as_bytes());
         preimage.extend_from_slice(&le32(i));
         let mut h = sha256(&preimage);
@@ -38,8 +38,8 @@ impl Scope {
         while h == [0; 32] {
             ctr += 1;
             preimage = vec![];
-            preimage.extend_from_slice(&scope.z);
-            preimage.extend_from_slice(&scope.h_i);
+            preimage.extend_from_slice(&self.z);
+            preimage.extend_from_slice(&self.h_i);
             preimage.extend_from_slice(domain.as_bytes());
             preimage.extend_from_slice(&le32(i));
             preimage.extend_from_slice(&le32(ctr));
@@ -69,11 +69,11 @@ mod tests {
         let z = [1u8; 32];
         let h_i = [2u8; 32];
         let scope = Scope::new(z, h_i)?;
-        let scalar1 = derive_scalar(&scope, "recv", 0)?;
-        let scalar2 = derive_scalar(&scope, "recv", 0)?;
+        let scalar1 = scope.derive_scalar("recv", 0)?;
+        let scalar2 = scope.derive_scalar("recv", 0)?;
         assert_eq!(scalar1, scalar2); // Deterministic
         assert_ne!(scalar1, [0u8; 32]); // Non-zero
-        assert!(derive_scalar(&scope, "", 0).is_err()); // Empty domain
+        assert!(scope.derive_scalar("", 0).is_err()); // Empty domain
         Ok(())
     }
 }
