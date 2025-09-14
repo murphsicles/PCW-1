@@ -3,7 +3,7 @@
 //! This module provides keypair structs for anchor and identity keys, along with ECDH
 //! shared secret computation as per §3.1 and §3.2 of the spec.
 use crate::errors::PcwError;
-use secp256k1::{PublicKey, Scalar, Secp256k1, SecretKey};
+use secp256k1::{PublicKey, Secp256k1, SecretKey};
 
 /// Anchor keypair for address derivation (§3.1).
 #[derive(Clone, Debug)]
@@ -37,8 +37,8 @@ impl AnchorKeypair {
         let secp = Secp256k1::new();
         let sec_key = SecretKey::from_byte_array(self.priv_key)
             .map_err(|e| PcwError::Other(format!("Invalid private key: {}", e)))?;
-        let scalar = Scalar::from(sec_key);
-        let shared_point = their_pub.mul_tweak(&secp, &scalar)?;
+        // Compute shared point: their_pub * priv_key
+        let shared_point = their_pub.mul_tweak(&secp, &sec_key)?;
         let shared_bytes = shared_point.serialize();
         let z: [u8; 32] = shared_bytes[1..33]
             .try_into()
@@ -64,6 +64,8 @@ impl IdentityKeypair {
 #[cfg(test)]
 mod tests {
     use super::*;
+    // Note: For production, use secure random keys with `rand::rngs::OsRng` (§3.1).
+    // Example: `let mut rng = OsRng; let priv_key = SecretKey::new(&mut rng).to_bytes();`
 
     #[test]
     fn test_anchor_keypair() -> Result<(), PcwError> {
