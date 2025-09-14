@@ -190,7 +190,7 @@ pub fn build_note_tx(
             .outputs
             .iter()
             .map(|o| OutputMeta {
-                addr: reverse_base58(&o.lock_script.to_bytes()).unwrap_or_default(),
+                addr: reverse_base58(&o.lock_script.to_bytes())?,
                 value: o.satoshis as u64,
             })
             .collect(),
@@ -202,19 +202,24 @@ pub fn build_note_tx(
 }
 
 /// Reverse P2PKH lock to base58 addr (§8.3 optional, for meta).
-fn reverse_base58(lock: &[u8]) -> Option<String> {
-    if lock.len() == 25
-        && lock[0] == OP_DUP
-        && lock[1] == OP_HASH160
-        && lock[2] == 0x14
-        && lock[23] == OP_EQUALVERIFY
-        && lock[24] == OP_CHECKSIG
-    {
-        let h160 = &lock[3..23];
-        base58check(0x00, h160).ok()
-    } else {
-        None
+fn reverse_base58(lock: &[u8]) -> Result<String, PcwError> {
+    if lock.len() != 25 {
+        return Err(PcwError::Other(
+            "Invalid script length for P2PKH §8.3".to_string(),
+        ));
     }
+    if lock[0] != OP_DUP
+        || lock[1] != OP_HASH160
+        || lock[2] != 0x14
+        || lock[23] != OP_EQUALVERIFY
+        || lock[24] != OP_CHECKSIG
+    {
+        return Err(PcwError::Other(
+            "Invalid script format for P2PKH §8.3".to_string(),
+        ));
+    }
+    let h160 = &lock[3..23];
+    base58check(0x00, h160)
 }
 
 #[cfg(test)]
@@ -397,7 +402,42 @@ mod tests {
     #[test]
     fn test_reverse_base58_invalid() {
         let lock_script = vec![OP_DUP]; // Invalid script
-        let addr = reverse_base58(&lock_script);
-        assert!(addr.is_none()); // Should return None for invalid script
+        let result = reverse_base58(&lock_script);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid script length")));
+    }
+
+    #[test]
+    fn test_reverse_base58_non_standard() {
+        let lock_script = vec![
+            OP_DUP,
+            OP_HASH160,
+            0x14,
+            0x12,
+            0x56,
+            0x78,
+            0x9a,
+            0xbc,
+            0xde,
+            0xf0,
+            0x12,
+            0x34,
+            0x56,
+            0x78,
+            0x9a,
+            0xbc,
+            0xde,
+            0xf0,
+            0x12,
+            0x34,
+            0x56,
+            0x78,
+            0x9a,
+            OP_EQUAL, // Non-standard opcode
+            OP_CHECKSIG,
+        ];
+        let result = reverse_base58(&lock_script);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid script format")));
     }
 }
