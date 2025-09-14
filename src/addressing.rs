@@ -4,7 +4,7 @@
 //! based on the protocol's deterministic scoping, using ECDH-derived shared secrets
 //! and invoice fingerprints as per §3-§7 of the spec.
 use crate::errors::PcwError;
-use crate::scope::{Scope, derive_scalar};
+use crate::scope::Scope;
 use crate::utils::{base58check, h160, point_add, scalar_mul, ser_p};
 use secp256k1::PublicKey;
 
@@ -19,7 +19,7 @@ pub fn recipient_address(
     i: u32,
     anchor_b: &PublicKey,
 ) -> Result<String, PcwError> {
-    let t_i = derive_scalar(scope, "recv", i)?;
+    let t_i = scope.derive_scalar("recv", i)?;
     if t_i == [0; 32] {
         return Err(PcwError::Other("Zero scalar t_i §7.2".to_string()));
     }
@@ -41,7 +41,7 @@ pub fn sender_change_address(
     i: u32,
     anchor_a: &PublicKey,
 ) -> Result<String, PcwError> {
-    let s_i = derive_scalar(scope, "snd", i)?;
+    let s_i = scope.derive_scalar("snd", i)?;
     if s_i == [0; 32] {
         return Err(PcwError::Other("Zero scalar s_i §7.2".to_string()));
     }
