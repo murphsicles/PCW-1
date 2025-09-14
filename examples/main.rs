@@ -6,7 +6,9 @@ use pcw_protocol::{
     merkle_root, verify_proof,
 };
 use sv::messages::OutPoint;
-use sv::util::Hash256;
+use sv::transaction::p2pkh::create_lock_script;
+use sv::util::{Hash160, Hash256};
+use pcw_protocol::utils::{h160, sha256};
 
 fn main() -> Result<(), PcwError> {
     // Mock keys
@@ -53,15 +55,18 @@ fn main() -> Result<(), PcwError> {
     println!("Split: {:?}", split);
 
     // Mock UTXOs
+    let mock_hash = sha256(b"test_tx");
+    let mock_h160 = h160(&mock_hash);
+    let mock_script = create_lock_script(&Hash160(mock_h160));
     let mut u0 = vec![];
     for i in 0..5 {
         u0.push(Utxo {
             outpoint: OutPoint {
-                hash: Hash256([i; 32]),
+                hash: Hash256(sha256(&format!("test_tx_{}", i).as_bytes())),
                 index: i as u32,
             },
-            value: 500,
-            script_pubkey: vec![], // Placeholder, noted for audit
+            value: 600, // Adjusted to cover split amounts and fees
+            script_pubkey: mock_script.to_bytes(),
         });
     }
     let r = build_reservations(&u0, &split, 1, 1, 3, 5, true)?;
