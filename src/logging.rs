@@ -354,6 +354,44 @@ pub fn append_to_log<T: LogRecord>(
     Ok(())
 }
 
+/// Verify log chain integrity (§13.7).
+pub fn verify_log_chain<T: LogRecord>(log: &[T]) -> Result<(), PcwError> {
+    if log.is_empty() {
+        return Ok(());
+    }
+    for i in 0..log.len() {
+        // Verify sequence number
+        if log[i].seq() != (i + 1) as u64 {
+            return Err(PcwError::Other(format!(
+                "Invalid sequence number at index {}: expected {}, found {} §13.7",
+                i,
+                i + 1,
+                log[i].seq()
+            )));
+        }
+        // Verify previous hash
+        if i > 0 {
+            let mut prev_unsigned = log[i - 1].clone();
+            prev_unsigned.set_signature("".to_string(), "".to_string(), "".to_string());
+            let prev_bytes = canonical_json(&prev_unsigned)?;
+            let expected_prev_hash = hex::encode(sha256(&prev_bytes));
+            if log[i].prev_hash() != expected_prev_hash {
+                return Err(PcwError::Other(format!(
+                    "Invalid prev_hash at index {} §13.7",
+                    i
+                )));
+            }
+        } else if log[i].prev_hash() != "" {
+            return Err(PcwError::Other(
+                "First record must have empty prev_hash §13.7".to_string(),
+            ));
+        }
+        // Verify signature
+        log[i].verify()?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -513,6 +551,78 @@ mod tests {
         let mut r = log[0].clone();
         r.set_signature("".to_string(), "".to_string(), "".to_string());
         assert_eq!(log[1].prev_hash, hex::encode(sha256(&canonical_json(&r)?)));
+        Ok(())
+    }
+
+    #[test]
+    fn test_log_chain_tampering() -> Result<(), PcwError> {
+        let mut log: Vec<ReissueRecord> = Vec::new();
+        let priv_k = [1; 32];
+        let key = IdentityKeypair::new(priv_k)?;
+        // Create and sign first record
+        let mut record1 = ReissueRecord {
+            invoice_hash: "test1".to_string(),
+            i: 0,
+            note_id: "note1".to_string(),
+            event: "reissue".to_string(),
+            version: 1,
+            supersedes: "old1".to_string(),
+            txid_new: "new1".to_string(),
+            addr_recv: "addr_b1".to_string(),
+            addr_change: "addr_a1".to_string(),
+            fee: 100,
+            feerate_used: 1,
+            at: Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+            by: "".to_string(),
+            sig_alg: "".to_string(),
+            sig: "".to_string(),
+            prev_hash: "".to_string(),
+            seq: 0,
+        };
+        record1.sign(&key)?;
+        append_to_log(&mut log, record1, None)?;
+        // Create and sign second record
+        let mut record2 = ReissueRecord {
+            invoice_hash: "test2".to_string(),
+            i: 1,
+            note_id: "note2".to_string(),
+            event: "reissue".to_string(),
+            version: 1,
+            supersedes: "old2".to_string(),
+            txid_new: "new2".to_string(),
+            addr_recv: "addr_b2".to_string(),
+            addr_change: "addr_a2".to_string(),
+            fee: 200,
+            feerate_used: 2,
+            at: Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+            by: "".to_string(),
+            sig_alg: "".to_string(),
+            sig: "".to_string(),
+            prev_hash: "".to_string(),
+            seq: 0,
+        };
+        record2.sign(&key)?;
+        append_to_log(&mut log, record2, Some(&log[0]))?;
+        // Verify valid chain
+        verify_log_chain(&log)?;
+        // Tamper with prev_hash
+        let mut tampered_log = log.clone();
+        tampered_log[1].set_prev_hash("invalid_hash".to_string());
+        let result = verify_log_chain(&tampered_log);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid prev_hash")));
+        // Tamper with seq
+        let mut tampered_log = log.clone();
+        tampered_log[1].set_seq(3);
+        let result = verify_log_chain(&tampered_log);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid sequence number")));
+        // Tamper with first record's prev_hash
+        let mut tampered_log = log.clone();
+        tampered_log[0].set_prev_hash("invalid_hash".to_string());
+        let result = verify_log_chain(&tampered_log);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("First record must have empty prev_hash")));
         Ok(())
     }
 }
