@@ -6,15 +6,18 @@
 use crate::addressing::recipient_address;
 use crate::errors::PcwError;
 use crate::scope::Scope;
-use secp256k1::{PublicKey, Secp256k1};
+use crate::utils::{h160, sha256};
+use secp256k1::{PublicKey, Secp256k1, SecretKey};
 use std::cmp::max;
 use std::collections::{HashMap, HashSet};
-use sv::util::Hash256;
+use sv::messages::OutPoint;
+use sv::transaction::p2pkh::create_lock_script;
+use sv::util::{Hash160, Hash256};
 
 /// UTXO data for selection.
 #[derive(Clone, Debug)]
 pub struct Utxo {
-    pub outpoint: sv::messages::OutPoint,
+    pub outpoint: OutPoint,
     pub value: u64,
     pub script_pubkey: Vec<u8>,
 }
@@ -136,7 +139,7 @@ pub fn build_reservations(
 /// Selects UTXOs for a target amount, considering fees and dust (§6.3).
 fn select_utxos(
     utxos: &[Utxo],
-    used: &mut HashSet<sv::util::Hash256>,
+    used: &mut HashSet<Hash256>,
     target: u64,
     feerate_floor: u64,
     dust: u64,
@@ -165,7 +168,7 @@ fn select_utxos(
 /// Performs fan-out to generate additional UTXOs (§6.8).
 fn fan_out(
     utxos: &[Utxo],
-    used: &HashSet<sv::util::Hash256>,
+    used: &HashSet<Hash256>,
     split: u64,
     feerate_floor: u64,
     dust: u64,
@@ -202,8 +205,8 @@ fn fan_out(
                 let addr = recipient_address(&secp, scope, i as u32, sender_anchor)?;
                 let script_pubkey = sv::address::decode_address(&addr)?.1;
                 fan_out_utxos.push(Utxo {
-                    outpoint: sv::messages::OutPoint {
-                        hash: Hash256([0; 32]), // Placeholder
+                    outpoint: OutPoint {
+                        hash: Hash256(sha256(&format!("fan_out_{}", i).as_bytes())),
                         index: i as u32,
                     },
                     value: split,
@@ -238,7 +241,6 @@ pub fn compute_per_address_amounts(
 mod tests {
     use super::*;
     use secp256k1::{PublicKey, Secp256k1, SecretKey};
-    use sv::util::Hash256;
 
     #[test]
     fn test_compute_n_min_max() -> Result<(), PcwError> {
@@ -252,22 +254,25 @@ mod tests {
 
     #[test]
     fn test_select_utxos() -> Result<(), PcwError> {
+        let mock_hash = sha256(b"test_tx");
+        let mock_h160 = h160(&mock_hash);
+        let mock_script = create_lock_script(&Hash160(mock_h160));
         let utxos = vec![
             Utxo {
-                outpoint: sv::messages::OutPoint {
-                    hash: Hash256([1; 32]),
+                outpoint: OutPoint {
+                    hash: Hash256(mock_hash),
                     index: 0,
                 },
                 value: 500,
-                script_pubkey: vec![],
+                script_pubkey: mock_script.to_bytes(),
             },
             Utxo {
-                outpoint: sv::messages::OutPoint {
-                    hash: Hash256([2; 32]),
+                outpoint: OutPoint {
+                    hash: Hash256(sha256(b"test_tx_2")),
                     index: 0,
                 },
                 value: 600,
-                script_pubkey: vec![],
+                script_pubkey: mock_script.to_bytes(),
             },
         ];
         let mut used = HashSet::new();
@@ -287,22 +292,25 @@ mod tests {
     fn test_build_reservations() -> Result<(), PcwError> {
         let secp = Secp256k1::new();
         let scope = Scope::new([1; 32], [2; 32])?;
+        let mock_hash = sha256(b"test_tx");
+        let mock_h160 = h160(&mock_hash);
+        let mock_script = create_lock_script(&Hash160(mock_h160));
         let utxos = vec![
             Utxo {
-                outpoint: sv::messages::OutPoint {
-                    hash: Hash256([1; 32]),
+                outpoint: OutPoint {
+                    hash: Hash256(mock_hash),
                     index: 0,
                 },
                 value: 1000,
-                script_pubkey: vec![],
+                script_pubkey: mock_script.to_bytes(),
             },
             Utxo {
-                outpoint: sv::messages::OutPoint {
-                    hash: Hash256([2; 32]),
+                outpoint: OutPoint {
+                    hash: Hash256(sha256(b"test_tx_2")),
                     index: 0,
                 },
                 value: 1000,
-                script_pubkey: vec![],
+                script_pubkey: mock_script.to_bytes(),
             },
         ];
         let secret_key = SecretKey::from_byte_array([1; 32]).unwrap();
@@ -331,13 +339,16 @@ mod tests {
     fn test_fan_out() -> Result<(), PcwError> {
         let secp = Secp256k1::new();
         let scope = Scope::new([1; 32], [2; 32])?;
+        let mock_hash = sha256(b"test_tx");
+        let mock_h160 = h160(&mock_hash);
+        let mock_script = create_lock_script(&Hash160(mock_h160));
         let utxos = vec![Utxo {
-            outpoint: sv::messages::OutPoint {
-                hash: Hash256([1; 32]),
+            outpoint: OutPoint {
+                hash: Hash256(mock_hash),
                 index: 0,
             },
             value: 1000,
-            script_pubkey: vec![],
+            script_pubkey: mock_script.to_bytes(),
         }];
         let mut used = HashSet::new();
         let split = 400;
