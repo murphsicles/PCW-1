@@ -20,7 +20,7 @@ jobs:
         components: rustfmt, clippy
 
     - name: Check formatting
-      run: cargo fmt -- --check
+      run: cargo fmt -- --check --config-path rustfmt.toml
 
     - name: Lint with Clippy
       run: cargo clippy -- -D warnings
@@ -35,4 +35,4 @@ jobs:
       run: cargo test --verbose
 
     - name: Run benches
-      run: cargo bench
+      run: cargo bench --verbose
