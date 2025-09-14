@@ -93,8 +93,9 @@ mod tests {
         assert_eq!(state, NoteState::Superseded);
         // Invalid transition
         let result = NoteState::Signed.transition(&Event::Supersede);
-        assert!(result.is_err());
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid note state transition")));
+        assert!(
+            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid note state transition")),
+        );
         Ok(())
     }
 
@@ -116,8 +117,9 @@ mod tests {
         assert_eq!(state, InvoiceState::Failed);
         // Invalid transition
         let result = InvoiceState::Draft.transition(&Event::Confirm);
-        assert!(result.is_err());
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid invoice state transition")));
+        assert!(
+            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid invoice state transition")),
+        );
         Ok(())
     }
 
@@ -160,8 +162,9 @@ mod tests {
         ];
         for (state, event) in invalid_transitions {
             let result = state.transition(&event);
-            assert!(result.is_err());
-            assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid note state transition")));
+            assert!(
+                matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid note state transition")),
+            );
         }
         Ok(())
     }
@@ -197,8 +200,9 @@ mod tests {
         ];
         for (state, event) in invalid_transitions {
             let result = state.transition(&event);
-            assert!(result.is_err());
-            assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid invoice state transition")));
+            assert!(
+                matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid invoice state transition")),
+            );
         }
         Ok(())
     }
