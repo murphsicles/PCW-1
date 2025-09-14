@@ -5,9 +5,10 @@
 //! asynchronous I/O and serde_json for serialization/deserialization.
 use crate::errors::PcwError;
 use crate::invoice::Invoice;
+use crate::json::canonical_json;
 use crate::keys::IdentityKeypair;
 use crate::policy::Policy;
-use secp256k1::{PublicKey, Scalar, Secp256k1, SecretKey};
+use secp256k1::{PublicKey, Secp256k1, SecretKey};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
@@ -15,8 +16,7 @@ use tokio::net::TcpStream;
 fn ecdh_z(my_priv: &[u8; 32], their_pub: &PublicKey) -> Result<[u8; 32], PcwError> {
     let secp = Secp256k1::new();
     let secret_key = SecretKey::from_byte_array(*my_priv)?;
-    let scalar = Scalar::from(secret_key);
-    let shared_point = their_pub.mul_tweak(&secp, &scalar)?;
+    let shared_point = their_pub.mul_tweak(&secp, &secret_key)?;
     Ok(shared_point
         .serialize()
         .get(1..33)
@@ -55,7 +55,7 @@ pub async fn exchange_policy(
     policy: Option<Policy>,
 ) -> Result<Policy, PcwError> {
     if let Some(p) = policy {
-        let bytes = serde_json::to_vec(&p)?;
+        let bytes = canonical_json(&p)?;
         let len = (bytes.len() as u32).to_le_bytes();
         stream
             .write_all(&len)
@@ -91,7 +91,7 @@ pub async fn exchange_invoice(
     expected_policy_hash: &[u8; 32],
 ) -> Result<Invoice, PcwError> {
     if let Some(inv) = invoice {
-        let bytes = serde_json::to_vec(&inv)?;
+        let bytes = canonical_json(&inv)?;
         let len = (bytes.len() as u32).to_le_bytes();
         stream
             .write_all(&len)
@@ -197,7 +197,7 @@ mod tests {
             .map_err(|e| PcwError::Other(format!("Task 1 failed: {}", e)))??;
         let p2 = t2
             .await
-            .map_err(|e| PcwError::Other(format!("Task 2 failed: {}", e)))??;
+            .map_err(|e| PcwError::Other(format!("Task 1 failed: {}", e)))??;
         assert_eq!(p1.h_policy(), p2.h_policy());
         Ok(())
     }
