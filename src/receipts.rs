@@ -247,9 +247,21 @@ mod tests {
 
     #[test]
     fn test_merkle_root_odd() {
-        let leaves = vec![[0; 32]];
+        let manifest = Manifest {
+            invoice_hash: "test_hash".to_string(),
+            merkle_root: "".to_string(),
+            count: 1,
+            entries: vec![Entry {
+                i: 0,
+                txid: "0000000000000000000000000000000000000000000000000000000000000000"
+                    .to_string(),
+            }],
+        };
+        let amounts = [100];
+        let addr_payloads = [[0; 21]];
+        let leaves = compute_leaves(&manifest, &amounts, &addr_payloads).unwrap();
         let root = merkle_root(&leaves);
-        assert_eq!(root, [0; 32]);
+        assert_eq!(root, leaves[0]); // Root should be the leaf for N=1
     }
 
     #[test]
