@@ -30,7 +30,7 @@ Ensure you have `rust-sv` for transaction-related functionality:
 
 ```toml
 [dependencies]
-sv = "0.2"
+sv = { git = "https://github.com/murphsicles/rust-sv", tag = "v0.5.1" }
 ```
 
 ## Usage Example 💻
