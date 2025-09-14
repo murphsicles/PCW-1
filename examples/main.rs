@@ -1,25 +1,24 @@
-use chrono::prelude::*;
+use chrono::Utc;
 use hex;
 use pcw_protocol::{
-    AnchorKeypair, Entry, IdentityKeypair, Invoice, Manifest, PcwError, Policy, Scope, Utxo,
-    bounded_split, build_reservations, build_note_tx, compute_leaves, ecdh_z, generate_proof,
-    merkle_root, verify_proof,
+    utils::{h160, sha256}, AnchorKeypair, Entry, IdentityKeypair, Invoice, Manifest, PcwError,
+    Policy, Scope, Utxo, bounded_split, build_note_tx, build_reservations, compute_leaves, ecdh_z,
+    generate_proof, merkle_root, verify_proof,
 };
 use sv::messages::OutPoint;
 use sv::transaction::p2pkh::create_lock_script;
 use sv::util::{Hash160, Hash256};
-use pcw_protocol::utils::{h160, sha256};
 
 fn main() -> Result<(), PcwError> {
     // Mock keys
     let priv_a = [1u8; 32];
-    let identity_a = IdentityKeypair::new(priv_a)?;
     let priv_b = [2u8; 32];
+    let identity_a = IdentityKeypair::new(priv_a)?;
     let identity_b = IdentityKeypair::new(priv_b)?;
     let anchor_a = AnchorKeypair::new([3u8; 32])?;
     let anchor_b = AnchorKeypair::new([4u8; 32])?;
 
-    // Policy
+    // Create and sign policy
     let expiry = Utc::now() + chrono::Duration::days(1);
     let mut policy = Policy::new(
         hex::encode(anchor_b.pub_key.serialize()),
@@ -30,74 +29,69 @@ fn main() -> Result<(), PcwError> {
         expiry,
     )?;
     policy.sign(&identity_b)?;
-    policy.verify()?;
     let h_policy = policy.h_policy();
 
-    // Invoice
+    // Create and sign invoice
     let mut invoice = Invoice::new(
         "inv1".to_string(),
         "terms".to_string(),
         "sat".to_string(),
-        2000,
+        1000,
         hex::encode(h_policy),
         Some(expiry),
     )?;
     invoice.sign(&identity_a)?;
-    invoice.verify(&h_policy)?;
     let h_i = invoice.h_i();
 
-    // Scope
+    // Create scope and derive address
     let z = ecdh_z(&priv_a, &identity_b.pub_key)?;
     let scope = Scope::new(z, h_i)?;
+    let secp = secp256k1::Secp256k1::new();
+    let addr_b = recipient_address(&secp, &scope, 0, &anchor_b.pub_key)?;
+    let addr_a = sender_change_address(&secp, &scope, 0, &anchor_a.pub_key)?;
 
-    // Split
-    let split = bounded_split(&scope, 2000, 100, 1000)?;
-    println!("Split: {:?}", split);
+    // Split amount
+    let split = bounded_split(&scope, 1000, 100, 1000)?;
+    let amounts = split;
 
-    // Mock UTXOs
+    // Create mock UTXO
     let mock_hash = sha256(b"test_tx");
     let mock_h160 = h160(&mock_hash);
-    let mock_script = create_lock_script(&Hash160(mock_h160));
-    let mut u0 = vec![];
-    for i in 0..5 {
-        u0.push(Utxo {
-            outpoint: OutPoint {
-                hash: Hash256(sha256(&format!("test_tx_{}", i).as_bytes())),
-                index: i as u32,
-            },
-            value: 600, // Adjusted to cover split amounts and fees
-            script_pubkey: mock_script.to_bytes(),
-        });
-    }
-    let r = build_reservations(&u0, &split, 1, 1, 3, 5, true)?;
-    println!("Reservation: {:?}", r);
+    let mock_script = create_lock_script(&Hash160(mock_hash));
+    let u0 = vec![Utxo {
+        outpoint: OutPoint {
+            hash: Hash256(mock_hash),
+            index: 0,
+        },
+        value: 1500,
+        script_pubkey: mock_script.to_bytes(),
+    }];
 
-    // Build tx for i=0
-    let i = 0;
-    let s_i = r.get(&i).unwrap_or(&vec![]);
+    // Build reservations
+    let reservations = build_reservations(&u0, &amounts, 1, 1, 3, 5, false)?;
+    let s_i = reservations.get(&0).unwrap();
+
+    // Build transaction
     let priv_keys = vec![[5u8; 32]; s_i.len()];
     let (note_tx, meta) = build_note_tx(
         &scope,
-        i,
+        0,
         s_i,
-        split[0],
+        amounts[0],
         &anchor_b.pub_key,
         &anchor_a.pub_key,
         1,
         1,
         &priv_keys,
     )?;
-    println!("Note Tx: {:?}", note_tx);
-    println!("Meta: {:?}", meta);
 
-    // Receipts mock
-    let amounts = split;
+    // Generate receipt
     let addr_payloads = vec![[0u8; 21]; amounts.len()];
     let mut entries = vec![];
     for j in 0..amounts.len() {
         entries.push(Entry {
             i: j as u32,
-            txid: format!("{:064}", j), // Valid 32-byte hex string
+            txid: format!("{:064}", j),
         });
     }
     let mut manifest = Manifest {
@@ -107,11 +101,9 @@ fn main() -> Result<(), PcwError> {
         entries,
     };
     let leaves = compute_leaves(&manifest, &amounts, &addr_payloads)?;
-    let root = merkle_root(&leaves);
+    let root = merkle_root(&leaves)?;
     manifest.merkle_root = hex::encode(root);
     let proof = generate_proof(&leaves, 0, &manifest, &amounts, &addr_payloads)?;
     verify_proof(&proof, &manifest)?;
-    println!("Proof verified");
-
     Ok(())
 }
