@@ -5,8 +5,7 @@
 //! compact output with no whitespace, base-10 integers, and lowercase hex.
 
 use crate::errors::PcwError;
-use serde::ser::SerializeMap;
-use serde::{Serialize, Serializer};
+use serde::Serialize;
 use serde_json::{Value, to_value};
 use std::collections::BTreeMap;
 use unicode_normalization::UnicodeNormalization;
