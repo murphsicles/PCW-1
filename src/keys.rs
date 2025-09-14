@@ -128,7 +128,9 @@ mod tests {
         let keypair = AnchorKeypair::new(priv_key)?;
         let secp = Secp256k1::new();
         // Create an invalid (zero) public key
-        let invalid_pub = PublicKey::from_slice(&[0u8; 33]).unwrap_or_else(|_| PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array([0; 32]).unwrap()));
+        let invalid_pub = PublicKey::from_slice(&[0u8; 33]).unwrap_or_else(|_| {
+            PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array([0; 32]).unwrap())
+        });
         let result = keypair.ecdh(&invalid_pub);
         assert!(result.is_err());
         assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid public key")));
