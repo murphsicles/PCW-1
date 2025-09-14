@@ -46,7 +46,9 @@ impl Invoice {
         }
         // Validate policy_hash format (64-character hex)
         if policy_hash.len() != 64 || !hex::decode(&policy_hash).is_ok() {
-            return Err(PcwError::Other("Invalid policy_hash format §3.4".to_string()));
+            return Err(PcwError::Other(
+                "Invalid policy_hash format §3.4".to_string(),
+            ));
         }
         if let Some(exp) = expiry {
             if exp < Utc::now() {
@@ -158,8 +160,9 @@ mod tests {
             "invalid".to_string(),
             expiry,
         );
-        assert!(result.is_err());
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid policy_hash format")));
+        assert!(
+            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid policy_hash format")),
+        );
         // Wrong length policy hash
         let result = Invoice::new(
             "test".to_string(),
@@ -169,8 +172,9 @@ mod tests {
             "0".repeat(60),
             expiry,
         );
-        assert!(result.is_err());
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid policy_hash format")));
+        assert!(
+            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid policy_hash format")),
+        );
         Ok(())
     }
 
