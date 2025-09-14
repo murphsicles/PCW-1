@@ -2,7 +2,7 @@ use chrono::prelude::*;
 use hex;
 use pcw_protocol::{
     AnchorKeypair, Entry, IdentityKeypair, Invoice, Manifest, PcwError, Policy, Scope, Utxo,
-    bounded_split, build_note_tx, build_reservations, compute_leaves, ecdh_z, generate_proof,
+    bounded_split, build_reservations, build_note_tx, compute_leaves, ecdh_z, generate_proof,
     merkle_root, verify_proof,
 };
 use sv::messages::OutPoint;
@@ -46,7 +46,7 @@ fn main() -> Result<(), PcwError> {
 
     // Scope
     let z = ecdh_z(&priv_a, &identity_b.pub_key)?;
-    let scope = Scope::new(z, h_i);
+    let scope = Scope::new(z, h_i)?;
 
     // Split
     let split = bounded_split(&scope, 2000, 100, 1000)?;
@@ -61,7 +61,7 @@ fn main() -> Result<(), PcwError> {
                 index: i as u32,
             },
             value: 500,
-            script_pubkey: vec![],
+            script_pubkey: vec![], // Placeholder, noted for audit
         });
     }
     let r = build_reservations(&u0, &split, 1, 1, 3, 5, true)?;
@@ -92,7 +92,7 @@ fn main() -> Result<(), PcwError> {
     for j in 0..amounts.len() {
         entries.push(Entry {
             i: j as u32,
-            txid: "mock_txid_".to_string() + &j.to_string(),
+            txid: format!("{:064}", j), // Valid 32-byte hex string
         });
     }
     let mut manifest = Manifest {
@@ -102,7 +102,7 @@ fn main() -> Result<(), PcwError> {
         entries,
     };
     let leaves = compute_leaves(&manifest, &amounts, &addr_payloads)?;
-    let root = merkle_root(leaves.clone());
+    let root = merkle_root(&leaves);
     manifest.merkle_root = hex::encode(root);
     let proof = generate_proof(&leaves, 0, &manifest, &amounts, &addr_payloads)?;
     verify_proof(&proof, &manifest)?;
