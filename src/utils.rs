@@ -66,7 +66,8 @@ pub fn scalar_mul(scalar: &[u8; 32]) -> Result<PublicKey, PcwError> {
     let secp = Secp256k1::new();
     let secret_key = SecretKey::from_byte_array(*scalar)
         .map_err(|e| PcwError::Other(format!("Invalid scalar: {}", e)))?;
-    Ok(PublicKey::from_secret_key(&secp, &secret_key))
+    let pub_key = PublicKey::from_secret_key(&secp, &secret_key);
+    Ok(pub_key)
 }
 
 /// NFC normalize string (§2).
