@@ -52,9 +52,9 @@ pub fn compute_leaves(
 }
 
 /// Merkle root per §10.3: Binary SHA256(left || right), duplicate odd leaf.
-pub fn merkle_root(leaves: &[[u8; 32]]) -> [u8; 32] {
+pub fn merkle_root(leaves: &[[u8; 32]]) -> Result<[u8; 32], PcwError> {
     if leaves.is_empty() {
-        return [0; 32];
+        return Err(PcwError::Other("Empty leaves §10.3".to_string()));
     }
     let mut current = leaves.to_vec();
     while current.len() > 1 {
@@ -72,7 +72,7 @@ pub fn merkle_root(leaves: &[[u8; 32]]) -> [u8; 32] {
         }
         current = next;
     }
-    current[0]
+    Ok(current[0])
 }
 
 /// Proof for single leaf (§10.5).
@@ -177,7 +177,7 @@ pub fn verify_proof(proof: &Proof, manifest: &Manifest) -> Result<(), PcwError> 
         return Err(PcwError::Other("Txid not 32 bytes".to_string()));
     }
     preimage.extend_from_slice(&txid_bytes);
-    preimage.extend_from_slice(&le8(pronef.leaf.amount));
+    preimage.extend_from_slice(&le8(proof.leaf.amount));
     let addr_bytes = hex::decode(&proof.leaf.addr_payload)?;
     if addr_bytes.len() != 21 {
         return Err(PcwError::Other(
@@ -239,9 +239,17 @@ mod tests {
     }
 
     #[test]
+    fn test_merkle_root_empty() {
+        let leaves: Vec<[u8; 32]> = vec![];
+        let result = merkle_root(&leaves);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Empty leaves")));
+    }
+
+    #[test]
     fn test_merkle_root_even() {
         let leaves = vec![[0; 32], [1; 32]];
-        let root = merkle_root(&leaves);
+        let root = merkle_root(&leaves).unwrap();
         assert_ne!(root, [0; 32]);
     }
 
@@ -260,7 +268,7 @@ mod tests {
         let amounts = [100];
         let addr_payloads = [[0; 21]];
         let leaves = compute_leaves(&manifest, &amounts, &addr_payloads).unwrap();
-        let root = merkle_root(&leaves);
+        let root = merkle_root(&leaves).unwrap();
         assert_eq!(root, leaves[0]); // Root should be the leaf for N=1
     }
 
@@ -381,7 +389,7 @@ mod tests {
                 i: 0,
                 txid: "0000000000000000000000000000000000000000000000000000000000000000"
                     .to_string(),
-                }],
+            }],
         };
         assert!(verify_proof(&proof, &manifest).is_err());
     }
