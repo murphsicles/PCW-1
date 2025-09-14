@@ -1,11 +1,12 @@
 # MIT License
 
+Copyright (c) 2025 Dr. Craig S Wright
 Copyright (c) 2025 Dr. Roy Murphy
 
-This software is inspired by and incorporates prior art from Dr. Craig S. 
-Wright's paper, "IP-to-IP Negotiated Notes: An ECDH-Derived, Multi-Transfer Wallet Protocol for Private, Settled Digital-Cash Payments." 
-Credit is given to Dr. Craig S. Wright for the foundational concepts and 
-inspiration.
+This software is inspired by and incorporates prior art from Dr. Craig S. Wright's paper, "IP-to-IP Negotiated Notes: An ECDH-Derived, Multi-Transfer Wallet Protocol for Private, Settled Digital-Cash Payments." 
+Credit is given to Dr. Craig S. Wright for the foundational concepts and inspiration.
+
+The PCW-1 protocol was designed and architected by Dr. Craig S Wright, and engineered and implemented by Dr. Roy Murphy.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
