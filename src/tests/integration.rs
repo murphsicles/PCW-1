@@ -1,9 +1,12 @@
 #[cfg(test)]
 use pcw_protocol::*;
-use sv::network::Network;
+use sv::messages::OutPoint;
+use sv::transaction::p2pkh::create_lock_script;
+use sv::util::{Hash160, Hash256};
 
 #[test]
 fn test_full_protocol_flow() -> Result<(), PcwError> {
+    let secp = Secp256k1::new();
     // Mock keys
     let priv_a = [1; 32];
     let identity_a = IdentityKeypair::new(priv_a)?;
@@ -27,14 +30,34 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
 
     // Scope
     let z = ecdh_z(&priv_a, &identity_b.pub_key)?;
-    let scope = Scope::new(z, h_i);
+    let scope = Scope::new(z, h_i)?;
 
     // Split
     let split = bounded_split(&scope, 2000, 100, 1000)?;
     assert_eq!(split.iter().sum::<u64>(), 2000);
 
     // Mock UTXOs
-    let u0 = vec![ /* mock Utxo with values summing > 2000 + fees */ ];
+    let mock_hash = sha256(b"test_tx");
+    let mock_h160 = h160(&mock_hash);
+    let mock_script = create_lock_script(&Hash160(mock_h160));
+    let u0 = vec![
+        Utxo {
+            outpoint: OutPoint {
+                hash: Hash256(mock_hash),
+                index: 0,
+            },
+            value: 1500,
+            script_pubkey: mock_script.to_bytes(),
+        },
+        Utxo {
+            outpoint: OutPoint {
+                hash: Hash256(sha256(b"test_tx_2")),
+                index: 1,
+            },
+            value: 1500,
+            script_pubkey: mock_script.to_bytes(),
+        },
+    ];
     let r = build_reservations(&u0, &split, 1, 1, 3, 5, true)?;
     assert_eq!(r.len(), split.len());
 
@@ -43,14 +66,18 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
     let s_i = r.get(&i).unwrap();
     let priv_keys = vec![[5; 32]; s_i.len()];
     let (note_tx, meta) = build_note_tx(&scope, i, s_i, split[0], &anchor_b.pub_key, &anchor_a.pub_key, 1, 1, &priv_keys)?;
-    // Verify tx structure, meta
+    assert_eq!(meta.amount, split[0]);
+    assert!(meta.txid.len() > 0);
 
     // Receipts
     let amounts = split;
     let addr_payloads = vec![[0; 21]; split.len()];
     let mut entries = vec![];
     for j in 0..split.len() {
-        entries.push(Entry { i: j as u32, txid: "mock_txid".to_string() });
+        entries.push(Entry {
+            i: j as u32,
+            txid: format!("{:064}", j),
+        });
     }
     let mut manifest = Manifest {
         invoice_hash: hex::encode(h_i),
@@ -59,11 +86,44 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
         entries,
     };
     let leaves = compute_leaves(&manifest, &amounts, &addr_payloads)?;
-    let root = merkle_root(leaves.clone());
+    let root = merkle_root(&leaves)?;
     manifest.merkle_root = hex::encode(root);
     let proof = generate_proof(&leaves, 0, &manifest, &amounts, &addr_payloads)?;
     verify_proof(&proof, &manifest)?;
     Ok(())
 }
 
-// Additional integration tests for failure paths (e.g., infeasible split, dust), logging append/sign
+#[test]
+fn test_infeasible_split() -> Result<(), PcwError> {
+    let scope = Scope::new([1; 32], [2; 32])?;
+    let result = bounded_split(&scope, 99, 100, 500);
+    assert!(result.is_err());
+    assert!(matches!(result, Err(PcwError::InfeasibleSplit)));
+    Ok(())
+}
+
+#[test]
+fn test_dust_change() -> Result<(), PcwError> {
+    let secp = Secp256k1::new();
+    let scope = Scope::new([1; 32], [2; 32])?;
+    let secret_key = SecretKey::from_byte_array([1; 32])?;
+    let anchor_b = PublicKey::from_secret_key(&secp, &secret_key);
+    let anchor_a = anchor_b.clone();
+    let mock_hash = sha256(b"test_tx");
+    let mock_h160 = h160(&mock_hash);
+    let mock_script = create_lock_script(&Hash160(mock_h160));
+    let u0 = vec![Utxo {
+        outpoint: OutPoint {
+            hash: Hash256(mock_hash),
+            index: 0,
+        },
+        value: 101, // Causes dust change
+        script_pubkey: mock_script.to_bytes(),
+    }];
+    let split = vec![100];
+    let priv_keys = vec![[5; 32]];
+    let result = build_note_tx(&scope, 0, &u0, split[0], &anchor_b, &anchor_a, 1, 50, &priv_keys);
+    assert!(result.is_err());
+    assert!(matches!(result, Err(PcwError::DustChange)));
+    Ok(())
+}
