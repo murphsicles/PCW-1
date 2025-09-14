@@ -7,10 +7,9 @@ use crate::errors::PcwError;
 use crate::json::canonical_json;
 use crate::keys::IdentityKeypair;
 use crate::utils::sha256;
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use secp256k1::{Message, PublicKey, Secp256k1, SecretKey, ecdsa::Signature};
 use serde::Serialize;
-use std::collections::HashMap;
 
 /// Trait for signed, append-only logs (§13.6-§13.7).
 pub trait LogRecord: Serialize + Clone {
