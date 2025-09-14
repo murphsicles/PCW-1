@@ -1,91 +1,97 @@
 //! Module for key management in the PCW-1 protocol.
 //!
-//! This module provides `IdentityKeypair` and `AnchorKeypair` structs for off-chain
-//! authentication and on-chain derivations (§3.1, §13.1), along with an `ecdh_z` function
-//! for ECDH key derivation (§3.2) using the secp256k1 curve.
+//! This module provides keypair structs for anchor and identity keys, along with ECDH
+//! shared secret computation as per §3.1 and §3.2 of the spec.
 use crate::errors::PcwError;
 use secp256k1::{PublicKey, Scalar, Secp256k1, SecretKey};
 
-/// Identity keypair for off-chain authentication (§3.1, §13.1).
-/// Never used on-chain to maintain privacy.
-#[derive(Clone, Debug)]
-pub struct IdentityKeypair {
-    pub priv_key: [u8; 32],
-    pub pub_key: PublicKey,
-}
-
-/// Anchor keypair for on-chain derivations (§3.1, §13.1).
-/// Separate from identity keys to ensure security.
+/// Anchor keypair for address derivation (§3.1).
 #[derive(Clone, Debug)]
 pub struct AnchorKeypair {
     pub priv_key: [u8; 32],
     pub pub_key: PublicKey,
 }
 
-impl IdentityKeypair {
-    /// Generate from secret (mock for tests; prod use secure rand).
-    pub fn new(priv_key: [u8; 32]) -> Result<Self, PcwError> {
-        let secp = Secp256k1::new();
-        let sec_key = SecretKey::from_byte_array(priv_key)?;
-        let pub_key = PublicKey::from_secret_key(&secp, &sec_key);
-        Ok(Self { priv_key, pub_key })
-    }
+/// Identity keypair for signing (§3.1).
+#[derive(Clone, Debug)]
+pub struct IdentityKeypair {
+    pub priv_key: [u8; 32],
+    pub pub_key: PublicKey,
 }
 
 impl AnchorKeypair {
-    /// Generate from secret (mock for tests; prod use secure rand).
+    /// Create new anchor keypair from priv_key bytes (§3.1).
     pub fn new(priv_key: [u8; 32]) -> Result<Self, PcwError> {
+        if priv_key == [0; 32] {
+            return Err(PcwError::Other("Zero private key §3.1".to_string()));
+        }
         let secp = Secp256k1::new();
-        let sec_key = SecretKey::from_byte_array(priv_key)?;
+        let sec_key = SecretKey::from_byte_array(priv_key)
+            .map_err(|e| PcwError::Other(format!("Invalid private key: {}", e)))?;
         let pub_key = PublicKey::from_secret_key(&secp, &sec_key);
         Ok(Self { priv_key, pub_key })
     }
+
+    /// Compute ECDH shared secret (§3.2).
+    pub fn ecdh(&self, their_pub: &PublicKey) -> Result<[u8; 32], PcwError> {
+        let secp = Secp256k1::new();
+        let sec_key = SecretKey::from_byte_array(self.priv_key)
+            .map_err(|e| PcwError::Other(format!("Invalid private key: {}", e)))?;
+        let scalar = Scalar::from(sec_key);
+        let shared_point = their_pub.mul_tweak(&secp, &scalar)?;
+        let shared_bytes = shared_point.serialize();
+        let z: [u8; 32] = shared_bytes[1..33]
+            .try_into()
+            .map_err(|_| PcwError::Other("Invalid ECDH point §3.2".to_string()))?;
+        Ok(z)
+    }
 }
 
-/// Compute ECDH Z: x-coordinate of priv * their_pub (§3.2).
-pub fn ecdh_z(my_priv: &[u8; 32], their_pub: &PublicKey) -> Result<[u8; 32], PcwError> {
-    let secp = Secp256k1::new();
-    let sec_key = SecretKey::from_byte_array(*my_priv)?;
-    let scalar = Scalar::from(&sec_key);
-    let shared_point = their_pub.mul_tweak(&secp, &scalar)?;
-    let serialized = shared_point.serialize();
-    if serialized[1..33] == [0u8; 32] {
-        return Err(PcwError::Other("Invalid ECDH shared point".to_string()));
+impl IdentityKeypair {
+    /// Create new identity keypair from priv_key bytes (§3.1).
+    pub fn new(priv_key: [u8; 32]) -> Result<Self, PcwError> {
+        if priv_key == [0; 32] {
+            return Err(PcwError::Other("Zero private key §3.1".to_string()));
+        }
+        let secp = Secp256k1::new();
+        let sec_key = SecretKey::from_byte_array(priv_key)
+            .map_err(|e| PcwError::Other(format!("Invalid private key: {}", e)))?;
+        let pub_key = PublicKey::from_secret_key(&secp, &sec_key);
+        Ok(Self { priv_key, pub_key })
     }
-    let mut z = [0u8; 32];
-    z.copy_from_slice(&serialized[1..33]); // x-coordinate, big-endian §2
-    Ok(z)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use secp256k1::constants::SECRET_KEY_SIZE;
 
     #[test]
-    fn test_ecdh_z() -> Result<(), PcwError> {
-        let priv1 = [1u8; SECRET_KEY_SIZE];
-        let priv2 = [2u8; SECRET_KEY_SIZE];
-        let key1 = IdentityKeypair::new(priv1)?;
-        let key2 = IdentityKeypair::new(priv2)?;
-        let z1 = ecdh_z(&priv1, &key2.pub_key)?;
-        let z2 = ecdh_z(&priv2, &key1.pub_key)?;
-        assert_eq!(z1, z2); // Symmetric property of ECDH
+    fn test_anchor_keypair() -> Result<(), PcwError> {
+        let priv_key = [1u8; 32];
+        let keypair = AnchorKeypair::new(priv_key)?;
+        assert_eq!(keypair.priv_key, priv_key);
+        assert!(AnchorKeypair::new([0u8; 32]).is_err());
         Ok(())
     }
 
     #[test]
-    fn test_keypair_creation() -> Result<(), PcwError> {
-        let priv_key = [1u8; SECRET_KEY_SIZE];
-        let key = IdentityKeypair::new(priv_key)?;
-        assert!(key.pub_key.serialize().len() > 0); // Ensure public key is generated
+    fn test_identity_keypair() -> Result<(), PcwError> {
+        let priv_key = [1u8; 32];
+        let keypair = IdentityKeypair::new(priv_key)?;
+        assert_eq!(keypair.priv_key, priv_key);
+        assert!(IdentityKeypair::new([0u8; 32]).is_err());
         Ok(())
     }
 
     #[test]
-    fn test_invalid_key() {
-        let invalid_priv = [0u8; SECRET_KEY_SIZE]; // Zero key is invalid
-        let result = IdentityKeypair::new(invalid_priv);
-        assert!(result.is_err()); // Should fail due to invalid secret key
+    fn test_ecdh() -> Result<(), PcwError> {
+        let priv_key1 = [1u8; 32];
+        let priv_key2 = [2u8; 32];
+        let keypair1 = AnchorKeypair::new(priv_key1)?;
+        let keypair2 = AnchorKeypair::new(priv_key2)?;
+        let z1 = keypair1.ecdh(&keypair2.pub_key)?;
+        let z2 = keypair2.ecdh(&keypair1.pub_key)?;
+        assert_eq!(z1, z2); // ECDH symmetry
+        Ok(())
     }
 }
