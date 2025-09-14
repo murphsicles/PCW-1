@@ -54,18 +54,22 @@ pub fn pacing_schedule(
         .map(|s| {
             DateTime::parse_from_rfc3339(s)
                 .map(|dt| dt.with_timezone(&Utc))
-                .unwrap_or(now)
+                .map_err(|e| PcwError::Other(format!("Invalid window_start: {} §9.3", e)))
         })
-        .unwrap_or(now);
+        .unwrap_or(Ok(now))?;
     match policy.strategy_default.as_str() {
         "all_at_once" => {
-            let d = (start - now).to_std().unwrap_or(Duration::ZERO);
+            let d = (start - now)
+                .to_std()
+                .map_err(|_| PcwError::Other("Negative duration §9.3".to_string()))?;
             for schedule_d in &mut schedule {
                 *schedule_d = d;
             }
         }
         "paced" => {
-            schedule[0] = (start - now).to_std().unwrap_or(Duration::ZERO);
+            schedule[0] = (start - now)
+                .to_std()
+                .map_err(|_| PcwError::Other("Negative duration §9.3".to_string()))?;
             for i in 1..n {
                 let delta_ms = draw_uniform(
                     &s_pace,
@@ -79,7 +83,9 @@ pub fn pacing_schedule(
                 let end = DateTime::parse_from_rfc3339(end_str)
                     .map(|dt| dt.with_timezone(&Utc))
                     .map_err(|e| PcwError::Other(format!("Invalid window_end: {} §9.3", e)))?;
-                let end_d = (end - now).to_std().unwrap_or(Duration::ZERO);
+                let end_d = (end - now)
+                    .to_std()
+                    .map_err(|_| PcwError::Other("Negative duration §9.3".to_string()))?;
                 for d in &mut schedule {
                     if *d > end_d {
                         *d = end_d;
@@ -91,7 +97,9 @@ pub fn pacing_schedule(
             let beta = policy.burst_size as usize;
             let num_bursts = (n + beta - 1) / beta;
             let mut batch_times = vec![Duration::ZERO; num_bursts];
-            batch_times[0] = (start - now).to_std().unwrap_or(Duration::ZERO);
+            batch_times[0] = (start - now)
+                .to_std()
+                .map_err(|_| PcwError::Other("Negative duration §9.3".to_string()))?;
             for k in 1..num_bursts {
                 batch_times[k] = batch_times[k - 1] + Duration::from_millis(policy.burst_gap_ms);
             }
@@ -108,7 +116,9 @@ pub fn pacing_schedule(
                 let end = DateTime::parse_from_rfc3339(end_str)
                     .map(|dt| dt.with_timezone(&Utc))
                     .map_err(|e| PcwError::Other(format!("Invalid window_end: {} §9.3", e)))?;
-                let end_d = (end - now).to_std().unwrap_or(Duration::ZERO);
+                let end_d = (end - now)
+                    .to_std()
+                    .map_err(|_| PcwError::Other("Negative duration §9.3".to_string()))?;
                 for d in &mut schedule {
                     if *d > end_d {
                         *d = end_d;
@@ -144,12 +154,14 @@ fn draw_uniform(s_pace: &[u8; 32], ctr: &mut u32, range: u64) -> Result<u64, Pcw
     }
     let m = 1u64 << 64;
     let lim = (m / range) * range;
-    loop {
+    let max_attempts = 1000; // Prevent infinite loop (§9.5)
+    for _ in 0..max_attempts {
         let u = next_u64(s_pace, ctr);
         if u < lim {
             return Ok(u % range);
         }
     }
+    Err(PcwError::Other("Rejection sampling failed §9.5".to_string()))
 }
 
 #[async_trait]
@@ -232,5 +244,27 @@ mod tests {
         };
         let result = pacing_schedule(&scope, 5, &policy);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_pacing_schedule_negative_duration() {
+        let scope = Scope::new([1; 32], [2; 32]).expect("Valid scope");
+        let past = (Utc::now() - chrono::Duration::days(1)).format("%Y-%m-%dT%H:%M:%SZ").to_string();
+        let policy = BroadcastPolicy {
+            authority: "either".to_string(),
+            strategy_default: "all_at_once".to_string(),
+            min_spacing_ms: 100,
+            max_spacing_ms: 500,
+            burst_size: 3,
+            burst_gap_ms: 1000,
+            window_start: Some(past),
+            window_end: None,
+            rebroadcast_interval_s: 60,
+            hold_time_max_s: 300,
+            confirm_depth: 6,
+        };
+        let result = pacing_schedule(&scope, 5, &policy);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Negative duration")));
     }
 }
