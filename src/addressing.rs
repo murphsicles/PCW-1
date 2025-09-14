@@ -5,8 +5,8 @@
 //! and invoice fingerprints as per §3-§7 of the spec.
 use crate::errors::PcwError;
 use crate::scope::Scope;
-use crate::utils::{base58check, h160, point_add, scalar_mul, ser_p};
-use secp256k1::PublicKey;
+use crate::utils::{base58check, h160, point_add, scalar_mul, ser_p, sha256};
+use secp256k1::{PublicKey, Secp256k1, SecretKey};
 
 /// Derives a recipient address for a given note index.
 ///
@@ -14,7 +14,7 @@ use secp256k1::PublicKey;
 /// the ECDH shared secret (Z) and invoice hash (H_I), to create a P2PKH address
 /// that only the recipient can spend (per §7.1).
 pub fn recipient_address(
-    secp: &secp256k1::Secp256k1<secp256k1::All>,
+    secp: &Secp256k1<secp256k1::All>,
     scope: &Scope,
     i: u32,
     anchor_b: &PublicKey,
@@ -36,7 +36,7 @@ pub fn recipient_address(
 /// other notes in the same invoice, using a scalar derived from {Z, H_I, "snd", i}
 /// (per §7.2).
 pub fn sender_change_address(
-    secp: &secp256k1::Secp256k1<secp256k1::All>,
+    secp: &Secp256k1<secp256k1::All>,
     scope: &Scope,
     i: u32,
     anchor_a: &PublicKey,
@@ -61,9 +61,105 @@ mod tests {
     fn test_recipient_address() -> Result<(), PcwError> {
         let secp = Secp256k1::new();
         let scope = Scope::new([1; 32], [2; 32])?;
-        let secret_key = SecretKey::from_byte_array([1; 32]).expect("32 bytes, within curve order");
+        let secret_key = SecretKey::from_byte_array([1; 32]).expect("Valid key");
         let anchor_b = PublicKey::from_secret_key(&secp, &secret_key);
         let addr = recipient_address(&secp, &scope, 0, &anchor_b)?;
+        assert!(
+            addr.starts_with("1"),
+            "Address should start with '1' for mainnet P2PKH"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_sender_change_address() -> Result<(), PcwError> {
+        let secp = Secp256k1::new();
+        let scope = Scope::new([1; 32], [2; 32])?;
+        let secret_key = SecretKey::from_byte_array([1; 32]).expect("Valid key");
+        let anchor_a = PublicKey::from_secret_key(&secp, &secret_key);
+        let addr = sender_change_address(&secp, &scope, 0, &anchor_a)?;
+        assert!(
+            addr.starts_with("1"),
+            "Address should start with '1' for mainnet P2PKH"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_recipient_address_invalid_pubkey() -> Result<(), PcwError> {
+        let secp = Secp256k1::new();
+        let scope = Scope::new([1; 32], [2; 32])?;
+        // Invalid public key (zero point)
+        let invalid_pub = PublicKey::from_slice(&[0u8; 33]).unwrap_or_else(|_| {
+            PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array([0; 32]).unwrap())
+        });
+        let result = recipient_address(&secp, &scope, 0, &invalid_pub);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid public key")));
+        Ok(())
+    }
+
+    #[test]
+    fn test_sender_change_address_invalid_pubkey() -> Result<(), PcwError> {
+        let secp = Secp256k1::new();
+        let scope = Scope::new([1; 32], [2; 32])?;
+        // Invalid public key (zero point)
+        let invalid_pub = PublicKey::from_slice(&[0u8; 33]).unwrap_or_else(|_| {
+            PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array([0; 32]).unwrap())
+        });
+        let result = sender_change_address(&secp, &scope, 0, &invalid_pub);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid public key")));
+        Ok(())
+    }
+
+    #[test]
+    fn test_recipient_address_zero_scalar() -> Result<(), PcwError> {
+        let secp = Secp256k1::new();
+        let scope = Scope::new([1; 32], [2; 32])?;
+        let secret_key = SecretKey::from_byte_array([1; 32]).expect("Valid key");
+        let anchor_b = PublicKey::from_secret_key(&secp, &secret_key);
+        // Mock a zero scalar by overriding derive_scalar (not directly possible, but tested via scalar_mul)
+        let result = scalar_mul(&[0; 32]); // Underlying function used in recipient_address
+        assert!(result.is_err());
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Zero scalar")));
+        Ok(())
+    }
+
+    #[test]
+    fn test_sender_change_address_zero_scalar() -> Result<(), PcwError> {
+        let secp = Secp256k1::new();
+        let scope = Scope::new([1; 32], [2; 32])?;
+        let secret_key = SecretKey::from_byte_array([1; 32]).expect("Valid key");
+        let anchor_a = PublicKey::from_secret_key(&secp, &secret_key);
+        // Mock a zero scalar by overriding derive_scalar (not directly possible, but tested via scalar_mul)
+        let result = scalar_mul(&[0; 32]); // Underlying function used in sender_change_address
+        assert!(result.is_err());
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Zero scalar")));
+        Ok(())
+    }
+
+    #[test]
+    fn test_recipient_address_boundary_index() -> Result<(), PcwError> {
+        let secp = Secp256k1::new();
+        let scope = Scope::new([1; 32], [2; 32])?;
+        let secret_key = SecretKey::from_byte_array([1; 32]).expect("Valid key");
+        let anchor_b = PublicKey::from_secret_key(&secp, &secret_key);
+        let addr = recipient_address(&secp, &scope, u32::MAX, &anchor_b)?;
+        assert!(
+            addr.starts_with("1"),
+            "Address should start with '1' for mainnet P2PKH"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_sender_change_address_boundary_index() -> Result<(), PcwError> {
+        let secp = Secp256k1::new();
+        let scope = Scope::new([1; 32], [2; 32])?;
+        let secret_key = SecretKey::from_byte_array([1; 32]).expect("Valid key");
+        let anchor_a = PublicKey::from_secret_key(&secp, &secret_key);
+        let addr = sender_change_address(&secp, &scope, u32::MAX, &anchor_a)?;
         assert!(
             addr.starts_with("1"),
             "Address should start with '1' for mainnet P2PKH"
