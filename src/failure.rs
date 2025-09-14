@@ -4,8 +4,6 @@
 //! logic as per §11, to handle failures, reissues, and cancellations deterministically.
 
 use crate::errors::PcwError;
-use chrono::prelude::*;
-use thiserror::Error;
 
 /// Represents the state of a single note in the protocol (§11.2).
 #[derive(Clone, Debug, PartialEq)]
