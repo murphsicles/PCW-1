@@ -65,14 +65,12 @@ pub fn scalar_mul(scalar: &[u8; 32]) -> Result<PublicKey, PcwError> {
     }
     let secp = Secp256k1::new();
     let secret_key = SecretKey::from_byte_array(*scalar)
-        .map_err(|e| PcwError::Other(format!("Invalid scalar: {}", e)))?;
+        .map_err(|e| PcwError::Other(format!("Invalid scalar: {} §4.3", e)))?;
     let pub_key = PublicKey::from_secret_key(&secp, &secret_key);
     Ok(pub_key)
 }
 
 /// NFC normalize string (§2).
-/// NOTE: This function is included for completeness but may not be required in PCW-1 unless
-/// explicitly used for invoice JSON normalization. Consider removing if unused.
 pub fn nfc_normalize(s: &str) -> String {
     s.nfc().collect::<String>()
 }
@@ -91,11 +89,43 @@ mod tests {
     }
 
     #[test]
+    fn test_sha256_empty() {
+        let data = b"";
+        let hash = sha256(data);
+        assert_eq!(hash.len(), 32);
+        // Expected SHA-256 of empty input
+        assert_eq!(
+            hash,
+            hex::decode("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855").unwrap().as_slice()
+        );
+    }
+
+    #[test]
+    fn test_sha256_large_input() {
+        let data = vec![0u8; 1024 * 1024]; // 1MB
+        let hash = sha256(&data);
+        assert_eq!(hash.len(), 32);
+        assert_ne!(hash, [0u8; 32]);
+    }
+
+    #[test]
     fn test_h160() {
         let data = b"test";
         let h160 = h160(data);
         assert_eq!(h160.len(), 20);
         assert_ne!(h160, [0u8; 20]); // Non-zero output
+    }
+
+    #[test]
+    fn test_h160_empty() {
+        let data = b"";
+        let h160 = h160(data);
+        assert_eq!(h160.len(), 20);
+        // Expected RIPEMD160(SHA256(""))
+        assert_eq!(
+            h160,
+            hex::decode("9c1185a5c5e9fc54612808977ee8f548b2258d31").unwrap().as_slice()
+        );
     }
 
     #[test]
@@ -107,10 +137,21 @@ mod tests {
     }
 
     #[test]
+    fn test_base58check_empty_payload() -> Result<(), PcwError> {
+        let addr = base58check(0x00, &[])?;
+        assert!(addr.len() > 0); // Valid base58 string
+        Ok(())
+    }
+
+    #[test]
     fn test_le32() {
         let val = 0x12345678;
         let bytes = le32(val);
         assert_eq!(bytes, [0x78, 0x56, 0x34, 0x12]);
+        // Boundary value
+        let val = u32::MAX;
+        let bytes = le32(val);
+        assert_eq!(bytes, [0xff, 0xff, 0xff, 0xff]);
     }
 
     #[test]
@@ -118,6 +159,10 @@ mod tests {
         let val = 0x123456789abcdef0;
         let bytes = le8(val);
         assert_eq!(bytes, [0xf0, 0xde, 0xbc, 0x9a, 0x78, 0x56, 0x34, 0x12]);
+        // Boundary value
+        let val = u64::MAX;
+        let bytes = le8(val);
+        assert_eq!(bytes, [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]);
     }
 
     #[test]
@@ -132,6 +177,19 @@ mod tests {
     }
 
     #[test]
+    fn test_point_add_invalid() -> Result<(), PcwError> {
+        let secp = Secp256k1::new();
+        let sk = SecretKey::from_byte_array([1u8; 32]).unwrap();
+        let pk = PublicKey::from_secret_key(&secp, &sk);
+        // Create an invalid (zero) public key
+        let invalid_pk = PublicKey::from_slice(&[0u8; 33]).unwrap_or_else(|_| PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array([0; 32]).unwrap()));
+        let result = point_add(&pk, &invalid_pk);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid public key")));
+        Ok(())
+    }
+
+    #[test]
     fn test_scalar_mul() -> Result<(), PcwError> {
         let scalar = [1u8; 32];
         let _pk = scalar_mul(&scalar)?; // Should not panic
@@ -142,7 +200,13 @@ mod tests {
     fn test_scalar_mul_invalid() {
         let scalar = [0u8; 32]; // Invalid scalar (zero)
         let result = scalar_mul(&scalar);
-        assert!(result.is_err()); // Should fail due to invalid scalar
+        assert!(result.is_err());
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Zero scalar")));
+        // Out-of-range scalar
+        let scalar = [255u8; 32]; // Beyond curve order
+        let result = scalar_mul(&scalar);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid scalar")));
     }
 
     #[test]
@@ -150,5 +214,13 @@ mod tests {
         let s = "café";
         let normalized = nfc_normalize(s);
         assert_eq!(normalized, "café"); // Should preserve NFC
+        // Empty string
+        let empty = "";
+        let normalized = nfc_normalize(empty);
+        assert_eq!(normalized, "");
+        // Malformed Unicode (invalid surrogate)
+        let malformed = "\u{D800}";
+        let normalized = nfc_normalize(malformed);
+        assert_eq!(normalized, "\u{FFFD}"); // Replacement character
     }
 }
