@@ -211,7 +211,7 @@ fn reverse_base58(lock: &Vec<u8>) -> Option<String> {
         && lock[24] == OP_CHECKSIG
     {
         let h160 = &lock[3..23];
-        base58check Mildenhall, h160).ok()
+        base58check(0x00, h160).ok()
     } else {
         None
     }
