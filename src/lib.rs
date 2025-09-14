@@ -22,20 +22,20 @@ pub mod tx;
 pub mod utils;
 
 pub use addressing::{recipient_address, sender_change_address};
-pub use broadcast::{pacing_schedule, BroadcastPolicy};
+pub use broadcast::{BroadcastPolicy, pacing_schedule};
 pub use errors::PcwError;
 pub use failure::{Event, InvoiceState, NoteState};
 pub use invoice::Invoice;
 pub use json::canonical_json;
 pub use keys::{AnchorKeypair, IdentityKeypair};
-pub use logging::{append_to_log, LogRecord};
+pub use logging::{LogRecord, append_to_log};
 pub use policy::Policy;
 pub use protocol::{ecdh_z, exchange_invoice, exchange_policy, handshake};
-pub use receipts::{compute_leaves, generate_proof, merkle_root, verify_proof, Entry, Manifest, Proof};
+pub use receipts::{Entry, Manifest, Proof, compute_leaves, generate_proof, merkle_root, verify_proof};
 pub use scope::Scope;
 pub use selection::{Utxo, build_reservations};
 pub use split::bounded_split;
-pub use tx::{build_note_tx, NoteMeta, NoteTx};
+pub use tx::{NoteMeta, NoteTx, build_note_tx};
 
 #[cfg(test)]
 mod tests {
@@ -186,7 +186,9 @@ mod tests {
         let expiry = Utc::now() + Duration::days(1);
 
         // Malformed policy JSON (floating-point vmin)
-        let malformed_policy: Value = serde_json::from_str(r#"{"anchor_pubkey":"02","vmin":1.5,"vmax":1000,"per_address_cap":500,"feerate_floor":1,"expiry":"2025-09-15T19:28:00Z","by":"","sig_alg":"","sig":""}"#)?;
+        let malformed_policy: Value = serde_json::from_str(
+            r#"{"anchor_pubkey":"02","vmin":1.5,"vmax":1000,"per_address_cap":500,"feerate_floor":1,"expiry":"2025-09-15T19:28:00Z","by":"","sig_alg":"","sig":""}"#,
+        )?;
         let result = canonical_json(&malformed_policy);
         assert!(result.is_err());
         assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Non-integer numbers")));
@@ -204,7 +206,9 @@ mod tests {
         let h_policy = policy.h_policy();
 
         // Malformed invoice JSON (invalid amount)
-        let malformed_invoice: Value = serde_json::from_str(r#"{"id":"test","terms":"terms","unit":"sat","amount":0,"policy_hash":"test","expiry":"2025-09-15T19:28:00Z","by":"","sig_alg":"","sig":""}"#)?;
+        let malformed_invoice: Value = serde_json::from_str(
+            r#"{"id":"test","terms":"terms","unit":"sat","amount":0,"policy_hash":"test","expiry":"2025-09-15T19:28:00Z","by":"","sig_alg":"","sig":""}"#,
+        )?;
         let result = canonical_json(&malformed_invoice);
         assert!(result.is_err());
         assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Zero amount")));
@@ -256,7 +260,6 @@ mod tests {
         assert_eq!(split.iter().sum::<u64>(), 10000);
 
         // Large UTXO set (20 UTXOs)
-        let mock_hash = sha256(b"test_tx");
         let mock_h160 = h160(&mock_hash);
         let mock_script = create_lock_script(&Hash160(mock_h160));
         let mut utxos = vec![];
@@ -404,8 +407,9 @@ mod tests {
         // Test invalid state transition
         let state = NoteState::Signed;
         let result = state.transition(&Event::Supersede);
-        assert!(result.is_err());
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid note state transition")));
+        assert!(
+            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid note state transition")),
+        );
 
         Ok(())
     }
