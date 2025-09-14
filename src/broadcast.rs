@@ -161,7 +161,9 @@ fn draw_uniform(s_pace: &[u8; 32], ctr: &mut u32, range: u64) -> Result<u64, Pcw
             return Ok(u % range);
         }
     }
-    Err(PcwError::Other("Rejection sampling failed §9.5".to_string()))
+    Err(PcwError::Other(
+        "Rejection sampling failed §9.5".to_string(),
+    ))
 }
 
 #[async_trait]
@@ -249,7 +251,9 @@ mod tests {
     #[test]
     fn test_pacing_schedule_negative_duration() {
         let scope = Scope::new([1; 32], [2; 32]).expect("Valid scope");
-        let past = (Utc::now() - chrono::Duration::days(1)).format("%Y-%m-%dT%H:%M:%SZ").to_string();
+        let past = (Utc::now() - chrono::Duration::days(1))
+            .format("%Y-%m-%dT%H:%M:%SZ")
+            .to_string();
         let policy = BroadcastPolicy {
             authority: "either".to_string(),
             strategy_default: "all_at_once".to_string(),
