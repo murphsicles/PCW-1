@@ -5,7 +5,7 @@
 //! of standard P2PKH transactions with deterministic addressing, signing, and metadata logging.
 use crate::addressing::{recipient_address, sender_change_address};
 use crate::errors::PcwError;
-use crate::scope::{Scope, derive_scalar};
+use crate::scope::Scope;
 use crate::selection::Utxo;
 use crate::utils::{base58check, h160, le32, point_add, scalar_mul, ser_p, sha256};
 use chrono::Utc;
@@ -76,7 +76,7 @@ pub fn build_note_tx(
     }
     let secp = Secp256k1::new();
     let addr_b = recipient_address(&secp, scope, i, anchor_b)?;
-    let t_i = scalar_mul(&derive_scalar(scope, "recv", i)?)?;
+    let t_i = scalar_mul(&scope.derive_scalar("recv", i)?)?;
     let p_bi = point_add(anchor_b, &t_i)?;
     let h160_b = h160(&ser_p(&p_bi));
     let h160_b_hash = Hash160(h160_b);
@@ -121,7 +121,7 @@ pub fn build_note_tx(
         change = sum_in.saturating_sub(amount + fee);
         if change > 0 && change >= dust {
             addr_a = sender_change_address(&secp, scope, i, anchor_a)?;
-            let s_i_scalar = derive_scalar(scope, "snd", i)?;
+            let s_i_scalar = scope.derive_scalar("snd", i)?;
             let tweak_a = scalar_mul(&s_i_scalar)?;
             let p_ai = point_add(anchor_a, &tweak_a)?;
             h160_a = h160(&ser_p(&p_ai));
@@ -158,13 +158,13 @@ pub fn build_note_tx(
         let secp = Secp256k1::new();
         let sig = secp.sign_ecdsa(msg, &SecretKey::from_byte_array(priv_keys[j])?);
         let pub_key = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(priv_keys[j])?);
-        tx.inputs[j].unlock_script = create_unlock_script(&sig.serialize(), &ser_p(&pub_key));
+        tx.inputs[j].unlock_script = create_unlock_script(&sig.serialize_der(), &ser_p(&pub_key));
     }
     // Finalize metadata
-    let tx_bytes = tx.serialize();
-    let txid_hash = sha256(&tx_bytes);
+    let tx_bytes = tx.to_bytes();
+    let txid_hash = sha256(&sha256(&tx_bytes));
     let txid = hex::encode(txid_hash);
-    let note_id = hex::encode(sha256([scope.h_i, le32(i)].concat().as_slice()));
+    let note_id = hex::encode(sha256(&[scope.h_i, le32(i)].concat()));
     let meta = NoteMeta {
         i,
         note_id,
@@ -190,7 +190,7 @@ pub fn build_note_tx(
             .outputs
             .iter()
             .map(|o| OutputMeta {
-                addr: reverse_base58(&o.lock_script.as_bytes()).unwrap_or_default(),
+                addr: reverse_base58(&o.lock_script.to_bytes()).unwrap_or_default(),
                 value: o.satoshis as u64,
             })
             .collect(),
