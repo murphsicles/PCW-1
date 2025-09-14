@@ -177,7 +177,7 @@ pub fn verify_proof(proof: &Proof, manifest: &Manifest) -> Result<(), PcwError> 
         return Err(PcwError::Other("Txid not 32 bytes".to_string()));
     }
     preimage.extend_from_slice(&txid_bytes);
-    preimage.extend_from_slice(&le8(proof.leaf.amount));
+    preimage.extend_from_slice(&le8(pronef.leaf.amount));
     let addr_bytes = hex::decode(&proof.leaf.addr_payload)?;
     if addr_bytes.len() != 21 {
         return Err(PcwError::Other(
@@ -199,7 +199,7 @@ pub fn verify_proof(proof: &Proof, manifest: &Manifest) -> Result<(), PcwError> 
         l = sha256(&concat);
     }
     if hex::encode(l) != proof.merkle_root {
-        return Err(PcwError::InvalidProof(String::from("Merkle root mismatch")));
+        return Err(PcwError::InvalidProof("Merkle root mismatch".to_string()));
     }
     if proof.invoice_hash != manifest.invoice_hash {
         return Err(PcwError::Other("Invoice hash mismatch".to_string()));
@@ -381,7 +381,7 @@ mod tests {
                 i: 0,
                 txid: "0000000000000000000000000000000000000000000000000000000000000000"
                     .to_string(),
-            }],
+                }],
         };
         assert!(verify_proof(&proof, &manifest).is_err());
     }
