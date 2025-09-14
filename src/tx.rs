@@ -9,9 +9,9 @@ use crate::scope::Scope;
 use crate::selection::Utxo;
 use crate::utils::{base58check, h160, le32, point_add, scalar_mul, ser_p, sha256};
 use chrono::Utc;
-use secp256k1::{Message, PublicKey, Secp256k1, SecretKey};
+use secp256k1::{Message, PublicKey, Secp256k1, SecretKey, ecdsa::Signature};
 use serde::{Deserialize, Serialize};
-use sv::messages::Tx;
+use sv::messages::{Tx, OutPoint};
 use sv::script::Script;
 use sv::script::op_codes::*;
 use sv::transaction::p2pkh::{create_lock_script, create_unlock_script};
@@ -164,7 +164,7 @@ pub fn build_note_tx(
     let tx_bytes = tx.to_bytes();
     let txid_hash = sha256(&sha256(&tx_bytes));
     let txid = hex::encode(txid_hash);
-    let note_id = hex::encode(sha256(&[scope.h_i, le32(i)].concat()));
+    let note_id = hex::encode(sha256(&[scope.h_i.to_vec(), le32(i).to_vec()].concat()));
     let meta = NoteMeta {
         i,
         note_id,
@@ -202,7 +202,7 @@ pub fn build_note_tx(
 }
 
 /// Reverse P2PKH lock to base58 addr (§8.3 optional, for meta).
-fn reverse_base58(lock: &Vec<u8>) -> Option<String> {
+fn reverse_base58(lock: &[u8]) -> Option<String> {
     if lock.len() == 25
         && lock[0] == OP_DUP
         && lock[1] == OP_HASH160
@@ -223,18 +223,22 @@ mod tests {
     use crate::selection::Utxo;
     use secp256k1::SecretKey;
     use sv::messages::OutPoint;
+    use sv::util::Hash160;
 
     #[test]
     fn test_build_note_tx_no_change() -> Result<(), PcwError> {
         let secp = Secp256k1::new();
         let scope = Scope::new([1; 32], [2; 32])?;
+        let mock_hash = sha256(b"test_tx");
+        let mock_h160 = h160(&mock_hash);
+        let mock_script = create_lock_script(&Hash160(mock_h160));
         let utxo = Utxo {
             outpoint: OutPoint {
-                hash: Hash256([0; 32]),
+                hash: Hash160(mock_hash),
                 index: 0,
             },
             value: 150,
-            script_pubkey: vec![],
+            script_pubkey: mock_script.to_bytes(),
         };
         let priv_key = [1u8; 32];
         let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_key)?);
@@ -261,13 +265,16 @@ mod tests {
     fn test_build_note_tx_with_change() -> Result<(), PcwError> {
         let secp = Secp256k1::new();
         let scope = Scope::new([1; 32], [2; 32])?;
+        let mock_hash = sha256(b"test_tx");
+        let mock_h160 = h160(&mock_hash);
+        let mock_script = create_lock_script(&Hash160(mock_h160));
         let utxo = Utxo {
             outpoint: OutPoint {
-                hash: Hash256([0; 32]),
+                hash: Hash160(mock_hash),
                 index: 0,
             },
             value: 200,
-            script_pubkey: vec![],
+            script_pubkey: mock_script.to_bytes(),
         };
         let priv_key = [1u8; 32];
         let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_key)?);
@@ -294,13 +301,16 @@ mod tests {
     fn test_build_note_tx_dust_reject() {
         let secp = Secp256k1::new();
         let scope = Scope::new([1; 32], [2; 32]).expect("Valid scope");
+        let mock_hash = sha256(b"test_tx");
+        let mock_h160 = h160(&mock_hash);
+        let mock_script = create_lock_script(&Hash160(mock_h160));
         let utxo = Utxo {
             outpoint: OutPoint {
-                hash: Hash256([0; 32]),
+                hash: Hash160(mock_hash),
                 index: 0,
             },
             value: 151,
-            script_pubkey: vec![],
+            script_pubkey: mock_script.to_bytes(),
         };
         let priv_key = [1u8; 32];
         let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_key)?);
@@ -323,13 +333,16 @@ mod tests {
     fn test_build_note_tx_underfunded() {
         let secp = Secp256k1::new();
         let scope = Scope::new([1; 32], [2; 32]).expect("Valid scope");
+        let mock_hash = sha256(b"test_tx");
+        let mock_h160 = h160(&mock_hash);
+        let mock_script = create_lock_script(&Hash160(mock_h160));
         let utxo = Utxo {
             outpoint: OutPoint {
-                hash: Hash256([0; 32]),
+                hash: Hash160(mock_hash),
                 index: 0,
             },
             value: 50,
-            script_pubkey: vec![],
+            script_pubkey: mock_script.to_bytes(),
         };
         let priv_key = [1u8; 32];
         let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_key)?);
