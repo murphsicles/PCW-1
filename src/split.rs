@@ -4,7 +4,6 @@
 //! N choice (§5.3), prefix-clamp construction (§5.5), and Fisher-Yates permutation (§5.6).
 //! It ensures a total amount `t` is split into `N` notes within `[v_min, v_max]`, with
 //! deterministic and reproducible results based on a scope {Z, H_I}.
-
 use crate::errors::PcwError;
 use crate::scope::Scope;
 use crate::utils::{le32, sha256};
@@ -36,6 +35,7 @@ fn next_u64(seed: &[u8; 32], ctr: &mut u32) -> u64 {
     let r = sha256(&pre);
     let mut bytes = [0u8; 8];
     bytes.copy_from_slice(&r[0..8]);
+    *ctr += 1;
     u64::from_be_bytes(bytes)
 }
 
@@ -51,13 +51,14 @@ fn draw_uniform(seed: &[u8; 32], ctr: &mut u32, range: u64) -> Result<u64, PcwEr
     }
     let m = 1u64 << 64;
     let lim = (m / range) * range;
-    loop {
+    let max_attempts = 1000; // Prevent infinite loop (§5.4)
+    for _ in 0..max_attempts {
         let u = next_u64(seed, ctr);
-        *ctr += 1;
         if u < lim {
             return Ok(u % range);
         }
     }
+    Err(PcwError::Other("Rejection sampling failed §5.4".to_string()))
 }
 
 /// Deterministic N choice: interior-biased jitter (§5.3).
@@ -122,7 +123,7 @@ mod tests {
 
     #[test]
     fn test_bounded_split_basic() -> Result<(), PcwError> {
-        let scope = Scope::new([0u8; 32], [0u8; 32]);
+        let scope = Scope::new([1u8; 32], [2u8; 32]).unwrap();
         let split = bounded_split(&scope, 1000, 100, 500)?;
         assert_eq!(split.iter().sum::<u64>(), 1000);
         assert!(split.iter().all(|&x| 100 <= x && x <= 500));
@@ -131,7 +132,7 @@ mod tests {
 
     #[test]
     fn test_bounded_split_min_n() -> Result<(), PcwError> {
-        let scope = Scope::new([0u8; 32], [0u8; 32]);
+        let scope = Scope::new([1u8; 32], [2u8; 32]).unwrap();
         let split = bounded_split(&scope, 100, 100, 100)?; // Should result in N=1
         assert_eq!(split, vec![100]);
         Ok(())
@@ -139,7 +140,7 @@ mod tests {
 
     #[test]
     fn test_bounded_split_invalid_bounds() {
-        let scope = Scope::new([0u8; 32], [0u8; 32]);
+        let scope = Scope::new([1u8; 32], [2u8; 32]).unwrap();
         let result = bounded_split(&scope, 1000, 0, 500); // v_min = 0
         assert!(result.is_err());
         let result = bounded_split(&scope, 1000, 500, 100); // v_max < v_min
@@ -154,7 +155,7 @@ mod tests {
             v_max in 100u64..1000,
             |(t, v_min, v_max)| (t, v_min, v_max).prop_filter("feasible", |(t, v_min, v_max)| *v_min <= *v_max && *t >= *v_min && (*t / *v_min) >= (*t + *v_max - 1) / *v_max)
         ) {
-            let scope = Scope::new([0; 32], [0; 32]);
+            let scope = Scope::new([1; 32], [2; 32]).unwrap();
             let a = bounded_split(&scope, *t, *v_min, *v_max).unwrap();
             prop_assert_eq!(a.iter().sum::<u64>(), *t);
             prop_assert!(a.iter().all(|&x| *v_min <= x && x <= *v_max));
