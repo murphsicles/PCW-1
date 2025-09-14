@@ -42,6 +42,7 @@ mod tests {
     use super::*;
     use chrono::{Duration, Utc};
     use secp256k1::{PublicKey, Secp256k1, SecretKey};
+    use serde_json::Value;
     use sv::messages::OutPoint;
     use sv::transaction::p2pkh::create_lock_script;
     use sv::util::{Hash160, Hash256};
@@ -152,6 +153,259 @@ mod tests {
         manifest.merkle_root = hex::encode(root);
         let proof = generate_proof(&leaves, 0, &manifest, &amounts, &addr_payloads)?;
         verify_proof(&proof, &manifest)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_invalid_keys() -> Result<(), PcwError> {
+        // Test invalid private key
+        let result = IdentityKeypair::new([0u8; 32]);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Zero private key")));
+
+        // Test invalid public key in ECDH
+        let secp = Secp256k1::new();
+        let priv_key = [1u8; 32];
+        let keypair = AnchorKeypair::new(priv_key)?;
+        let invalid_pub = PublicKey::from_slice(&[0u8; 33]).unwrap_or_else(|_| {
+            PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array([0; 32]).unwrap())
+        });
+        let result = keypair.ecdh(&invalid_pub);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid public key")));
+        Ok(())
+    }
+
+    #[test]
+    fn test_malformed_json() -> Result<(), PcwError> {
+        let secp = Secp256k1::new();
+        let priv_b = [2u8; 32];
+        let identity_b = IdentityKeypair::new(priv_b)?;
+        let anchor_b = AnchorKeypair::new([4u8; 32])?;
+        let expiry = Utc::now() + Duration::days(1);
+
+        // Malformed policy JSON (floating-point vmin)
+        let malformed_policy: Value = serde_json::from_str(r#"{"anchor_pubkey":"02","vmin":1.5,"vmax":1000,"per_address_cap":500,"feerate_floor":1,"expiry":"2025-09-15T19:28:00Z","by":"","sig_alg":"","sig":""}"#)?;
+        let result = canonical_json(&malformed_policy);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Non-integer numbers")));
+
+        // Valid policy for invoice
+        let mut policy = Policy::new(
+            hex::encode(anchor_b.pub_key.serialize()),
+            100,
+            1000,
+            500,
+            1,
+            expiry,
+        )?;
+        policy.sign(&identity_b)?;
+        let h_policy = policy.h_policy();
+
+        // Malformed invoice JSON (invalid amount)
+        let malformed_invoice: Value = serde_json::from_str(r#"{"id":"test","terms":"terms","unit":"sat","amount":0,"policy_hash":"test","expiry":"2025-09-15T19:28:00Z","by":"","sig_alg":"","sig":""}"#)?;
+        let result = canonical_json(&malformed_invoice);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Zero amount")));
+        Ok(())
+    }
+
+    #[test]
+    fn test_large_inputs() -> Result<(), PcwError> {
+        let secp = Secp256k1::new();
+        let priv_a = [1u8; 32];
+        let identity_a = IdentityKeypair::new(priv_a)?;
+        let priv_b = [2u8; 32];
+        let identity_b = IdentityKeypair::new(priv_b)?;
+        let anchor_a = AnchorKeypair::new([3u8; 32])?;
+        let anchor_b = AnchorKeypair::new([4u8; 32])?;
+        let expiry = Utc::now() + Duration::days(1);
+
+        // Create policy
+        let mut policy = Policy::new(
+            hex::encode(anchor_b.pub_key.serialize()),
+            100,
+            1000,
+            500,
+            1,
+            expiry,
+        )?;
+        policy.sign(&identity_b)?;
+        let h_policy = policy.h_policy();
+
+        // Create invoice
+        let mut invoice = Invoice::new(
+            "test".to_string(),
+            "terms".to_string(),
+            "sat".to_string(),
+            10000,
+            hex::encode(h_policy),
+            Some(expiry),
+        )?;
+        invoice.sign(&identity_a)?;
+        let h_i = invoice.h_i();
+
+        // Create scope
+        let z = ecdh_z(&priv_a, &identity_b.pub_key)?;
+        let scope = Scope::new(z, h_i)?;
+
+        // Large split (10 notes)
+        let split = bounded_split(&scope, 10000, 100, 1000)?;
+        assert_eq!(split.len(), 10);
+        assert_eq!(split.iter().sum::<u64>(), 10000);
+
+        // Large UTXO set (20 UTXOs)
+        let mock_hash = sha256(b"test_tx");
+        let mock_h160 = h160(&mock_hash);
+        let mock_script = create_lock_script(&Hash160(mock_h160));
+        let mut utxos = vec![];
+        for i in 0..20 {
+            utxos.push(Utxo {
+                outpoint: OutPoint {
+                    hash: Hash256(sha256(&format!("test_tx_{}", i).as_bytes())),
+                    index: i as u32,
+                },
+                value: 1000,
+                script_pubkey: mock_script.to_bytes(),
+            });
+        }
+
+        // Build reservations
+        let reservations = build_reservations(&utxos, &split, 1, 1, 5, 5, false)?;
+        assert_eq!(reservations.len(), 10);
+
+        // Build transaction for first note
+        let s_i = reservations.get(&0).unwrap_or(&vec![]);
+        let priv_keys = vec![[5u8; 32]; s_i.len()];
+        let (note_tx, meta) = build_note_tx(
+            &scope,
+            0,
+            s_i,
+            split[0],
+            &anchor_b.pub_key,
+            &anchor_a.pub_key,
+            1,
+            1,
+            &priv_keys,
+        )?;
+        assert_eq!(meta.amount, split[0]);
+
+        // Create receipt for large set
+        let amounts = split;
+        let addr_payloads = vec![[0u8; 21]; amounts.len()];
+        let mut entries = vec![];
+        for j in 0..amounts.len() {
+            entries.push(Entry {
+                i: j as u32,
+                txid: format!("{:064}", j),
+            });
+        }
+        let mut manifest = Manifest {
+            invoice_hash: hex::encode(h_i),
+            merkle_root: "".to_string(),
+            count: amounts.len(),
+            entries,
+        };
+        let leaves = compute_leaves(&manifest, &amounts, &addr_payloads)?;
+        let root = merkle_root(&leaves)?;
+        manifest.merkle_root = hex::encode(root);
+        let proof = generate_proof(&leaves, 0, &manifest, &amounts, &addr_payloads)?;
+        verify_proof(&proof, &manifest)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_failure_cases() -> Result<(), PcwError> {
+        let secp = Secp256k1::new();
+        let priv_a = [1u8; 32];
+        let identity_a = IdentityKeypair::new(priv_a)?;
+        let priv_b = [2u8; 32];
+        let identity_b = IdentityKeypair::new(priv_b)?;
+        let anchor_a = AnchorKeypair::new([3u8; 32])?;
+        let anchor_b = AnchorKeypair::new([4u8; 32])?;
+        let expiry = Utc::now() + Duration::days(1);
+
+        // Create policy
+        let mut policy = Policy::new(
+            hex::encode(anchor_b.pub_key.serialize()),
+            100,
+            1000,
+            500,
+            1,
+            expiry,
+        )?;
+        policy.sign(&identity_b)?;
+        let h_policy = policy.h_policy();
+
+        // Create invoice
+        let mut invoice = Invoice::new(
+            "test".to_string(),
+            "terms".to_string(),
+            "sat".to_string(),
+            1000,
+            hex::encode(h_policy),
+            Some(expiry),
+        )?;
+        invoice.sign(&identity_a)?;
+        let h_i = invoice.h_i();
+
+        // Create scope
+        let z = ecdh_z(&priv_a, &identity_b.pub_key)?;
+        let scope = Scope::new(z, h_i)?;
+
+        // Test Underfunded
+        let mock_hash = sha256(b"test_tx");
+        let mock_h160 = h160(&mock_hash);
+        let mock_script = create_lock_script(&Hash160(mock_h160));
+        let utxo = Utxo {
+            outpoint: OutPoint {
+                hash: Hash256(mock_hash),
+                index: 0,
+            },
+            value: 50, // Too low
+            script_pubkey: mock_script.to_bytes(),
+        };
+        let split = bounded_split(&scope, 1000, 100, 1000)?;
+        let result = build_reservations(&[utxo], &split, 1, 1, 3, 5, false);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(PcwError::Underfunded)));
+
+        // Test DustChange
+        let utxo = Utxo {
+            outpoint: OutPoint {
+                hash: Hash256(mock_hash),
+                index: 0,
+            },
+            value: 101, // Causes dust change
+            script_pubkey: mock_script.to_bytes(),
+        };
+        let priv_keys = vec![[5u8; 32]];
+        let result = build_note_tx(
+            &scope,
+            0,
+            &[utxo],
+            100,
+            &anchor_b.pub_key,
+            &anchor_a.pub_key,
+            1,
+            50,
+            &priv_keys,
+        );
+        assert!(result.is_err());
+        assert!(matches!(result, Err(PcwError::DustChange)));
+
+        // Test InfeasibleSplit
+        let result = bounded_split(&scope, 99, 100, 500);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(PcwError::InfeasibleSplit)));
+
+        // Test invalid state transition
+        let state = NoteState::Signed;
+        let result = state.transition(&Event::Supersede);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid note state transition")));
 
         Ok(())
     }
