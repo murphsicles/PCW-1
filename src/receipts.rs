@@ -199,7 +199,7 @@ pub fn verify_proof(proof: &Proof, manifest: &Manifest) -> Result<(), PcwError> 
         l = sha256(&concat);
     }
     if hex::encode(l) != proof.merkle_root {
-        return Err(PcwError::InvalidProof);
+        return Err(PcwError::InvalidProof(String::from("Merkle root mismatch")));
     }
     if proof.invoice_hash != manifest.invoice_hash {
         return Err(PcwError::Other("Invoice hash mismatch".to_string()));
@@ -249,7 +249,7 @@ mod tests {
     fn test_merkle_root_odd() {
         let leaves = vec![[0; 32]];
         let root = merkle_root(&leaves);
-        assert_eq!(root, [0; 32]); // For N=1, root = leaf
+        assert_eq!(root, [0; 32]);
     }
 
     #[test]
