@@ -1,8 +1,8 @@
 //! Module for policy management in the PCW-1 protocol.
 //!
 //! This module implements the policy structure and signing as per §3.3, including
-//! fields for anchor public key, amount bounds, and broadcast constraints. Policies
-//! are signed and verified using secp256k1 ECDSA.
+//! fields for constraints, anchor public key, and signatures. Policies are signed
+//! and verified using secp256k1 ECDSA, with validation for constraints.
 use crate::errors::PcwError;
 use crate::json::canonical_json;
 use crate::keys::IdentityKeypair;
@@ -47,12 +47,20 @@ impl Policy {
             return Err(PcwError::Other("Zero feerate_floor §3.3".to_string()));
         }
         // Validate anchor_pubkey format
-        if anchor_pubkey.len() != 66 || !anchor_pubkey.starts_with("02") || !hex::decode(&anchor_pubkey).is_ok() {
-            return Err(PcwError::Other("Invalid anchor_pubkey format §3.3".to_string()));
+        if anchor_pubkey.len() != 66
+            || !anchor_pubkey.starts_with("02")
+            || !hex::decode(&anchor_pubkey).is_ok()
+        {
+            return Err(PcwError::Other(
+                "Invalid anchor_pubkey format §3.3".to_string(),
+            ));
         }
         let pubkey_bytes = hex::decode(&anchor_pubkey)?;
         PublicKey::from_slice(&pubkey_bytes)
             .map_err(|e| PcwError::Other(format!("Invalid anchor_pubkey: {} §3.3", e)))?;
+        if expiry < Utc::now() {
+            return Err(PcwError::Other("Expiry in the past §3.3".to_string()));
+        }
         Ok(Self {
             anchor_pubkey,
             vmin,
@@ -122,10 +130,11 @@ mod tests {
 
     #[test]
     fn test_policy_new_sign_verify() -> Result<(), PcwError> {
-        let secp = Secp256k1::new();
         let priv_k = [1; 32];
         let key = IdentityKeypair::new(priv_k)?;
-        let anchor_pubkey = hex::encode(key.pub_key.serialize());
+        let anchor_k = [2; 32];
+        let anchor_keypair = AnchorKeypair::new(anchor_k)?;
+        let anchor_pubkey = hex::encode(anchor_keypair.pub_key.serialize());
         let expiry = Utc::now() + chrono::Duration::days(1);
         let mut policy = Policy::new(anchor_pubkey, 100, 1000, 500, 1, expiry)?;
         policy.sign(&key)?;
@@ -140,21 +149,31 @@ mod tests {
         let expiry = Utc::now() + chrono::Duration::days(1);
         // Non-hex pubkey
         let result = Policy::new("invalid".to_string(), 100, 1000, 500, 1, expiry);
-        assert!(result.is_err());
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid anchor_pubkey format")));
+        assert!(
+            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid anchor_pubkey format")),
+        );
         // Wrong length pubkey
-        let result = Policy::new("02".to_string() + &"0".repeat(60), 100, 1000, 500, 1, expiry);
-        assert!(result.is_err());
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid anchor_pubkey")));
+        let result = Policy::new(
+            "02".to_string() + &"0".repeat(60),
+            100,
+            1000,
+            500,
+            1,
+            expiry,
+        );
+        assert!(
+            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid anchor_pubkey")),
+        );
         Ok(())
     }
 
     #[test]
     fn test_policy_expired() -> Result<(), PcwError> {
-        let secp = Secp256k1::new();
         let priv_k = [1; 32];
         let key = IdentityKeypair::new(priv_k)?;
-        let anchor_pubkey = hex::encode(key.pub_key.serialize());
+        let anchor_k = [2; 32];
+        let anchor_keypair = AnchorKeypair::new(anchor_k)?;
+        let anchor_pubkey = hex::encode(anchor_keypair.pub_key.serialize());
         let expiry = Utc::now() - chrono::Duration::days(1); // Past expiry
         let mut policy = Policy::new(anchor_pubkey, 100, 1000, 500, 1, expiry)?;
         policy.sign(&key)?;
@@ -166,10 +185,11 @@ mod tests {
 
     #[test]
     fn test_policy_invalid_signature() -> Result<(), PcwError> {
-        let secp = Secp256k1::new();
         let priv_k = [1; 32];
         let key = IdentityKeypair::new(priv_k)?;
-        let anchor_pubkey = hex::encode(key.pub_key.serialize());
+        let anchor_k = [2; 32];
+        let anchor_keypair = AnchorKeypair::new(anchor_k)?;
+        let anchor_pubkey = hex::encode(anchor_keypair.pub_key.serialize());
         let expiry = Utc::now() + chrono::Duration::days(1);
         let mut policy = Policy::new(anchor_pubkey, 100, 1000, 500, 1, expiry)?;
         policy.sign(&key)?;
@@ -189,17 +209,18 @@ mod tests {
 
     #[test]
     fn test_policy_serialization() -> Result<(), PcwError> {
-        let secp = Secp256k1::new();
         let priv_k = [1; 32];
         let key = IdentityKeypair::new(priv_k)?;
-        let anchor_pubkey = hex::encode(key.pub_key.serialize());
+        let anchor_k = [2; 32];
+        let anchor_keypair = AnchorKeypair::new(anchor_k)?;
+        let anchor_pubkey = hex::encode(anchor_keypair.pub_key.serialize());
         let expiry = Utc::now() + chrono::Duration::days(1);
-        let mut policy = Policy::new(anchor_pubkey.clone(), 100, 1000, 500, 1, expiry)?;
+        let mut policy = Policy::new(anchor_pubkey, 100, 1000, 500, 1, expiry)?;
         policy.sign(&key)?;
         let serialized = canonical_json(&policy)?;
         let expected = format!(
             "{{\"anchor_pubkey\":\"{}\",\"vmin\":100,\"vmax\":1000,\"per_address_cap\":500,\"feerate_floor\":1,\"expiry\":\"{}\",\"by\":\"{}\",\"sig_alg\":\"secp256k1-sha256\",\"sig\":\"{}\"}}",
-            anchor_pubkey,
+            hex::encode(anchor_keypair.pub_key.serialize()),
             expiry.format("%Y-%m-%dT%H:%M:%SZ"),
             hex::encode(key.pub_key.serialize()),
             policy.sig
@@ -210,23 +231,25 @@ mod tests {
 
     #[test]
     fn test_policy_invalid_bounds() -> Result<(), PcwError> {
-        let secp = Secp256k1::new();
-        let priv_k = [1; 32];
-        let key = IdentityKeypair::new(priv_k)?;
-        let anchor_pubkey = hex::encode(key.pub_key.serialize());
+        let anchor_k = [2; 32];
+        let anchor_keypair = AnchorKeypair::new(anchor_k)?;
+        let anchor_pubkey = hex::encode(anchor_keypair.pub_key.serialize());
         let expiry = Utc::now() + chrono::Duration::days(1);
         // vmin = 0
         let result = Policy::new(anchor_pubkey.clone(), 0, 1000, 500, 1, expiry);
-        assert!(result.is_err());
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid vmin or vmax")));
+        assert!(
+            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid vmin or vmax")),
+        );
         // vmax < vmin
         let result = Policy::new(anchor_pubkey.clone(), 1000, 100, 500, 1, expiry);
-        assert!(result.is_err());
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid vmin or vmax")));
+        assert!(
+            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid vmin or vmax")),
+        );
         // per_address_cap < vmin
         let result = Policy::new(anchor_pubkey.clone(), 100, 1000, 50, 1, expiry);
-        assert!(result.is_err());
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("per_address_cap out of bounds")));
+        assert!(
+            matches!(result, Err(PcwError::Other(msg)) if msg.contains("per_address_cap out of bounds")),
+        );
         // feerate_floor = 0
         let result = Policy::new(anchor_pubkey, 100, 1000, 500, 0, expiry);
         assert!(result.is_err());
