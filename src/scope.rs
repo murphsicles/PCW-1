@@ -16,9 +16,7 @@ impl Scope {
     /// Create new Scope, reject if Z or H_I is all-zero (§3.2).
     pub fn new(z: [u8; 32], h_i: [u8; 32]) -> Result<Self, PcwError> {
         if z == [0; 32] || h_i == [0; 32] {
-            return Err(PcwError::ScopeMisuse(
-                "Zero Z or H_I §3.2".to_string(),
-            ));
+            return Err(PcwError::ScopeMisuse("Zero Z or H_I §3.2".to_string()));
         }
         Ok(Self { z, h_i })
     }
