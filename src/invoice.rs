@@ -70,8 +70,8 @@ impl Invoice {
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
         let secp = Secp256k1::new();
-        let secret_key = SecretKey::from_byte_array(key.priv_key)?;
-        let sig = secp.sign_ecdsa(msg, &secret_key);
+        let sec_key = SecretKey::from_byte_array(key.priv_key)?;
+        let sig = secp.sign_ecdsa(msg, &sec_key);
         self.sig = hex::encode(sig.serialize_der());
         Ok(())
     }
@@ -114,6 +114,7 @@ impl Invoice {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::keys::IdentityKeypair;
 
     #[test]
     fn test_invoice_sig_verify() -> Result<(), PcwError> {
