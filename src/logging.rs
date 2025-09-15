@@ -10,6 +10,7 @@ use crate::utils::sha256;
 use chrono::Utc;
 use secp256k1::{Message, PublicKey, Secp256k1, SecretKey, ecdsa::Signature};
 use serde::Serialize;
+use serde_json;
 
 /// Trait for signed, append-only logs (§13.6-§13.7).
 pub trait LogRecord: Serialize + Clone {
@@ -66,11 +67,12 @@ impl LogRecord for ReissueRecord {
         let sig_alg = "secp256k1-sha256".to_string();
         let mut unsigned = self.clone();
         unsigned.set_signature("".to_string(), "".to_string(), "".to_string());
-        let bytes = canonical_json(&unsigned)?;
+        let value = serde_json::to_value(&unsigned)?;
+        let bytes = canonical_json(&value)?;
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(msg, &SecretKey::from_byte_array(key.priv_key)?);
+        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_byte_array(key.priv_key)?);
         let sig_hex = hex::encode(sig.serialize_der());
         self.set_signature(by, sig_alg, sig_hex);
         Ok(())
@@ -79,13 +81,14 @@ impl LogRecord for ReissueRecord {
     fn verify(&self) -> Result<(), PcwError> {
         let mut unsigned = self.clone();
         unsigned.set_signature("".to_string(), "".to_string(), "".to_string());
-        let bytes = canonical_json(&unsigned)?;
+        let value = serde_json::to_value(&unsigned)?;
+        let bytes = canonical_json(&value)?;
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
         let pub_key = PublicKey::from_slice(&hex::decode(&self.by)?)?;
         let sig = Signature::from_der(&hex::decode(&self.sig)?)?;
         let secp = Secp256k1::new();
-        secp.verify_ecdsa(msg, &sig, &pub_key)?;
+        secp.verify_ecdsa(&msg, &sig, &pub_key)?;
         Ok(())
     }
 
@@ -139,11 +142,12 @@ impl LogRecord for CancelRecord {
         let sig_alg = "secp256k1-sha256".to_string();
         let mut unsigned = self.clone();
         unsigned.set_signature("".to_string(), "".to_string(), "".to_string());
-        let bytes = canonical_json(&unsigned)?;
+        let value = serde_json::to_value(&unsigned)?;
+        let bytes = canonical_json(&value)?;
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(msg, &SecretKey::from_byte_array(key.priv_key)?);
+        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_byte_array(key.priv_key)?);
         let sig_hex = hex::encode(sig.serialize_der());
         self.set_signature(by, sig_alg, sig_hex);
         Ok(())
@@ -152,13 +156,14 @@ impl LogRecord for CancelRecord {
     fn verify(&self) -> Result<(), PcwError> {
         let mut unsigned = self.clone();
         unsigned.set_signature("".to_string(), "".to_string(), "".to_string());
-        let bytes = canonical_json(&unsigned)?;
+        let value = serde_json::to_value(&unsigned)?;
+        let bytes = canonical_json(&value)?;
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
         let pub_key = PublicKey::from_slice(&hex::decode(&self.by)?)?;
         let sig = Signature::from_der(&hex::decode(&self.sig)?)?;
         let secp = Secp256k1::new();
-        secp.verify_ecdsa(msg, &sig, &pub_key)?;
+        secp.verify_ecdsa(&msg, &sig, &pub_key)?;
         Ok(())
     }
 
@@ -211,11 +216,12 @@ impl LogRecord for ConflictRecord {
         let sig_alg = "secp256k1-sha256".to_string();
         let mut unsigned = self.clone();
         unsigned.set_signature("".to_string(), "".to_string(), "".to_string());
-        let bytes = canonical_json(&unsigned)?;
+        let value = serde_json::to_value(&unsigned)?;
+        let bytes = canonical_json(&value)?;
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(msg, &SecretKey::from_byte_array(key.priv_key)?);
+        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_byte_array(key.priv_key)?);
         let sig_hex = hex::encode(sig.serialize_der());
         self.set_signature(by, sig_alg, sig_hex);
         Ok(())
@@ -224,13 +230,14 @@ impl LogRecord for ConflictRecord {
     fn verify(&self) -> Result<(), PcwError> {
         let mut unsigned = self.clone();
         unsigned.set_signature("".to_string(), "".to_string(), "".to_string());
-        let bytes = canonical_json(&unsigned)?;
+        let value = serde_json::to_value(&unsigned)?;
+        let bytes = canonical_json(&value)?;
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
         let pub_key = PublicKey::from_slice(&hex::decode(&self.by)?)?;
         let sig = Signature::from_der(&hex::decode(&self.sig)?)?;
         let secp = Secp256k1::new();
-        secp.verify_ecdsa(msg, &sig, &pub_key)?;
+        secp.verify_ecdsa(&msg, &sig, &pub_key)?;
         Ok(())
     }
 
@@ -284,11 +291,12 @@ impl LogRecord for OrphanedRecord {
         let sig_alg = "secp256k1-sha256".to_string();
         let mut unsigned = self.clone();
         unsigned.set_signature("".to_string(), "".to_string(), "".to_string());
-        let bytes = canonical_json(&unsigned)?;
+        let value = serde_json::to_value(&unsigned)?;
+        let bytes = canonical_json(&value)?;
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(msg, &SecretKey::from_byte_array(key.priv_key)?);
+        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_byte_array(key.priv_key)?);
         let sig_hex = hex::encode(sig.serialize_der());
         self.set_signature(by, sig_alg, sig_hex);
         Ok(())
@@ -297,13 +305,14 @@ impl LogRecord for OrphanedRecord {
     fn verify(&self) -> Result<(), PcwError> {
         let mut unsigned = self.clone();
         unsigned.set_signature("".to_string(), "".to_string(), "".to_string());
-        let bytes = canonical_json(&unsigned)?;
+        let value = serde_json::to_value(&unsigned)?;
+        let bytes = canonical_json(&value)?;
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
         let pub_key = PublicKey::from_slice(&hex::decode(&self.by)?)?;
         let sig = Signature::from_der(&hex::decode(&self.sig)?)?;
         let secp = Secp256k1::new();
-        secp.verify_ecdsa(msg, &sig, &pub_key)?;
+        secp.verify_ecdsa(&msg, &sig, &pub_key)?;
         Ok(())
     }
 
@@ -343,7 +352,8 @@ pub fn append_to_log<T: LogRecord>(
     if let Some(p) = prev {
         let mut p_unsigned = p.clone();
         p_unsigned.set_signature("".to_string(), "".to_string(), "".to_string());
-        let p_bytes = canonical_json(&p_unsigned)?;
+        let value = serde_json::to_value(&p_unsigned)?;
+        let p_bytes = canonical_json(&value)?;
         record.set_prev_hash(hex::encode(sha256(&p_bytes)));
     } else {
         record.set_prev_hash("".to_string());
@@ -373,7 +383,8 @@ pub fn verify_log_chain<T: LogRecord>(log: &[T]) -> Result<(), PcwError> {
         if i > 0 {
             let mut prev_unsigned = log[i - 1].clone();
             prev_unsigned.set_signature("".to_string(), "".to_string(), "".to_string());
-            let prev_bytes = canonical_json(&prev_unsigned)?;
+            let value = serde_json::to_value(&prev_unsigned)?;
+            let prev_bytes = canonical_json(&value)?;
             let expected_prev_hash = hex::encode(sha256(&prev_bytes));
             if log[i].prev_hash() != expected_prev_hash {
                 return Err(PcwError::Other(format!(
@@ -550,7 +561,8 @@ mod tests {
         assert_eq!(log[1].seq, 2);
         let mut r = log[0].clone();
         r.set_signature("".to_string(), "".to_string(), "".to_string());
-        assert_eq!(log[1].prev_hash, hex::encode(sha256(&canonical_json(&r)?)));
+        let value = serde_json::to_value(&r)?;
+        assert_eq!(log[1].prev_hash, hex::encode(sha256(&canonical_json(&value)?)));
         Ok(())
     }
 
