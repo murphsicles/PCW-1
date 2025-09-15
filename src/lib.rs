@@ -31,7 +31,9 @@ pub use keys::{AnchorKeypair, IdentityKeypair};
 pub use logging::{LogRecord, append_to_log};
 pub use policy::Policy;
 pub use protocol::{ecdh_z, exchange_invoice, exchange_policy, handshake};
-pub use receipts::{Entry, Manifest, Proof, compute_leaves, generate_proof, merkle_root, verify_proof};
+pub use receipts::{
+    Entry, Manifest, Proof, compute_leaves, generate_proof, merkle_root, verify_proof,
+};
 pub use scope::Scope;
 pub use selection::{Utxo, build_reservations};
 pub use split::bounded_split;
