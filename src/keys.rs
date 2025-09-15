@@ -3,8 +3,7 @@
 //! This module provides keypair structs for anchor and identity keys, along with ECDH
 //! shared secret computation as per §3.1 and §3.2 of the spec.
 use crate::errors::PcwError;
-use crate::json::canonical_json;
-use secp256k1::{PublicKey, Secp256k1, SecretKey, constants::SECRET_KEY_SIZE};
+use secp256k1::{PublicKey, Secp256k1, SecretKey, Scalar};
 
 /// Anchor keypair for address derivation (§3.1).
 #[derive(Clone, Debug)]
@@ -38,12 +37,10 @@ impl AnchorKeypair {
         let secp = Secp256k1::new();
         let sec_key = SecretKey::from_byte_array(self.priv_key)
             .map_err(|e| PcwError::Other(format!("Invalid private key: {} §3.2", e)))?;
-        // Verify their_pub is valid
-        if their_pub.is_zero() {
-            return Err(PcwError::Other("Invalid public key §3.2".to_string()));
-        }
+        // Convert SecretKey to Scalar for mul_tweak
+        let scalar = Scalar::from(&sec_key);
         // Compute shared point: their_pub * priv_key
-        let shared_point = their_pub.mul_tweak(&secp, &sec_key)?;
+        let shared_point = their_pub.mul_tweak(&secp, &scalar)?;
         let shared_bytes = shared_point.serialize();
         let z: [u8; 32] = shared_bytes[1..33]
             .try_into()
@@ -69,9 +66,10 @@ impl IdentityKeypair {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::json::canonical_json;
+
     // Note: For production, use secure random keys with `rand::rngs::OsRng` (§3.1).
     // Example: `let mut rng = OsRng; let priv_key = SecretKey::new(&mut rng).to_bytes();`
-
     #[test]
     fn test_anchor_keypair() -> Result<(), PcwError> {
         let priv_key = [1u8; 32];
