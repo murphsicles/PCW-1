@@ -8,7 +8,7 @@
 //! - No floating-point numbers.
 use crate::errors::PcwError;
 use crate::utils::nfc_normalize;
-use serde_json::{Map, Value};
+use serde_json::Value;
 use std::collections::BTreeMap;
 
 pub fn canonical_json(v: &Value) -> Result<Vec<u8>, PcwError> {
