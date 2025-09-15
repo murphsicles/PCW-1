@@ -135,10 +135,7 @@ mod tests {
     #[test]
     fn test_canonical_json_nfc() -> Result<(), PcwError> {
         let v = json!({ "café": 1, "cafe": 2 });
-        assert_eq!(
-            canonical_json(&v)?,
-            b"{\"cafe\":2,\"caf\xc3\xa9\":1}",
-        );
+        assert_eq!(canonical_json(&v)?, b"{\"cafe\":2,\"caf\xc3\xa9\":1}");
         Ok(())
     }
 
