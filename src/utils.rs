@@ -96,7 +96,9 @@ mod tests {
         // Expected SHA-256 of empty input
         assert_eq!(
             hash,
-            hex::decode("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855").unwrap().as_slice()
+            hex::decode("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+                .unwrap()
+                .as_slice(),
         );
     }
 
@@ -124,7 +126,9 @@ mod tests {
         // Expected RIPEMD160(SHA256(""))
         assert_eq!(
             h160,
-            hex::decode("9c1185a5c5e9fc54612808977ee8f548b2258d31").unwrap().as_slice()
+            hex::decode("9c1185a5c5e9fc54612808977ee8f548b2258d31")
+                .unwrap()
+                .as_slice(),
         );
     }
 
@@ -182,7 +186,9 @@ mod tests {
         let sk = SecretKey::from_byte_array([1u8; 32]).unwrap();
         let pk = PublicKey::from_secret_key(&secp, &sk);
         // Create an invalid (zero) public key
-        let invalid_pk = PublicKey::from_slice(&[0u8; 33]).unwrap_or_else(|_| PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array([0; 32]).unwrap()));
+        let invalid_pk = PublicKey::from_slice(&[0u8; 33]).unwrap_or_else(|_| {
+            PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array([0; 32]).unwrap())
+        });
         let result = point_add(&pk, &invalid_pk);
         assert!(result.is_err());
         assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid public key")));
