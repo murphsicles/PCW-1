@@ -1,6 +1,10 @@
 use chrono::Utc;
 use hex;
-use pcw_protocol::{AnchorKeypair, Entry, IdentityKeypair, Invoice, Manifest, PcwError, Policy, Scope, Utxo, bounded_split, build_note_tx, build_reservations, compute_leaves, ecdh_z, generate_proof, merkle_root, verify_proof, utils::{h160, sha256}};
+use pcw_protocol::{
+    AnchorKeypair, Entry, IdentityKeypair, Invoice, Manifest, PcwError, Policy, Scope, Utxo,
+    bounded_split, build_note_tx, build_reservations, compute_leaves, ecdh_z, generate_proof,
+    merkle_root, utils::{h160, sha256}, verify_proof,
+};
 use sv::messages::OutPoint;
 use sv::transaction::p2pkh::create_lock_script;
 use sv::util::{Hash160, Hash256};
