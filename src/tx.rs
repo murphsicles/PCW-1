@@ -9,9 +9,9 @@ use crate::scope::Scope;
 use crate::selection::Utxo;
 use crate::utils::{base58check, h160, le32, point_add, scalar_mul, ser_p, sha256};
 use chrono::Utc;
-use secp256k1::{Message, PublicKey, Secp256k1, SecretKey, ecdsa::Signature};
+use secp256k1::{Message, PublicKey, Secp256k1, SecretKey};
 use serde::{Deserialize, Serialize};
-use sv::messages::{OutPoint, Tx};
+use sv::messages::Tx;
 use sv::script::Script;
 use sv::script::op_codes::*;
 use sv::transaction::p2pkh::{create_lock_script, create_unlock_script};
@@ -156,12 +156,12 @@ pub fn build_note_tx(
         )?;
         let msg = Message::from_digest(sighash.0);
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(msg, &SecretKey::from_byte_array(priv_keys[j])?);
+        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_byte_array(priv_keys[j])?);
         let pub_key = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(priv_keys[j])?);
         tx.inputs[j].unlock_script = create_unlock_script(&sig.serialize_der(), &ser_p(&pub_key));
     }
     // Finalize metadata
-    let tx_bytes = tx.to_bytes();
+    let tx_bytes = tx.serialize();
     let txid_hash = sha256(&sha256(&tx_bytes));
     let txid = hex::encode(txid_hash);
     let note_id = hex::encode(sha256(&[scope.h_i.to_vec(), le32(i).to_vec()].concat()));
@@ -189,11 +189,14 @@ pub fn build_note_tx(
         outputs: tx
             .outputs
             .iter()
-            .map(|o| OutputMeta {
-                addr: reverse_base58(&o.lock_script.to_bytes())?,
-                value: o.satoshis as u64,
+            .map(|o| {
+                let addr = reverse_base58(o.lock_script.as_bytes())?;
+                Ok(OutputMeta {
+                    addr,
+                    value: o.satoshis as u64,
+                })
             })
-            .collect(),
+            .collect::<Result<Vec<OutputMeta>, PcwError>>()?,
         sig_alg: "secp256k1-sha256".to_string(),
         created_at: Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
         status: "signed".to_string(),
@@ -275,7 +278,7 @@ mod tests {
         let mock_script = create_lock_script(&Hash160(mock_h160));
         let utxo = Utxo {
             outpoint: OutPoint {
-                hash: Hash160(mock_hash),
+                hash: Hash160(mock_h160),
                 index: 0,
             },
             value: 200,
@@ -311,7 +314,7 @@ mod tests {
         let mock_script = create_lock_script(&Hash160(mock_h160));
         let utxo = Utxo {
             outpoint: OutPoint {
-                hash: Hash160(mock_hash),
+                hash: Hash160(mock_h160),
                 index: 0,
             },
             value: 151,
@@ -343,7 +346,7 @@ mod tests {
         let mock_script = create_lock_script(&Hash160(mock_h160));
         let utxo = Utxo {
             outpoint: OutPoint {
-                hash: Hash160(mock_hash),
+                hash: Hash160(mock_h160),
                 index: 0,
             },
             value: 50,
