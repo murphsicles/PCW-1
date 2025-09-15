@@ -10,7 +10,7 @@ readme = "README.md"
 [dependencies]
 async-trait = "0.1"
 base58 = "0.2.0"
-chrono = "0.4.41"
+chrono = { version = "0.4.41", features = ["serde"] }
 hex = "0.4.3"
 hmac = "0.12.1"
 merlin = "3.0.0"
