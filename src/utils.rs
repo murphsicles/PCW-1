@@ -213,6 +213,7 @@ mod tests {
         let result = scalar_mul(&scalar);
         assert!(result.is_err());
         assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid scalar")));
+        Ok(())
     }
 
     #[test]
@@ -228,5 +229,6 @@ mod tests {
         let malformed = "caf\u{0065}\u{0301}";
         let normalized = nfc_normalize(malformed);
         assert_eq!(normalized, "café"); // Should normalize to NFC
+        Ok(())
     }
 }
