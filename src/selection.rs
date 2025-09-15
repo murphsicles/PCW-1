@@ -6,13 +6,12 @@
 use crate::addressing::recipient_address;
 use crate::errors::PcwError;
 use crate::scope::Scope;
-use crate::utils::{h160, sha256};
-use secp256k1::{PublicKey, Secp256k1, SecretKey};
+use crate::utils::sha256;
+use secp256k1::{PublicKey, Secp256k1};
 use std::cmp::max;
 use std::collections::{HashMap, HashSet};
 use sv::messages::OutPoint;
-use sv::transaction::p2pkh::create_lock_script;
-use sv::util::{Hash160, Hash256};
+use sv::util::Hash256;
 
 /// UTXO data for selection.
 #[derive(Clone, Debug)]
@@ -71,7 +70,6 @@ pub fn build_reservations(
     let mut addrs = vec!["".to_string(); n];
     let mut amounts = vec![0u64; n];
     let mut fanout_done = false;
-
     for i in 0..n {
         let target = total / n as u64;
         let s_i = select_utxos(&u_sorted, &mut used, target, feerate_floor, dust)?;
@@ -240,7 +238,10 @@ pub fn compute_per_address_amounts(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::h160;
     use secp256k1::{PublicKey, Secp256k1, SecretKey};
+    use sv::transaction::p2pkh::create_lock_script;
+    use sv::util::Hash160;
 
     #[test]
     fn test_compute_n_min_max() -> Result<(), PcwError> {
