@@ -8,15 +8,17 @@ use crate::invoice::Invoice;
 use crate::json::canonical_json;
 use crate::keys::IdentityKeypair;
 use crate::policy::Policy;
-use secp256k1::{PublicKey, Secp256k1, SecretKey};
+use secp256k1::{PublicKey, Secp256k1, SecretKey, Scalar};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
 /// Compute ECDH shared secret Z (§3.2).
-fn ecdh_z(my_priv: &[u8; 32], their_pub: &PublicKey) -> Result<[u8; 32], PcwError> {
+pub fn ecdh_z(my_priv: &[u8; 32], their_pub: &PublicKey) -> Result<[u8; 32], PcwError> {
     let secp = Secp256k1::new();
     let secret_key = SecretKey::from_byte_array(*my_priv)?;
-    let shared_point = their_pub.mul_tweak(&secp, &secret_key)?;
+    // Convert SecretKey to Scalar for mul_tweak
+    let scalar = Scalar::from(&secret_key);
+    let shared_point = their_pub.mul_tweak(&secp, &scalar)?;
     Ok(shared_point
         .serialize()
         .get(1..33)
@@ -36,7 +38,6 @@ pub async fn handshake(
         .write_all(&my_pub)
         .await
         .map_err(|e| PcwError::Io(format!("Failed to send public key: {}", e)))?;
-
     // Read their public key
     let mut their_pub_buf = [0u8; 33];
     stream
@@ -44,7 +45,6 @@ pub async fn handshake(
         .await
         .map_err(|e| PcwError::Io(format!("Failed to read public key: {}", e)))?;
     let their_pub = PublicKey::from_slice(&their_pub_buf)?;
-
     // Compute shared secret Z
     ecdh_z(&my_identity.priv_key, &their_pub)
 }
@@ -55,7 +55,8 @@ pub async fn exchange_policy(
     policy: Option<Policy>,
 ) -> Result<Policy, PcwError> {
     if let Some(p) = policy {
-        let bytes = canonical_json(&p)?;
+        let value = serde_json::to_value(&p)?;
+        let bytes = canonical_json(&value)?;
         let len = (bytes.len() as u32).to_le_bytes();
         stream
             .write_all(&len)
@@ -91,7 +92,8 @@ pub async fn exchange_invoice(
     expected_policy_hash: &[u8; 32],
 ) -> Result<Invoice, PcwError> {
     if let Some(inv) = invoice {
-        let bytes = canonical_json(&inv)?;
+        let value = serde_json::to_value(&inv)?;
+        let bytes = canonical_json(&value)?;
         let len = (bytes.len() as u32).to_le_bytes();
         stream
             .write_all(&len)
@@ -126,7 +128,6 @@ mod tests {
     use crate::keys::IdentityKeypair;
     use chrono::{DateTime, Utc};
     use tokio::net::TcpListener;
-
     #[tokio::test]
     async fn test_handshake_symmetry() -> Result<(), PcwError> {
         let listener = TcpListener::bind("127.0.0.1:0")
@@ -161,7 +162,6 @@ mod tests {
         assert_eq!(z1, z2); // ECDH symmetry
         Ok(())
     }
-
     #[tokio::test]
     async fn test_exchange_policy() -> Result<(), PcwError> {
         let listener = TcpListener::bind("127.0.0.1:0")
@@ -201,7 +201,6 @@ mod tests {
         assert_eq!(p1.h_policy(), p2.h_policy());
         Ok(())
     }
-
     #[tokio::test]
     async fn test_exchange_invoice() -> Result<(), PcwError> {
         let listener = TcpListener::bind("127.0.0.1:0")
