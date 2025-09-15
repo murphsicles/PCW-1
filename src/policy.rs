@@ -10,6 +10,7 @@ use crate::utils::sha256;
 use chrono::{DateTime, Utc};
 use secp256k1::{Message, PublicKey, Secp256k1, SecretKey, ecdsa::Signature};
 use serde::{Deserialize, Serialize};
+use serde_json;
 
 /// Policy structure per §3.3.
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -82,11 +83,12 @@ impl Policy {
         unsigned.by = "".to_string();
         unsigned.sig_alg = "".to_string();
         unsigned.sig = "".to_string();
-        let bytes = canonical_json(&unsigned)?;
+        let value = serde_json::to_value(&unsigned)?;
+        let bytes = canonical_json(&value)?;
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(msg, &SecretKey::from_byte_array(key.priv_key)?);
+        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_byte_array(key.priv_key)?);
         self.by = by;
         self.sig_alg = sig_alg;
         self.sig = hex::encode(sig.serialize_der());
@@ -102,13 +104,14 @@ impl Policy {
         unsigned.by = "".to_string();
         unsigned.sig_alg = "".to_string();
         unsigned.sig = "".to_string();
-        let bytes = canonical_json(&unsigned)?;
+        let value = serde_json::to_value(&unsigned)?;
+        let bytes = canonical_json(&value)?;
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
         let pub_key = PublicKey::from_slice(&hex::decode(&self.by)?)?;
         let sig = Signature::from_der(&hex::decode(&self.sig)?)?;
         let secp = Secp256k1::new();
-        secp.verify_ecdsa(msg, &sig, &pub_key)?;
+        secp.verify_ecdsa(&msg, &sig, &pub_key)?;
         Ok(())
     }
 
@@ -118,7 +121,10 @@ impl Policy {
         unsigned.by = "".to_string();
         unsigned.sig_alg = "".to_string();
         unsigned.sig = "".to_string();
-        let bytes = canonical_json(&unsigned).unwrap_or_default();
+        let value = serde_json::to_value(&unsigned)
+            .map_err(|e| PcwError::Other(format!("Serialization failed: {}", e)))
+            .unwrap_or_default();
+        let bytes = canonical_json(&value).unwrap_or_default();
         sha256(&bytes)
     }
 }
