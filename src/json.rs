@@ -137,7 +137,7 @@ mod tests {
         let v = json!({ "café": 1, "cafe": 2 });
         assert_eq!(
             canonical_json(&v)?,
-            b"{\"cafe\":2,\"caf\u{00e9}\":1}",
+            b"{\"cafe\":2,\"caf\xc3\xa9\":1}",
         );
         Ok(())
     }
