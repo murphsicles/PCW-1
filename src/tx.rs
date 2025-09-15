@@ -11,7 +11,7 @@ use crate::utils::{base58check, h160, le32, point_add, scalar_mul, ser_p, sha256
 use chrono::Utc;
 use secp256k1::{Message, PublicKey, Secp256k1, SecretKey, ecdsa::Signature};
 use serde::{Deserialize, Serialize};
-use sv::messages::{Tx, OutPoint};
+use sv::messages::{OutPoint, Tx};
 use sv::script::Script;
 use sv::script::op_codes::*;
 use sv::transaction::p2pkh::{create_lock_script, create_unlock_script};
@@ -403,8 +403,9 @@ mod tests {
     fn test_reverse_base58_invalid() {
         let lock_script = vec![OP_DUP]; // Invalid script
         let result = reverse_base58(&lock_script);
-        assert!(result.is_err());
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid script length")));
+        assert!(
+            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid script length")),
+        );
     }
 
     #[test]
@@ -437,7 +438,8 @@ mod tests {
             OP_CHECKSIG,
         ];
         let result = reverse_base58(&lock_script);
-        assert!(result.is_err());
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid script format")));
+        assert!(
+            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid script format")),
+        );
     }
 }
