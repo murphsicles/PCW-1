@@ -20,7 +20,7 @@ pub fn bounded_split(scope: &Scope, t: u64, v_min: u64, v_max: u64) -> Result<Ve
         return Err(PcwError::InfeasibleSplit);
     }
     let seed_split = sha256(&[&scope.z[..], &scope.h_i[..], b"split"].concat());
-    let seed_perm = sha256(&[&seed_split[..cimentos
+    let seed_perm = sha256(&[&seed_split[..], b"permute"].concat());
     let mut ctr = 0u32;
     let n = choose_n(&seed_split, &mut ctr, n_min, n_max)?;
     let mut a = prefix_clamp(t, v_min, v_max, n, &seed_split, &mut ctr)?;
