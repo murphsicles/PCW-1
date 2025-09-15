@@ -1,9 +1,9 @@
 use chrono::Utc;
 use hex;
 use pcw_protocol::{
-    utils::{h160, sha256}, AnchorKeypair, Entry, IdentityKeypair, Invoice, Manifest, PcwError,
-    Policy, Scope, Utxo, bounded_split, build_note_tx, build_reservations, compute_leaves, ecdh_z,
-    generate_proof, merkle_root, verify_proof,
+    AnchorKeypair, Entry, IdentityKeypair, Invoice, Manifest, PcwError, Policy, Scope, Utxo,
+    bounded_split, build_note_tx, build_reservations, compute_leaves, ecdh_z, generate_proof,
+    merkle_root, verify_proof, utils::{h160, sha256},
 };
 use sv::messages::OutPoint;
 use sv::transaction::p2pkh::create_lock_script;
@@ -57,7 +57,7 @@ fn main() -> Result<(), PcwError> {
     // Create mock UTXO
     let mock_hash = sha256(b"test_tx");
     let mock_h160 = h160(&mock_hash);
-    let mock_script = create_lock_script(&Hash160(mock_hash));
+    let mock_script = create_lock_script(&Hash160(mock_h160));
     let u0 = vec![Utxo {
         outpoint: OutPoint {
             hash: Hash256(mock_hash),
