@@ -41,9 +41,7 @@ impl Policy {
             return Err(PcwError::Other("vmax < vmin §3.3".to_string()));
         }
         if per_address_cap < vmin || per_address_cap > vmax {
-            return Err(PcwError::Other(
-                "Invalid per_address_cap §3.3".to_string(),
-            ));
+            return Err(PcwError::Other("Invalid per_address_cap §3.3".to_string()));
         }
         if feerate == 0 {
             return Err(PcwError::Other("Zero feerate §3.3".to_string()));
@@ -168,7 +166,9 @@ mod tests {
         // Invalid per_address_cap
         let result = Policy::new(pub_key.clone(), 100, 1000, 50, 1, expiry);
         assert!(result.is_err());
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid per_address_cap")));
+        assert!(
+            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid per_address_cap"))
+        );
         // Zero feerate
         let result = Policy::new(pub_key.clone(), 100, 1000, 500, 0, expiry);
         assert!(result.is_err());
@@ -176,7 +176,9 @@ mod tests {
         // Invalid pub_key format
         let result = Policy::new("invalid".to_string(), 100, 1000, 500, 1, expiry);
         assert!(result.is_err());
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid pub_key format")));
+        assert!(
+            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid pub_key format"))
+        );
         Ok(())
     }
 
