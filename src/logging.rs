@@ -562,7 +562,10 @@ mod tests {
         let mut r = log[0].clone();
         r.set_signature("".to_string(), "".to_string(), "".to_string());
         let value = serde_json::to_value(&r)?;
-        assert_eq!(log[1].prev_hash, hex::encode(sha256(&canonical_json(&value)?)));
+        assert_eq!(
+            log[1].prev_hash,
+            hex::encode(sha256(&canonical_json(&value)?))
+        );
         Ok(())
     }
 
