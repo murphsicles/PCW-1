@@ -3,7 +3,7 @@
 //! This module provides keypair structs for anchor and identity keys, along with ECDH
 //! shared secret computation as per §3.1 and §3.2 of the spec.
 use crate::errors::PcwError;
-use secp256k1::{PublicKey, Secp256k1, SecretKey, Scalar};
+use secp256k1::{PublicKey, Scalar, Secp256k1, SecretKey};
 
 /// Anchor keypair for address derivation (§3.1).
 #[derive(Clone, Debug)]
