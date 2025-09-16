@@ -199,7 +199,7 @@ pub fn verify_proof(proof: &Proof, manifest: &Manifest) -> Result<(), PcwError> 
         l = sha256(&concat);
     }
     if hex::encode(l) != proof.merkle_root {
-        return Err(PcwError::InvalidProof("Merkle root mismatch".to_string()));
+        return Err(PcwError::InvalidProof);
     }
     if proof.invoice_hash != manifest.invoice_hash {
         return Err(PcwError::Other("Invoice hash mismatch".to_string()));
