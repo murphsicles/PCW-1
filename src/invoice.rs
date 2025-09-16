@@ -82,7 +82,7 @@ impl Invoice {
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_byte_array(key.priv_key)?);
+        let sig = secp.sign_ecdsa(msg, &SecretKey::from_byte_array(key.priv_key)?);
         self.by = by;
         self.sig_alg = sig_alg;
         self.sig = hex::encode(sig.serialize_der());
@@ -107,10 +107,10 @@ impl Invoice {
         let bytes = canonical_json(&value)?;
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
+        let secp = Secp256k1::new();
         let pub_key = PublicKey::from_slice(&hex::decode(&self.by)?)?;
         let sig = Signature::from_der(&hex::decode(&self.sig)?)?;
-        let secp = Secp256k1::new();
-        secp.verify_ecdsa(&msg, &sig, &pub_key)?;
+        secp.verify_ecdsa(msg, &sig, &pub_key)?;
         Ok(())
     }
 
