@@ -96,7 +96,7 @@ pub struct Leaf {
 /// Path element in a Merkle proof (§10.5).
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PathElement {
-    pub pos: String,  // "L" or "R"
+    pub pos: String, // "L" or "R"
     pub hash: String, // hex 32-byte
 }
 
@@ -199,9 +199,7 @@ pub fn verify_proof(proof: &Proof, manifest: &Manifest) -> Result<(), PcwError> 
         l = sha256(&concat);
     }
     if hex::encode(l) != proof.merkle_root {
-        return Err(PcwError::InvalidProof {
-            msg: "Merkle root mismatch".to_string(),
-        });
+        return Err(PcwError::InvalidProof("Merkle root mismatch".to_string()));
     }
     if proof.invoice_hash != manifest.invoice_hash {
         return Err(PcwError::Other("Invoice hash mismatch".to_string()));
