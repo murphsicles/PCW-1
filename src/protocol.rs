@@ -8,7 +8,7 @@ use crate::invoice::Invoice;
 use crate::json::canonical_json;
 use crate::keys::IdentityKeypair;
 use crate::policy::Policy;
-use secp256k1::{PublicKey, Secp256k1, SecretKey, Scalar};
+use secp256k1::{PublicKey, Scalar, Secp256k1, SecretKey};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
@@ -128,6 +128,7 @@ mod tests {
     use crate::keys::IdentityKeypair;
     use chrono::{DateTime, Utc};
     use tokio::net::TcpListener;
+
     #[tokio::test]
     async fn test_handshake_symmetry() -> Result<(), PcwError> {
         let listener = TcpListener::bind("127.0.0.1:0")
@@ -162,6 +163,7 @@ mod tests {
         assert_eq!(z1, z2); // ECDH symmetry
         Ok(())
     }
+
     #[tokio::test]
     async fn test_exchange_policy() -> Result<(), PcwError> {
         let listener = TcpListener::bind("127.0.0.1:0")
@@ -201,6 +203,7 @@ mod tests {
         assert_eq!(p1.h_policy(), p2.h_policy());
         Ok(())
     }
+
     #[tokio::test]
     async fn test_exchange_invoice() -> Result<(), PcwError> {
         let listener = TcpListener::bind("127.0.0.1:0")
