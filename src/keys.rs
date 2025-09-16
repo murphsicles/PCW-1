@@ -38,7 +38,7 @@ impl AnchorKeypair {
         let sec_key = SecretKey::from_byte_array(self.priv_key)
             .map_err(|e| PcwError::Other(format!("Invalid private key: {} §3.2", e)))?;
         // Convert SecretKey to Scalar for mul_tweak
-        let scalar = Scalar::from(&sec_key);
+        let scalar = Scalar::from(sec_key);
         // Compute shared point: their_pub * priv_key
         let shared_point = their_pub.mul_tweak(&secp, &scalar)?;
         let shared_bytes = shared_point.serialize();
