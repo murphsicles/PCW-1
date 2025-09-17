@@ -17,6 +17,7 @@ use sv::script::op_codes::*;
 use sv::transaction::p2pkh::{create_lock_script, create_unlock_script};
 use sv::transaction::sighash::{SIGHASH_ALL, SIGHASH_FORKID, SigHashCache, sighash};
 use sv::util::Hash160;
+use std::io::Write;
 
 /// NoteMeta per §8.3: Canonical fields for log/audit.
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -161,7 +162,8 @@ pub fn build_note_tx(
         tx.inputs[j].unlock_script = create_unlock_script(&sig.serialize_der(), &ser_p(&pub_key));
     }
     // Finalize metadata
-    let tx_bytes = tx.to_vec();
+    let mut tx_bytes = Vec::new();
+    tx.write(&mut tx_bytes)?;
     let txid_hash = sha256(&sha256(&tx_bytes));
     let txid = hex::encode(txid_hash);
     let note_id = hex::encode(sha256(&[scope.h_i.to_vec(), le32(i).to_vec()].concat()));
@@ -190,7 +192,7 @@ pub fn build_note_tx(
             .outputs
             .iter()
             .map(|o| {
-                let addr = reverse_base58(&o.lock_script.to_vec())?;
+                let addr = reverse_base58(&o.lock_script.0)?;
                 Ok(OutputMeta {
                     addr,
                     value: o.satoshis as u64,
@@ -246,7 +248,7 @@ mod tests {
                 index: 0,
             },
             value: 150,
-            script_pubkey: mock_script.to_vec(),
+            script_pubkey: mock_script.0,
         };
         let priv_key = [1u8; 32];
         let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_key)?);
@@ -278,11 +280,11 @@ mod tests {
         let mock_script = create_lock_script(&Hash160(mock_h160));
         let utxo = Utxo {
             outpoint: OutPoint {
-                hash: Hash160(mock_h160),
+                hash: Hash160(mock_hash),
                 index: 0,
             },
             value: 200,
-            script_pubkey: mock_script.to_vec(),
+            script_pubkey: mock_script.0,
         };
         let priv_key = [1u8; 32];
         let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_key)?);
@@ -318,7 +320,7 @@ mod tests {
                 index: 0,
             },
             value: 151,
-            script_pubkey: mock_script.to_vec(),
+            script_pubkey: mock_script.0,
         };
         let priv_key = [1u8; 32];
         let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_key)?);
@@ -350,7 +352,7 @@ mod tests {
                 index: 0,
             },
             value: 50,
-            script_pubkey: mock_script.to_vec(),
+            script_pubkey: mock_script.0,
         };
         let priv_key = [1u8; 32];
         let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_key)?);
