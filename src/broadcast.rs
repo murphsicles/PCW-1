@@ -104,7 +104,12 @@ pub fn pacing_schedule(
             for (b, batch_time) in batch_times.iter().enumerate().take(num_bursts) {
                 let start_idx = b * beta;
                 let end_idx = min(start_idx + beta, n);
-                for (idx, schedule_d) in schedule.iter_mut().enumerate().skip(start_idx).take(end_idx - start_idx) {
+                for (idx, schedule_d) in schedule
+                    .iter_mut()
+                    .enumerate()
+                    .skip(start_idx)
+                    .take(end_idx - start_idx)
+                {
                     let intra = draw_uniform(&s_pace, &mut ctr, policy.min_spacing_ms + 1)?
                         .min(policy.min_spacing_ms);
                     *schedule_d = *batch_time + Duration::from_millis(intra);
