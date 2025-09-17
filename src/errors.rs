@@ -7,9 +7,9 @@ use chrono::ParseError;
 use hex::FromHexError;
 use secp256k1::Error;
 use serde_json::Error as SerdeJsonError;
+use std::io;
 use sv::util::Error as SvError;
 use thiserror::Error;
-use std::io;
 
 /// PCW-1 Errors: Rejections and failures per spec.
 #[derive(Error, Debug)]
