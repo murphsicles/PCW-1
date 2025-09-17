@@ -50,7 +50,7 @@ impl Policy {
             return Err(PcwError::Other("Expiry in the past §3.3".to_string()));
         }
         // Validate pub_key format (66-character hex for compressed public key)
-        if pub_key.len() != 66 || !hex::decode(&pub_key).is_ok() {
+        if hex::decode(&pub_key).is_err() {
             return Err(PcwError::Other("Invalid pub_key format §3.3".to_string()));
         }
         Ok(Self {
