@@ -3,11 +3,11 @@
 //! This module implements the UTXO selection and reservation logic as per §6, including
 //! `build_reservations` with stages A-D (§6.4), deterministic ordering, and optional fan-out (§6.8).
 //! It manages disjoint input sets (S_i) for each note in a payment, ensuring privacy and auditability.
-use crate::addressing::{recipient_address, sender_change_address};
+use crate::addressing::recipient_address;
 use crate::errors::PcwError;
 use crate::scope::Scope;
 use crate::utils::sha256;
-use secp256k1::{PublicKey, Secp256k1};
+use secp256k1::PublicKey;
 use std::cmp::max;
 use std::collections::{HashMap, HashSet};
 use sv::messages::OutPoint;
@@ -46,7 +46,6 @@ pub fn compute_n_min_max(
 
 /// Builds reservations S_i and addresses for N notes (§6.4).
 pub fn build_reservations(
-    secp: &Secp256k1<secp256k1::All>,
     utxos: &[Utxo],
     total: u64,
     scope: &Scope,
@@ -173,7 +172,6 @@ fn fan_out(
     scope: &Scope,
     sender_anchor: &PublicKey,
 ) -> Result<Vec<Utxo>, PcwError> {
-    let secp = Secp256k1::new();
     let base_fee = feerate_floor * 10;
     let mut available = utxos
         .iter()
@@ -222,7 +220,6 @@ fn fan_out(
 
 /// Computes per-address amounts and checks caps (§6.7).
 pub fn compute_per_address_amounts(
-    secp: &Secp256k1<secp256k1::All>,
     scope: &Scope,
     recipient_anchor: &PublicKey,
     amounts: &[u64],
@@ -291,7 +288,6 @@ mod tests {
 
     #[test]
     fn test_build_reservations() -> Result<(), PcwError> {
-        let secp = Secp256k1::new();
         let scope = Scope::new([1; 32], [2; 32])?;
         let mock_hash = sha256(b"test_tx");
         let mock_h160 = h160(&mock_hash);
@@ -315,10 +311,10 @@ mod tests {
             },
         ];
         let secret_key = SecretKey::from_byte_array([1; 32]).unwrap();
+        let secp = Secp256k1::new();
         let recipient_anchor = PublicKey::from_secret_key(&secp, &secret_key);
         let sender_anchor = recipient_anchor.clone();
         let (reservations, addrs, amounts, n) = build_reservations(
-            &secp,
             &utxos,
             1000,
             &scope,
@@ -338,7 +334,6 @@ mod tests {
 
     #[test]
     fn test_fan_out() -> Result<(), PcwError> {
-        let secp = Secp256k1::new();
         let scope = Scope::new([1; 32], [2; 32])?;
         let mock_hash = sha256(b"test_tx");
         let mock_h160 = h160(&mock_hash);
@@ -356,6 +351,7 @@ mod tests {
         let feerate_floor = 1;
         let dust = 50;
         let secret_key = SecretKey::from_byte_array([1; 32]).unwrap();
+        let secp = Secp256k1::new();
         let sender_anchor = PublicKey::from_secret_key(&secp, &secret_key);
         let fan_out_utxos = fan_out(
             &utxos,
@@ -373,12 +369,12 @@ mod tests {
 
     #[test]
     fn test_compute_per_address_amounts() -> Result<(), PcwError> {
-        let secp = Secp256k1::new();
         let scope = Scope::new([1; 32], [2; 32])?;
         let secret_key = SecretKey::from_byte_array([1; 32]).unwrap();
+        let secp = Secp256k1::new();
         let recipient_anchor = PublicKey::from_secret_key(&secp, &secret_key);
         let amounts = [500, 500];
-        let per_address = compute_per_address_amounts(&secp, &scope, &recipient_anchor, &amounts)?;
+        let per_address = compute_per_address_amounts(&scope, &recipient_anchor, &amounts)?;
         assert_eq!(per_address.len(), 2);
         assert_eq!(per_address.values().sum::<u64>(), 1000);
         Ok(())
