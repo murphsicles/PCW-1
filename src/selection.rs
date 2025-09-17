@@ -3,7 +3,7 @@
 //! This module implements the UTXO selection and reservation logic as per §6, including
 //! `build_reservations` with stages A-D (§6.4), deterministic ordering, and optional fan-out (§6.8).
 //! It manages disjoint input sets (S_i) for each note in a payment, ensuring privacy and auditability.
-use crate::addressing::recipient_address;
+use crate::addressing::{recipient_address, sender_change_address};
 use crate::errors::PcwError;
 use crate::scope::Scope;
 use crate::utils::sha256;
@@ -83,7 +83,7 @@ pub fn build_reservations(
                 } else {
                     2
                 };
-                addrs[i] = recipient_address(secp, scope, i as u32, recipient_anchor)?;
+                addrs[i] = recipient_address(scope, i as u32, recipient_anchor)?;
                 amounts[i] = target;
                 reservations[i] = Some(s_i);
             }
@@ -119,7 +119,7 @@ pub fn build_reservations(
                         } else {
                             2
                         };
-                        addrs[i] = recipient_address(secp, scope, i as u32, recipient_anchor)?;
+                        addrs[i] = recipient_address(scope, i as u32, recipient_anchor)?;
                         amounts[i] = target;
                         reservations[i] = Some(s_i);
                     } else {
@@ -200,7 +200,7 @@ fn fan_out(
                 return Err(PcwError::DustChange);
             }
             for i in 0..n {
-                let addr = recipient_address(&secp, scope, i as u32, sender_anchor)?;
+                let addr = recipient_address(scope, i as u32, sender_anchor)?;
                 let script_pubkey = sv::address::decode_address(&addr)?.1;
                 fan_out_utxos.push(Utxo {
                     outpoint: OutPoint {
@@ -229,7 +229,7 @@ pub fn compute_per_address_amounts(
 ) -> Result<HashMap<String, u64>, PcwError> {
     let mut per_address: HashMap<String, u64> = HashMap::new();
     for (i, &amount) in amounts.iter().enumerate() {
-        let addr = recipient_address(secp, scope, i as u32, recipient_anchor)?;
+        let addr = recipient_address(scope, i as u32, recipient_anchor)?;
         *per_address.entry(addr).or_insert(0) += amount;
     }
     Ok(per_address)
