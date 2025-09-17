@@ -12,12 +12,12 @@ use chrono::Utc;
 use secp256k1::{Message, PublicKey, Secp256k1, SecretKey};
 use serde::{Deserialize, Serialize};
 use std::io::Write;
-use sv::messages::{Tx, TxIn, TxOut};
+use sv::messages::Tx;
 use sv::script::Script;
 use sv::script::op_codes::*;
 use sv::transaction::p2pkh::{create_lock_script, create_unlock_script};
 use sv::transaction::sighash::{SIGHASH_ALL, SIGHASH_FORKID, SigHashCache, sighash};
-use sv::util::{Hash160, Serializable};
+use sv::util::Hash160;
 
 /// NoteMeta per §8.3: Canonical fields for log/audit.
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -75,7 +75,6 @@ pub fn build_note_tx(
     if s_i.len() != priv_keys.len() {
         return Err(PcwError::Other("Mismatched inputs/priv_keys".to_string()));
     }
-    let secp = Secp256k1::new();
     let addr_b = recipient_address(scope, i, anchor_b)?;
     let t_i = scalar_mul(&scope.derive_scalar("recv", i)?)?;
     let p_bi = point_add(anchor_b, &t_i)?;
@@ -98,9 +97,8 @@ pub fn build_note_tx(
         lock_time: 0,
     };
     // Initial fee estimate with one output
-    let mut fee = ((feerate_floor * (base_size + 34)) + 999) / 1000; // 34 bytes for one output
+    let mut fee = (feerate_floor * (base_size + 34)).div_ceil(1000); // 34 bytes for one output
     let mut change = sum_in.saturating_sub(amount + fee);
-    let mut n = 1;
     if change > 0 && change < dust {
         return Err(PcwError::DustChange);
     }
@@ -115,17 +113,15 @@ pub fn build_note_tx(
     });
     // Determine if change output is needed
     let mut addr_a = String::new();
-    let mut h160_a = [0; 20];
     if change > 0 {
-        n = 2;
-        fee = ((feerate_floor * (base_size + 68)) + 999) / 1000; // 68 bytes for two outputs
+        fee = (feerate_floor * (base_size + 68)).div_ceil(1000); // 68 bytes for two outputs
         change = sum_in.saturating_sub(amount + fee);
         if change > 0 && change >= dust {
             addr_a = sender_change_address(scope, i, anchor_a)?;
             let s_i_scalar = scope.derive_scalar("snd", i)?;
             let tweak_a = scalar_mul(&s_i_scalar)?;
             let p_ai = point_add(anchor_a, &tweak_a)?;
-            h160_a = h160(&ser_p(&p_ai));
+            let h160_a = h160(&ser_p(&p_ai));
             let h160_a_hash = Hash160(h160_a);
             let lock_a = create_lock_script(&h160_a_hash);
             tx.outputs.push(sv::messages::TxOut {
@@ -164,7 +160,7 @@ pub fn build_note_tx(
     // Finalize metadata
     let mut tx_bytes = Vec::new();
     {
-        let mut writer = &mut tx_bytes;
+        let writer = &mut tx_bytes;
         writer.write_all(&tx.version.to_le_bytes())?;
         let input_count = tx.inputs.len() as u64;
         writer.write_all(&input_count.to_le_bytes())?;
@@ -270,7 +266,7 @@ mod tests {
         };
         let priv_key = [1u8; 32];
         let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_key)?);
-        let anchor_a = anchor_b.clone(); // For testing
+        let anchor_a = anchor_b; // For testing
         let (tx, meta) = build_note_tx(
             &scope,
             0,
@@ -306,7 +302,7 @@ mod tests {
         };
         let priv_key = [1u8; 32];
         let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_key)?);
-        let anchor_a = anchor_b.clone(); // For testing
+        let anchor_a = anchor_b; // For testing
         let (tx, meta) = build_note_tx(
             &scope,
             0,
@@ -342,7 +338,7 @@ mod tests {
         };
         let priv_key = [1u8; 32];
         let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_key)?);
-        let anchor_a = anchor_b.clone();
+        let anchor_a = anchor_b;
         let result = build_note_tx(
             &scope,
             0,
@@ -374,7 +370,7 @@ mod tests {
         };
         let priv_key = [1u8; 32];
         let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_key)?);
-        let anchor_a = anchor_b.clone();
+        let anchor_a = anchor_b;
         let result = build_note_tx(
             &scope,
             0,
