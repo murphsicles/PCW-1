@@ -61,6 +61,7 @@ pub struct OutputMeta {
 pub struct NoteTx(pub Tx);
 
 /// Build and sign note tx per §7-§8.
+#[allow(clippy::too_many_arguments)]
 pub fn build_note_tx(
     scope: &Scope,
     i: u32,
