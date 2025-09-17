@@ -11,13 +11,13 @@ use crate::utils::{base58check, h160, le32, point_add, scalar_mul, ser_p, sha256
 use chrono::Utc;
 use secp256k1::{Message, PublicKey, Secp256k1, SecretKey};
 use serde::{Deserialize, Serialize};
-use std::io::Write;
-use sv::messages::Tx;
+use sv::messages::{Tx, TxIn, TxOut};
 use sv::script::Script;
 use sv::script::op_codes::*;
 use sv::transaction::p2pkh::{create_lock_script, create_unlock_script};
 use sv::transaction::sighash::{SIGHASH_ALL, SIGHASH_FORKID, SigHashCache, sighash};
 use sv::util::{Hash160, Serializable};
+use std::io::Write;
 
 /// NoteMeta per §8.3: Canonical fields for log/audit.
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -163,7 +163,25 @@ pub fn build_note_tx(
     }
     // Finalize metadata
     let mut tx_bytes = Vec::new();
-    tx.write(&mut tx_bytes)?;
+    {
+        let mut writer = &mut tx_bytes;
+        writer.write_all(&tx.version.to_le_bytes())?;
+        let input_count = tx.inputs.len() as u64;
+        writer.write_all(&input_count.to_le_bytes())?;
+        for input in &tx.inputs {
+            writer.write_all(&input.prev_output.hash.0)?;
+            writer.write_all(&input.prev_output.index.to_le_bytes())?;
+            writer.write_all(&input.unlock_script.0)?;
+            writer.write_all(&input.sequence.to_le_bytes())?;
+        }
+        let output_count = tx.outputs.len() as u64;
+        writer.write_all(&output_count.to_le_bytes())?;
+        for output in &tx.outputs {
+            writer.write_all(&output.satoshis.to_le_bytes())?;
+            writer.write_all(&output.lock_script.0)?;
+        }
+        writer.write_all(&tx.lock_time.to_le_bytes())?;
+    }
     let txid_hash = sha256(&sha256(&tx_bytes));
     let txid = hex::encode(txid_hash);
     let note_id = hex::encode(sha256(&[scope.h_i.to_vec(), le32(i).to_vec()].concat()));
