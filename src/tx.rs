@@ -75,7 +75,7 @@ pub fn build_note_tx(
         return Err(PcwError::Other("Mismatched inputs/priv_keys".to_string()));
     }
     let secp = Secp256k1::new();
-    let addr_b = recipient_address(&secp, scope, i, anchor_b)?;
+    let addr_b = recipient_address(scope, i, anchor_b)?;
     let t_i = scalar_mul(&scope.derive_scalar("recv", i)?)?;
     let p_bi = point_add(anchor_b, &t_i)?;
     let h160_b = h160(&ser_p(&p_bi));
@@ -120,7 +120,7 @@ pub fn build_note_tx(
         fee = ((feerate_floor * (base_size + 68)) + 999) / 1000; // 68 bytes for two outputs
         change = sum_in.saturating_sub(amount + fee);
         if change > 0 && change >= dust {
-            addr_a = sender_change_address(&secp, scope, i, anchor_a)?;
+            addr_a = sender_change_address(scope, i, anchor_a)?;
             let s_i_scalar = scope.derive_scalar("snd", i)?;
             let tweak_a = scalar_mul(&s_i_scalar)?;
             let p_ai = point_add(anchor_a, &tweak_a)?;
