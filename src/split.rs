@@ -49,7 +49,7 @@ fn draw_uniform(seed: &[u8; 32], ctr: &mut u32, range: u64) -> Result<u64, PcwEr
             "Range too large for rejection sampling".to_string(),
         ));
     }
-    let m = 1u64 << 64;
+    let m = u64::MAX;
     let lim = (m / range) * range;
     let max_attempts = 1000; // Prevent infinite loop (§5.4)
     for _ in 0..max_attempts {
