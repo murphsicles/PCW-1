@@ -62,9 +62,7 @@ pub fn pacing_schedule(
             let d = (start - now)
                 .to_std()
                 .map_err(|_| PcwError::Other("Negative duration §9.3".to_string()))?;
-            for schedule_d in &mut schedule {
-                *schedule_d = d;
-            }
+            schedule.fill(d);
         }
         "paced" => {
             schedule[0] = (start - now)
@@ -95,7 +93,7 @@ pub fn pacing_schedule(
         }
         "bursts" => {
             let beta = policy.burst_size as usize;
-            let num_bursts = (n + beta - 1) / beta;
+            let num_bursts = n.div_ceil(beta);
             let mut batch_times = vec![Duration::ZERO; num_bursts];
             batch_times[0] = (start - now)
                 .to_std()
@@ -103,13 +101,13 @@ pub fn pacing_schedule(
             for k in 1..num_bursts {
                 batch_times[k] = batch_times[k - 1] + Duration::from_millis(policy.burst_gap_ms);
             }
-            for b in 0..num_bursts {
+            for (b, batch_time) in batch_times.iter().enumerate().take(num_bursts) {
                 let start_idx = b * beta;
                 let end_idx = min(start_idx + beta, n);
-                for idx in start_idx..end_idx {
+                for (idx, schedule_d) in schedule.iter_mut().enumerate().skip(start_idx).take(end_idx - start_idx) {
                     let intra = draw_uniform(&s_pace, &mut ctr, policy.min_spacing_ms + 1)?
                         .min(policy.min_spacing_ms);
-                    schedule[idx] = batch_times[b] + Duration::from_millis(intra);
+                    *schedule_d = *batch_time + Duration::from_millis(intra);
                 }
             }
             if let Some(end_str) = &policy.window_end {
