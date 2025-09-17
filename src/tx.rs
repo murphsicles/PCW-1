@@ -11,13 +11,13 @@ use crate::utils::{base58check, h160, le32, point_add, scalar_mul, ser_p, sha256
 use chrono::Utc;
 use secp256k1::{Message, PublicKey, Secp256k1, SecretKey};
 use serde::{Deserialize, Serialize};
+use std::io::Write;
 use sv::messages::Tx;
 use sv::script::Script;
 use sv::script::op_codes::*;
 use sv::transaction::p2pkh::{create_lock_script, create_unlock_script};
 use sv::transaction::sighash::{SIGHASH_ALL, SIGHASH_FORKID, SigHashCache, sighash};
 use sv::util::Hash160;
-use std::io::Write;
 
 /// NoteMeta per §8.3: Canonical fields for log/audit.
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -280,7 +280,7 @@ mod tests {
         let mock_script = create_lock_script(&Hash160(mock_h160));
         let utxo = Utxo {
             outpoint: OutPoint {
-                hash: Hash160(mock_hash),
+                hash: Hash160(mock_h160),
                 index: 0,
             },
             value: 200,
