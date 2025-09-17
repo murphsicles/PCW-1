@@ -104,7 +104,7 @@ pub fn pacing_schedule(
             for (b, batch_time) in batch_times.iter().enumerate().take(num_bursts) {
                 let start_idx = b * beta;
                 let end_idx = min(start_idx + beta, n);
-                for (idx, schedule_d) in schedule
+                for (_idx, schedule_d) in schedule
                     .iter_mut()
                     .enumerate()
                     .skip(start_idx)
