@@ -14,7 +14,7 @@ pub fn bounded_split(scope: &Scope, t: u64, v_min: u64, v_max: u64) -> Result<Ve
     if v_min == 0 || v_max < v_min {
         return Err(PcwError::Other("Invalid bounds §5.1".to_string()));
     }
-    let n_min = (t + v_max - 1) / v_max; // ceil(t / v_max)
+    let n_min = t.div_ceil(v_max); // ceil(t / v_max)
     let n_max = t / v_min; // floor(t / v_min)
     if n_min > n_max {
         return Err(PcwError::InfeasibleSplit);
@@ -88,8 +88,8 @@ fn prefix_clamp(
 ) -> Result<Vec<u64>, PcwError> {
     let mut a = vec![0u64; n as usize];
     let mut rem = t;
-    for i in 0..(n - 1) as usize {
-        let slots = (n - 1 - i as u64) as u64;
+    for (i, a_i) in a.iter_mut().enumerate().take((n - 1) as usize) {
+        let slots = n - 1 - i as u64;
         let low = max(v_min, rem.saturating_sub(v_max * slots));
         let high = min(v_max, rem - v_min * slots);
         if low > high {
@@ -98,8 +98,8 @@ fn prefix_clamp(
             ));
         }
         let r = draw_uniform(seed, ctr, high - low + 1)?;
-        a[i] = low + r;
-        rem -= a[i];
+        *a_i = low + r;
+        rem -= *a_i;
     }
     a[(n - 1) as usize] = rem;
     if rem < v_min || rem > v_max {
