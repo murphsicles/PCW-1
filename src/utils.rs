@@ -51,8 +51,8 @@ pub fn base58check(version: u8, payload: &[u8]) -> Result<String, PcwError> {
 
 /// Point add: P1 + P2 using secp256k1 (§4.3).
 pub fn point_add(p1: &PublicKey, p2: &PublicKey) -> Result<PublicKey, PcwError> {
-    let p1_point = p1.clone();
-    let p2_point = p2.clone();
+    let p1_point = *p1;
+    let p2_point = *p2;
     let combined = p1_point.combine(&p2_point)?;
     Ok(combined)
 }
