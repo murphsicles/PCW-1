@@ -19,12 +19,12 @@ pub fn ecdh_z(my_priv: &[u8; 32], their_pub: &PublicKey) -> Result<[u8; 32], Pcw
     // Convert SecretKey to Scalar for mul_tweak
     let scalar = Scalar::from(secret_key);
     let shared_point = their_pub.mul_tweak(&secp, &scalar)?;
-    Ok(shared_point
+    shared_point
         .serialize()
         .get(1..33)
         .ok_or_else(|| PcwError::Other("Invalid ECDH point".to_string()))?
         .try_into()
-        .map_err(|_| PcwError::Other("Invalid ECDH point".to_string()))?)
+        .map_err(|_| PcwError::Other("Invalid ECDH point".to_string()))
 }
 
 /// Async handshake: Exchange pubs, compute Z (§3.5).
