@@ -9,6 +9,7 @@ use secp256k1::Error;
 use serde_json::Error as SerdeJsonError;
 use sv::util::Error as SvError;
 use thiserror::Error;
+use std::io;
 
 /// PCW-1 Errors: Rejections and failures per spec.
 #[derive(Error, Debug)]
@@ -76,4 +77,10 @@ pub enum PcwError {
     /// Catch-all for other unspecified errors.
     #[error("Other: {0}")]
     Other(String),
+}
+
+impl From<io::Error> for PcwError {
+    fn from(err: io::Error) -> Self {
+        PcwError::Io(err.to_string())
+    }
 }
