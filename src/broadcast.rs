@@ -155,7 +155,7 @@ fn draw_uniform(s_pace: &[u8; 32], ctr: &mut u32, range: u64) -> Result<u64, Pcw
     if range == 0 {
         return Err(PcwError::Other("Range 0 §9.5".to_string()));
     }
-    let m = 1u64 << 64;
+    let m = u64::MAX;
     let lim = (m / range) * range;
     let max_attempts = 1000; // Prevent infinite loop (§9.5)
     for _ in 0..max_attempts {
