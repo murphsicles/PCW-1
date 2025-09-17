@@ -13,6 +13,9 @@ use std::collections::{HashMap, HashSet};
 use sv::messages::OutPoint;
 use sv::util::Hash256;
 
+// Type alias for the complex return type of build_reservations
+type ReservationResult = (Vec<Option<Vec<Utxo>>>, Vec<String>, Vec<u64>, u64);
+
 /// UTXO data for selection.
 #[derive(Clone, Debug)]
 pub struct Utxo {
@@ -32,9 +35,9 @@ pub fn compute_n_min_max(
     {
         return Err(PcwError::Other("Invalid split parameters §6.2".to_string()));
     }
-    let n_min = (total + per_address_cap - 1) / per_address_cap;
+    let n_min = total.div_ceil(per_address_cap);
     let n_max = if vmax > 0 {
-        (total + vmin - 1) / vmin
+        total.div_ceil(vmin)
     } else {
         u64::MAX
     };
@@ -45,6 +48,7 @@ pub fn compute_n_min_max(
 }
 
 /// Builds reservations S_i and addresses for N notes (§6.4).
+#[allow(clippy::too_many_arguments)]
 pub fn build_reservations(
     utxos: &[Utxo],
     total: u64,
@@ -54,7 +58,7 @@ pub fn build_reservations(
     feerate_floor: u64,
     dust: u64,
     fanout_allowed: bool,
-) -> Result<(Vec<Option<Vec<Utxo>>>, Vec<String>, Vec<u64>, u64), PcwError> {
+) -> Result<ReservationResult, PcwError> {
     let (n_min, _n_max) = compute_n_min_max(total, 100, 1000, 500)?;
     let n = max(n_min, 1);
     let mut u_sorted = utxos.to_vec();
@@ -202,7 +206,7 @@ fn fan_out(
                 let script_pubkey = sv::address::decode_address(&addr)?.1;
                 fan_out_utxos.push(Utxo {
                     outpoint: OutPoint {
-                        hash: Hash256(sha256(&format!("fan_out_{}", i).as_bytes())),
+                        hash: Hash256(sha256(format!("fan_out_{}", i).as_bytes())),
                         index: i as u32,
                     },
                     value: split,
@@ -313,7 +317,7 @@ mod tests {
         let secret_key = SecretKey::from_byte_array([1; 32]).unwrap();
         let secp = Secp256k1::new();
         let recipient_anchor = PublicKey::from_secret_key(&secp, &secret_key);
-        let sender_anchor = recipient_anchor.clone();
+        let sender_anchor = recipient_anchor;
         let (reservations, addrs, amounts, n) = build_reservations(
             &utxos,
             1000,
