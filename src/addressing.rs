@@ -6,7 +6,7 @@
 use crate::errors::PcwError;
 use crate::scope::Scope;
 use crate::utils::{base58check, h160, point_add, scalar_mul, ser_p};
-use secp256k1::{PublicKey, Secp256k1, SecretKey};
+use secp256k1::PublicKey;
 
 /// Derives a recipient address for a given note index.
 ///
