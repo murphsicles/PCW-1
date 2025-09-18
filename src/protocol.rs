@@ -8,9 +8,10 @@ use crate::invoice::Invoice;
 use crate::json::canonical_json;
 use crate::keys::IdentityKeypair;
 use crate::policy::Policy;
+use crate::utils::sha256;
 use secp256k1::{PublicKey, Scalar, Secp256k1, SecretKey};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpStream;
+use tokio::net::{TcpListener, TcpStream};
 
 /// Compute ECDH shared secret Z (§3.2).
 pub fn ecdh_z(my_priv: &[u8; 32], their_pub: &PublicKey) -> Result<[u8; 32], PcwError> {
@@ -126,8 +127,7 @@ pub async fn exchange_invoice(
 mod tests {
     use super::*;
     use crate::keys::IdentityKeypair;
-    use chrono::{DateTime, Utc};
-    use tokio::net::TcpListener;
+    use chrono::Utc;
 
     #[tokio::test]
     async fn test_handshake_symmetry() -> Result<(), PcwError> {
@@ -199,7 +199,7 @@ mod tests {
             .map_err(|e| PcwError::Other(format!("Task 1 failed: {}", e)))??;
         let p2 = t2
             .await
-            .map_err(|e| PcwError::Other(format!("Task 1 failed: {}", e)))??;
+            .map_err(|e| PcwError::Other(format!("Task 2 failed: {}", e)))??;
         assert_eq!(p1.h_policy(), p2.h_policy());
         Ok(())
     }
