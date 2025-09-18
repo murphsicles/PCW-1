@@ -76,6 +76,7 @@ pub enum Event {
 mod tests {
     use super::*;
     use crate::json::canonical_json;
+    use serde_json;
 
     #[test]
     fn test_note_state_transitions() -> Result<(), PcwError> {
@@ -126,10 +127,12 @@ mod tests {
     #[test]
     fn test_event_serialization() -> Result<(), PcwError> {
         let event = Event::Sign;
-        let serialized = canonical_json(&event)?;
+        let value = serde_json::to_value(&event)?;
+        let serialized = canonical_json(&value)?;
         assert_eq!(serialized, b"\"Sign\"");
         let event = Event::Supersede;
-        let serialized = canonical_json(&event)?;
+        let value = serde_json::to_value(&event)?;
+        let serialized = canonical_json(&value)?;
         assert_eq!(serialized, b"\"Supersede\"");
         Ok(())
     }
