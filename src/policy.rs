@@ -9,6 +9,7 @@ use crate::utils::sha256;
 use chrono::{DateTime, Utc};
 use secp256k1::{Message, PublicKey, Secp256k1, SecretKey, ecdsa::Signature};
 use serde::{Deserialize, Serialize};
+use serde_json;
 
 /// Policy structure per §3.3.
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -190,7 +191,8 @@ mod tests {
         let expiry = Utc::now() + chrono::Duration::days(1);
         let mut policy = Policy::new(pub_key, 100, 1000, 500, 1, expiry)?;
         policy.sign(&key)?;
-        let serialized = canonical_json(&policy)?;
+        let value = serde_json::to_value(&policy)?;
+        let serialized = canonical_json(&value)?;
         let expected = format!(
             "{{\"pub_key\":\"{}\",\"vmin\":100,\"vmax\":1000,\"per_address_cap\":500,\"feerate\":1,\"expiry\":\"{}\",\"by\":\"{}\",\"sig_alg\":\"secp256k1-sha256\",\"sig\":\"{}\"}}",
             hex::encode(key.pub_key.serialize()),
@@ -198,7 +200,7 @@ mod tests {
             hex::encode(key.pub_key.serialize()),
             policy.sig
         );
-        assert_eq!(String::from_utf8(serialized)?, expected);
+        assert_eq!(serialized, expected.as_bytes());
         Ok(())
     }
 }
