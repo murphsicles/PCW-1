@@ -12,12 +12,12 @@ use chrono::Utc;
 use secp256k1::{Message, PublicKey, Secp256k1, SecretKey};
 use serde::{Deserialize, Serialize};
 use std::io::Write;
-use sv::messages::Tx;
+use sv::messages::{Tx, TxIn, TxOut};
 use sv::script::Script;
 use sv::script::op_codes::*;
 use sv::transaction::p2pkh::{create_lock_script, create_unlock_script};
 use sv::transaction::sighash::{SIGHASH_ALL, SIGHASH_FORKID, SigHashCache, sighash};
-use sv::util::Hash160;
+use sv::util::{Hash160, Hash256};
 
 /// NoteMeta per §8.3: Canonical fields for log/audit.
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -248,7 +248,7 @@ mod tests {
     use crate::selection::Utxo;
     use secp256k1::SecretKey;
     use sv::messages::OutPoint;
-    use sv::util::Hash160;
+    use sv::util::Hash256;
 
     #[test]
     fn test_build_note_tx_no_change() -> Result<(), PcwError> {
@@ -259,14 +259,14 @@ mod tests {
         let mock_script = create_lock_script(&Hash160(mock_h160));
         let utxo = Utxo {
             outpoint: OutPoint {
-                hash: Hash160(mock_hash),
+                hash: Hash256(mock_hash),
                 index: 0,
             },
             value: 150,
             script_pubkey: mock_script.0,
         };
         let priv_key = [1u8; 32];
-        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_key)?);
+        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(priv_key)?);
         let anchor_a = anchor_b; // For testing
         let (tx, meta) = build_note_tx(
             &scope,
@@ -295,14 +295,14 @@ mod tests {
         let mock_script = create_lock_script(&Hash160(mock_h160));
         let utxo = Utxo {
             outpoint: OutPoint {
-                hash: Hash160(mock_h160),
+                hash: Hash256(mock_hash),
                 index: 0,
             },
             value: 200,
             script_pubkey: mock_script.0,
         };
         let priv_key = [1u8; 32];
-        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_key)?);
+        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(priv_key)?);
         let anchor_a = anchor_b; // For testing
         let (tx, meta) = build_note_tx(
             &scope,
@@ -323,22 +323,22 @@ mod tests {
     }
 
     #[test]
-    fn test_build_note_tx_dust_reject() {
+    fn test_build_note_tx_dust_reject() -> Result<(), PcwError> {
         let secp = Secp256k1::new();
-        let scope = Scope::new([1; 32], [2; 32]).expect("Valid scope");
+        let scope = Scope::new([1; 32], [2; 32])?;
         let mock_hash = sha256(b"test_tx");
         let mock_h160 = h160(&mock_hash);
         let mock_script = create_lock_script(&Hash160(mock_h160));
         let utxo = Utxo {
             outpoint: OutPoint {
-                hash: Hash160(mock_h160),
+                hash: Hash256(mock_hash),
                 index: 0,
             },
             value: 151,
             script_pubkey: mock_script.0,
         };
         let priv_key = [1u8; 32];
-        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_key)?);
+        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(priv_key)?);
         let anchor_a = anchor_b;
         let result = build_note_tx(
             &scope,
@@ -351,26 +351,28 @@ mod tests {
             50,
             &[priv_key],
         );
-        assert!(result.is_err()); // Should fail due to dust change
+        assert!(result.is_err());
+        assert!(matches!(result, Err(PcwError::DustChange)));
+        Ok(())
     }
 
     #[test]
-    fn test_build_note_tx_underfunded() {
+    fn test_build_note_tx_underfunded() -> Result<(), PcwError> {
         let secp = Secp256k1::new();
-        let scope = Scope::new([1; 32], [2; 32]).expect("Valid scope");
+        let scope = Scope::new([1; 32], [2; 32])?;
         let mock_hash = sha256(b"test_tx");
         let mock_h160 = h160(&mock_hash);
         let mock_script = create_lock_script(&Hash160(mock_h160));
         let utxo = Utxo {
             outpoint: OutPoint {
-                hash: Hash160(mock_h160),
+                hash: Hash256(mock_hash),
                 index: 0,
             },
             value: 50,
             script_pubkey: mock_script.0,
         };
         let priv_key = [1u8; 32];
-        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_key)?);
+        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(priv_key)?);
         let anchor_a = anchor_b;
         let result = build_note_tx(
             &scope,
@@ -383,11 +385,13 @@ mod tests {
             50,
             &[priv_key],
         );
-        assert!(result.is_err()); // Should fail due to underfunding
+        assert!(result.is_err());
+        assert!(matches!(result, Err(PcwError::Underfunded)));
+        Ok(())
     }
 
     #[test]
-    fn test_reverse_base58_valid() {
+    fn test_reverse_base58_valid() -> Result<(), PcwError> {
         let lock_script = vec![
             OP_DUP,
             OP_HASH160,
@@ -415,21 +419,23 @@ mod tests {
             OP_EQUALVERIFY,
             OP_CHECKSIG,
         ];
-        let addr = reverse_base58(&lock_script).unwrap();
+        let addr = reverse_base58(&lock_script)?;
         assert!(addr.len() > 0); // Valid P2PKH should return a base58 address
+        Ok(())
     }
 
     #[test]
-    fn test_reverse_base58_invalid() {
+    fn test_reverse_base58_invalid() -> Result<(), PcwError> {
         let lock_script = vec![OP_DUP]; // Invalid script
         let result = reverse_base58(&lock_script);
         assert!(
             matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid script length")),
         );
+        Ok(())
     }
 
     #[test]
-    fn test_reverse_base58_non_standard() {
+    fn test_reverse_base58_non_standard() -> Result<(), PcwError> {
         let lock_script = vec![
             OP_DUP,
             OP_HASH160,
@@ -461,5 +467,6 @@ mod tests {
         assert!(
             matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid script format")),
         );
+        Ok(())
     }
 }
