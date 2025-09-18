@@ -266,7 +266,7 @@ mod tests {
                     index: 0,
                 },
                 value: 500,
-                script_pubkey: mock_script.to_bytes(),
+                script_pubkey: mock_script.0,
             },
             Utxo {
                 outpoint: OutPoint {
@@ -274,7 +274,7 @@ mod tests {
                     index: 0,
                 },
                 value: 600,
-                script_pubkey: mock_script.to_bytes(),
+                script_pubkey: mock_script.0,
             },
         ];
         let mut used = HashSet::new();
@@ -303,7 +303,7 @@ mod tests {
                     index: 0,
                 },
                 value: 1000,
-                script_pubkey: mock_script.to_bytes(),
+                script_pubkey: mock_script.0,
             },
             Utxo {
                 outpoint: OutPoint {
@@ -311,7 +311,7 @@ mod tests {
                     index: 0,
                 },
                 value: 1000,
-                script_pubkey: mock_script.to_bytes(),
+                script_pubkey: mock_script.0,
             },
         ];
         let secret_key = SecretKey::from_byte_array([1; 32]).unwrap();
@@ -348,7 +348,7 @@ mod tests {
                 index: 0,
             },
             value: 1000,
-            script_pubkey: mock_script.to_bytes(),
+            script_pubkey: mock_script.0,
         }];
         let mut used = HashSet::new();
         let split = 400;
