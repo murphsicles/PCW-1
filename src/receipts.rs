@@ -115,7 +115,7 @@ pub fn generate_proof(
     let mut current = leaves.to_vec();
     let mut index = i;
     while current.len() > 1 {
-        let is_left = index % 2 == 0;
+        let is_left = index.is_multiple_of(2);
         let sibling_idx = if is_left { index + 1 } else { index - 1 };
         let sibling = if sibling_idx >= current.len() {
             current[index]
