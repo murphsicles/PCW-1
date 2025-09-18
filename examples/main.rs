@@ -83,7 +83,7 @@ fn main() -> Result<(), PcwError> {
     )?;
 
     // Access reservations
-    let s_i = reservations.0.get(0).unwrap().as_ref().unwrap();
+    let s_i = reservations.get(0).unwrap().as_ref().unwrap();
 
     // Build transaction
     let priv_keys = vec![[5u8; 32]; s_i.len()];
