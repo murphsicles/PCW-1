@@ -227,7 +227,7 @@ mod tests {
         for i in 1..5 {
             assert!(schedule[i] >= schedule[i - 1]);
             assert!(schedule[i].as_millis() >= 100);
-            assert!(schedule[i].as_millis() <= 500 * i as u64);
+            assert!(schedule[i].as_millis() <= (500 * i as u64).into());
         }
     }
 
