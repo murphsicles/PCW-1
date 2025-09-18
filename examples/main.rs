@@ -1,12 +1,10 @@
 use chrono::Utc;
 use hex;
 use pcw_protocol::{
-    addressing::{recipient_address, sender_change_address},
-    AnchorKeypair, Entry, IdentityKeypair, Invoice, Manifest, PcwError, Policy, Scope, Utxo,
-    bounded_split, build_note_tx, build_reservations, compute_leaves, ecdh_z, generate_proof,
-    merkle_root,
-    utils::{h160, sha256},
-    verify_proof,
+    addressing::{recipient_address, sender_change_address}, AnchorKeypair, Entry,
+    IdentityKeypair, Invoice, Manifest, PcwError, Policy, Scope, Utxo, bounded_split,
+    build_note_tx, build_reservations, compute_leaves, ecdh_z, generate_proof, merkle_root,
+    utils::{h160, sha256}, verify_proof,
 };
 use sv::messages::OutPoint;
 use sv::transaction::p2pkh::create_lock_script;
@@ -66,7 +64,7 @@ fn main() -> Result<(), PcwError> {
             index: 0,
         },
         value: 1500,
-        script_pubkey: mock_script.0, // Access Script's inner Vec<u8>
+        script_pubkey: mock_script.0,
     }];
 
     // Build reservations
@@ -77,8 +75,8 @@ fn main() -> Result<(), PcwError> {
         &scope,
         &anchor_b.pub_key,
         &anchor_a.pub_key,
-        1,  // feerate_floor
-        50, // dust
+        1,   // feerate_floor
+        50,  // dust
         false, // fanout_allowed
     )?;
 
