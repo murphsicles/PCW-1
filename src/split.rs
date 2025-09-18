@@ -151,17 +151,13 @@ mod tests {
 
     proptest! {
         #[test]
-        fn prop_split_sum_bounds(
-            t in 1000u64..100000,
-            v_min in 1u64..100,
-            v_max in 100u64..1000,
-            |(t, v_min, v_max)| (t, v_min, v_max).prop_filter("feasible", |(t, v_min, v_max)| *v_min <= *v_max && *t >= *v_min && (*t / *v_min) >= (*t + *v_max - 1) / *v_max)
-        ) {
+        fn prop_split_sum_bounds(t in 1000u64..100000, v_min in 1u64..100, v_max in 100u64..1000) {
+            prop_assume!(v_min <= v_max && t >= v_min && (t / v_min) >= t.div_ceil(v_max));
             let scope = Scope::new([1; 32], [2; 32]).unwrap();
-            let a = bounded_split(&scope, *t, *v_min, *v_max).unwrap();
-            prop_assert_eq!(a.iter().sum::<u64>(), *t);
-            prop_assert!(a.iter().all(|&x| *v_min <= x && x <= *v_max));
-            prop_assert!(a.len() >= ((*t + *v_max - 1) / *v_max) as usize && a.len() <= (*t / *v_min) as usize);
+            let a = bounded_split(&scope, t, v_min, v_max).unwrap();
+            prop_assert_eq!(a.iter().sum::<u64>(), t);
+            prop_assert!(a.iter().all(|&x| v_min <= x && x <= v_max));
+            prop_assert!(a.len() >= t.div_ceil(v_max) as usize && a.len() <= (t / v_min) as usize);
         }
     }
 }
