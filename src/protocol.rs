@@ -10,7 +10,7 @@ use crate::keys::IdentityKeypair;
 use crate::policy::Policy;
 use secp256k1::{PublicKey, Scalar, Secp256k1, SecretKey};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::{TcpListener, TcpStream};
+use tokio::net::TcpStream;
 
 /// Compute ECDH shared secret Z (§3.2).
 pub fn ecdh_z(my_priv: &[u8; 32], their_pub: &PublicKey) -> Result<[u8; 32], PcwError> {
@@ -123,11 +123,11 @@ pub async fn exchange_invoice(
 }
 
 #[cfg(test)]
-#[allow(unused_imports)]
 mod tests {
     use super::*;
     use crate::keys::IdentityKeypair;
-    use tokio::net::{TcpListener, TcpStream};
+    use chrono::Utc;
+    use tokio::net::TcpListener;
 
     #[tokio::test]
     async fn test_handshake_symmetry() -> Result<(), PcwError> {
@@ -177,7 +177,7 @@ mod tests {
                 .accept()
                 .await
                 .map_err(|e| PcwError::Io(format!("Accept failed: {}", e)))?;
-            let expiry = chrono::Utc::now() + chrono::Duration::days(1);
+            let expiry = Utc::now() + chrono::Duration::days(1);
             let policy = Policy::new(
                 "02".to_string() + &"0".repeat(64),
                 100,
@@ -217,7 +217,7 @@ mod tests {
                 .accept()
                 .await
                 .map_err(|e| PcwError::Io(format!("Accept failed: {}", e)))?;
-            let expiry = chrono::Utc::now() + chrono::Duration::days(1);
+            let expiry = Utc::now() + chrono::Duration::days(1);
             let policy = Policy::new(
                 "02".to_string() + &"0".repeat(64),
                 100,
@@ -241,7 +241,7 @@ mod tests {
             let mut stream = TcpStream::connect(addr)
                 .await
                 .map_err(|e| PcwError::Io(format!("Connect failed: {}", e)))?;
-            let expiry = chrono::Utc::now() + chrono::Duration::days(1);
+            let expiry = Utc::now() + chrono::Duration::days(1);
             let policy = Policy::new(
                 "02".to_string() + &"0".repeat(64),
                 100,
