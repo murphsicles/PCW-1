@@ -555,7 +555,8 @@ mod tests {
             seq: 0, // Will be set by append_to_log
         };
         record2.sign(&key)?;
-        append_to_log(&mut log, record2, Some(&log[0]))?;
+        let prev_record = log[0].clone(); // Clone to avoid borrow conflict
+        append_to_log(&mut log, record2, Some(&prev_record))?;
         assert_eq!(log.len(), 2);
         assert_eq!(log[0].seq, 1);
         assert_eq!(log[1].seq, 2);
@@ -617,7 +618,8 @@ mod tests {
             seq: 0,
         };
         record2.sign(&key)?;
-        append_to_log(&mut log, record2, Some(&log[0]))?;
+        let prev_record = log[0].clone(); // Clone to avoid borrow conflict
+        append_to_log(&mut log, record2, Some(&prev_record))?;
         // Verify valid chain
         verify_log_chain(&log)?;
         // Tamper with prev_hash
