@@ -3,19 +3,17 @@
 //! This module provides keypair structs for anchor and identity keys, along with ECDH
 //! shared secret computation as per §3.1 and §3.2 of the spec.
 use crate::errors::PcwError;
-use crate::json::canonical_json;
 use secp256k1::{PublicKey, Scalar, Secp256k1, SecretKey};
-use serde_json;
 
 /// Anchor keypair for address derivation (§3.1).
-#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug)]
 pub struct AnchorKeypair {
     pub priv_key: [u8; 32],
     pub pub_key: PublicKey,
 }
 
 /// Identity keypair for signing (§3.1).
-#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug)]
 pub struct IdentityKeypair {
     pub priv_key: [u8; 32],
     pub pub_key: PublicKey,
@@ -68,7 +66,6 @@ impl IdentityKeypair {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::json::canonical_json;
 
     // Note: For production, use secure random keys with `rand::rngs::OsRng` (§3.1).
     // Example: `let mut rng = OsRng; let priv_key = SecretKey::new(&mut rng).to_bytes();`
@@ -134,21 +131,6 @@ mod tests {
         let result = keypair.ecdh(&invalid_pub);
         assert!(result.is_err());
         assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid public key")));
-        Ok(())
-    }
-
-    #[test]
-    fn test_keypair_serialization() -> Result<(), PcwError> {
-        let priv_key = [1u8; 32];
-        let keypair = AnchorKeypair::new(priv_key)?;
-        let value = serde_json::to_value(&keypair)?;
-        let serialized = canonical_json(&value)?;
-        let expected = format!(
-            "{{\"priv_key\":\"{}\",\"pub_key\":\"{}\"}}",
-            hex::encode(priv_key),
-            hex::encode(keypair.pub_key.serialize())
-        );
-        assert_eq!(serialized, expected.as_bytes());
         Ok(())
     }
 }
