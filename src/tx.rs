@@ -248,7 +248,7 @@ mod tests {
     use crate::selection::Utxo;
     use secp256k1::SecretKey;
     use sv::messages::OutPoint;
-    use sv::util::Hash160;
+    use sv::util::{Hash160, Hash256};
 
     #[test]
     fn test_build_note_tx_no_change() -> Result<(), PcwError> {
