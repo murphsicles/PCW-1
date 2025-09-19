@@ -12,12 +12,12 @@ use chrono::Utc;
 use secp256k1::{Message, PublicKey, Secp256k1, SecretKey};
 use serde::{Deserialize, Serialize};
 use std::io::Write;
-use sv::messages::{Tx, TxIn, TxOut};
+use sv::messages::{OutPoint, Tx};
 use sv::script::Script;
 use sv::script::op_codes::*;
 use sv::transaction::p2pkh::{create_lock_script, create_unlock_script};
 use sv::transaction::sighash::{SIGHASH_ALL, SIGHASH_FORKID, SigHashCache, sighash};
-use sv::util::{Hash160, Hash256};
+use sv::util::Hash160;
 
 /// NoteMeta per §8.3: Canonical fields for log/audit.
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -248,7 +248,7 @@ mod tests {
     use crate::selection::Utxo;
     use secp256k1::SecretKey;
     use sv::messages::OutPoint;
-    use sv::util::Hash256;
+    use sv::util::Hash160;
 
     #[test]
     fn test_build_note_tx_no_change() -> Result<(), PcwError> {
