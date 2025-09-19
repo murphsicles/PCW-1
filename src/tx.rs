@@ -12,7 +12,7 @@ use chrono::Utc;
 use secp256k1::{Message, PublicKey, Secp256k1, SecretKey};
 use serde::{Deserialize, Serialize};
 use std::io::Write;
-use sv::messages::{OutPoint, Tx};
+use sv::messages::{Tx};
 use sv::script::Script;
 use sv::script::op_codes::*;
 use sv::transaction::p2pkh::{create_lock_script, create_unlock_script};
