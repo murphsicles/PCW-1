@@ -8,8 +8,6 @@ use crate::invoice::Invoice;
 use crate::json::canonical_json;
 use crate::keys::IdentityKeypair;
 use crate::policy::Policy;
-use crate::utils::sha256;
-use chrono::Utc;
 use secp256k1::{PublicKey, Scalar, Secp256k1, SecretKey};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -125,10 +123,11 @@ pub async fn exchange_invoice(
 }
 
 #[cfg(test)]
+#[allow(unused_imports)]
 mod tests {
     use super::*;
     use crate::keys::IdentityKeypair;
-    use chrono::Utc;
+    use tokio::net::{TcpListener, TcpStream};
 
     #[tokio::test]
     async fn test_handshake_symmetry() -> Result<(), PcwError> {
@@ -178,7 +177,7 @@ mod tests {
                 .accept()
                 .await
                 .map_err(|e| PcwError::Io(format!("Accept failed: {}", e)))?;
-            let expiry = Utc::now() + chrono::Duration::days(1);
+            let expiry = chrono::Utc::now() + chrono::Duration::days(1);
             let policy = Policy::new(
                 "02".to_string() + &"0".repeat(64),
                 100,
@@ -218,7 +217,7 @@ mod tests {
                 .accept()
                 .await
                 .map_err(|e| PcwError::Io(format!("Accept failed: {}", e)))?;
-            let expiry = Utc::now() + chrono::Duration::days(1);
+            let expiry = chrono::Utc::now() + chrono::Duration::days(1);
             let policy = Policy::new(
                 "02".to_string() + &"0".repeat(64),
                 100,
@@ -242,7 +241,7 @@ mod tests {
             let mut stream = TcpStream::connect(addr)
                 .await
                 .map_err(|e| PcwError::Io(format!("Connect failed: {}", e)))?;
-            let expiry = Utc::now() + chrono::Duration::days(1);
+            let expiry = chrono::Utc::now() + chrono::Duration::days(1);
             let policy = Policy::new(
                 "02".to_string() + &"0".repeat(64),
                 100,
