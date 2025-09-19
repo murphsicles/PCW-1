@@ -8,6 +8,7 @@ use crate::json::canonical_json;
 use crate::keys::IdentityKeypair;
 use crate::utils::sha256;
 use chrono::{DateTime, Utc};
+use hex;
 use secp256k1::{Message, PublicKey, Secp256k1, SecretKey, ecdsa::Signature};
 use serde::{Deserialize, Serialize};
 use serde_json;
@@ -51,10 +52,10 @@ impl Invoice {
                 "Invalid policy_hash format §3.4".to_string(),
             ));
         }
-        if let Some(exp) = expiry
-            && exp < Utc::now()
-        {
-            return Err(PcwError::Other("Expiry in the past §3.4".to_string()));
+        if let Some(exp) = expiry {
+            if exp < Utc::now() {
+                return Err(PcwError::Other("Expiry in the past §3.4".to_string()));
+            }
         }
         Ok(Self {
             id,
@@ -94,10 +95,10 @@ impl Invoice {
         if self.policy_hash != hex::encode(expected_policy_hash) {
             return Err(PcwError::Other("Policy hash mismatch §3.4".to_string()));
         }
-        if let Some(exp) = self.expiry
-            && Utc::now() > exp
-        {
-            return Err(PcwError::Other("Invoice expired §3.4".to_string()));
+        if let Some(exp) = self.expiry {
+            if Utc::now() > exp {
+                return Err(PcwError::Other("Invoice expired §3.4".to_string()));
+            }
         }
         let mut unsigned = self.clone();
         unsigned.by = "".to_string();
@@ -249,7 +250,8 @@ mod tests {
             expiry,
         )?;
         invoice.sign(&key)?;
-        let serialized = canonical_json(&invoice)?;
+        let value = serde_json::to_value(&invoice)?;
+        let serialized = canonical_json(&value)?;
         let expected = format!(
             "{{\"id\":\"test\",\"terms\":\"terms\",\"unit\":\"sat\",\"amount\":1000,\"policy_hash\":\"{}\",\"expiry\":\"{}\",\"by\":\"{}\",\"sig_alg\":\"secp256k1-sha256\",\"sig\":\"{}\"}}",
             hex::encode(policy_hash),
@@ -257,7 +259,7 @@ mod tests {
             hex::encode(key.pub_key.serialize()),
             invoice.sig
         );
-        assert_eq!(String::from_utf8(serialized)?, expected);
+        assert_eq!(serialized, expected.as_bytes());
         Ok(())
     }
 
