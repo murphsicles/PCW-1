@@ -115,7 +115,7 @@ pub fn build_reservations(
                         a.value
                             .cmp(&b.value)
                             .reverse()
-                    });
+                    );
                     fanout_done = true;
                     let s_i = select_utxos(&u_sorted, &mut used, target, feerate_floor, dust)?;
                     if let Some(s_i) = s_i {
@@ -155,7 +155,6 @@ fn select_utxos(
     let mut min_count = usize::MAX;
     let mut sum = 0;
     let mut selected = vec![];
-
     // Try all possible combinations up to the current selection
     for utxo in utxos.iter().filter(|u| !used.contains(&u.outpoint.hash)) {
         selected.push(utxo.clone());
@@ -171,14 +170,12 @@ fn select_utxos(
             }
         }
     }
-
     if let Some(selected) = min_selected {
         for utxo in &selected {
             used.insert(utxo.outpoint.hash);
         }
         return Ok(Some(selected));
     }
-
     Ok(None)
 }
 
