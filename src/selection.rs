@@ -350,7 +350,7 @@ mod tests {
             value: 1000,
             script_pubkey: mock_script.0,
         }];
-        let mut used = HashSet::new();
+        let used = HashSet::new();
         let split = 400;
         let feerate_floor = 1;
         let dust = 50;
