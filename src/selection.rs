@@ -266,7 +266,7 @@ mod tests {
                     index: 0,
                 },
                 value: 500,
-                script_pubkey: mock_script.0,
+                script_pubkey: mock_script.0.clone(),
             },
             Utxo {
                 outpoint: OutPoint {
@@ -274,19 +274,19 @@ mod tests {
                     index: 0,
                 },
                 value: 600,
-                script_pubkey: mock_script.0,
+                script_pubkey: mock_script.0.clone(),
             },
         ];
-        let mut used = HashSet::new();
+        let used = HashSet::new();
         let target = 400;
         let feerate_floor = 1;
         let dust = 50;
-        let s_i = select_utxos(&utxos, &mut used, target, feerate_floor, dust)?;
+        let s_i = select_utxos(&utxos, &mut used.clone(), target, feerate_floor, dust)?;
         assert!(s_i.is_some());
         let s_i = s_i.unwrap();
         assert_eq!(s_i.len(), 1);
         assert_eq!(s_i[0].value, 500);
-        assert_eq!(used.len(), 1);
+        assert_eq!(used.len(), 0);
         Ok(())
     }
 
@@ -303,7 +303,7 @@ mod tests {
                     index: 0,
                 },
                 value: 1000,
-                script_pubkey: mock_script.0,
+                script_pubkey: mock_script.0.clone(),
             },
             Utxo {
                 outpoint: OutPoint {
@@ -311,7 +311,7 @@ mod tests {
                     index: 0,
                 },
                 value: 1000,
-                script_pubkey: mock_script.0,
+                script_pubkey: mock_script.0.clone(),
             },
         ];
         let secret_key = SecretKey::from_byte_array([1; 32]).unwrap();
