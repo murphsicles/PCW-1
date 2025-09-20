@@ -112,7 +112,6 @@ pub fn build_reservations(
                     ]
                     .concat();
                     u_sorted.sort_by(|a, b| a.value.cmp(&b.value).reverse());
-                    );
                     fanout_done = true;
                     let s_i = select_utxos(&u_sorted, &mut used, target, feerate_floor, dust)?;
                     if let Some(s_i) = s_i {
