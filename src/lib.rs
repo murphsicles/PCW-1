@@ -36,11 +36,12 @@ pub use scope::Scope;
 pub use selection::{Utxo, build_reservations};
 pub use split::bounded_split;
 pub use tx::{NoteMeta, NoteTx, build_note_tx};
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use chrono::{Duration, Utc};
-    use secp256k1::{PublicKey, Scalar, Secp256k1, SecretKey};
+    use secp256k1::{PublicKey, Secp256k1, SecretKey};
     use serde_json::Value;
     use sv::messages::OutPoint;
     use sv::transaction::p2pkh::create_lock_script;
@@ -48,7 +49,7 @@ mod tests {
 
     #[test]
     fn test_protocol_integration() -> Result<(), PcwError> {
-        let secp = Secp256k1::new();
+        let _secp = Secp256k1::new();
         // Create mock keys
         let priv_a = [1u8; 32];
         let identity_a = IdentityKeypair::new(priv_a)?;
@@ -102,7 +103,7 @@ mod tests {
                 index: 0,
             },
             value: 1500,
-            script_pubkey: mock_script.0,
+            script_pubkey: mock_script.0.clone(),
         };
         // Build reservations
         let total = split.iter().sum::<u64>();
@@ -119,7 +120,7 @@ mod tests {
         let s_i = reservations.get(0).unwrap().as_ref().unwrap();
         // Build transaction
         let priv_keys = vec![[5u8; 32]; s_i.len()];
-        let (note_tx, meta) = build_note_tx(
+        let (_note_tx, meta) = build_note_tx(
             &scope,
             0,
             s_i,
@@ -163,11 +164,11 @@ mod tests {
         assert!(result.is_err());
         assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Zero private key")));
         // Test invalid public key in ECDH
-        let secp = Secp256k1::new();
+        let _secp = Secp256k1::new();
         let priv_key = [1u8; 32];
         let keypair = AnchorKeypair::new(priv_key)?;
         let invalid_pub = PublicKey::from_slice(&[0u8; 33]).unwrap_or_else(|_| {
-            PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array([0; 32]).unwrap())
+            PublicKey::from_secret_key(&_secp, &SecretKey::from_byte_array([0; 32]).unwrap())
         });
         let result = keypair.ecdh(&invalid_pub);
         assert!(result.is_err());
@@ -177,7 +178,7 @@ mod tests {
 
     #[test]
     fn test_malformed_json() -> Result<(), PcwError> {
-        let secp = Secp256k1::new();
+        let _secp = Secp256k1::new();
         let priv_b = [2u8; 32];
         let identity_b = IdentityKeypair::new(priv_b)?;
         let anchor_b = AnchorKeypair::new([4u8; 32])?;
@@ -199,7 +200,7 @@ mod tests {
             expiry,
         )?;
         policy.sign(&identity_b)?;
-        let h_policy = policy.h_policy();
+        let _h_policy = policy.h_policy();
         // Malformed invoice JSON (invalid amount)
         let malformed_invoice: Value = serde_json::from_str(
             r#"{"id":"test","terms":"terms","unit":"sat","amount":0,"policy_hash":"test","expiry":"2025-09-15T19:28:00Z","by":"","sig_alg":"","sig":""}"#,
@@ -212,7 +213,7 @@ mod tests {
 
     #[test]
     fn test_large_inputs() -> Result<(), PcwError> {
-        let secp = Secp256k1::new();
+        let _secp = Secp256k1::new();
         let priv_a = [1u8; 32];
         let identity_a = IdentityKeypair::new(priv_a)?;
         let priv_b = [2u8; 32];
@@ -230,14 +231,14 @@ mod tests {
             expiry,
         )?;
         policy.sign(&identity_b)?;
-        let h_policy = policy.h_policy();
+        let _h_policy = policy.h_policy();
         // Create invoice
         let mut invoice = Invoice::new(
             "test".to_string(),
             "terms".to_string(),
             "sat".to_string(),
             10000,
-            hex::encode(h_policy),
+            hex::encode(_h_policy),
             Some(expiry),
         )?;
         invoice.sign(&identity_a)?;
@@ -261,7 +262,7 @@ mod tests {
                     index: i as u32,
                 },
                 value: 1000,
-                script_pubkey: mock_script.0,
+                script_pubkey: mock_script.0.clone(),
             });
         }
         // Build reservations
@@ -280,7 +281,7 @@ mod tests {
         // Build transaction for first note
         let s_i = reservations.get(0).unwrap().as_ref().unwrap();
         let priv_keys = vec![[5u8; 32]; s_i.len()];
-        let (note_tx, meta) = build_note_tx(
+        let (_note_tx, meta) = build_note_tx(
             &scope,
             0,
             s_i,
@@ -318,7 +319,7 @@ mod tests {
 
     #[test]
     fn test_failure_cases() -> Result<(), PcwError> {
-        let secp = Secp256k1::new();
+        let _secp = Secp256k1::new();
         let priv_a = [1u8; 32];
         let identity_a = IdentityKeypair::new(priv_a)?;
         let priv_b = [2u8; 32];
@@ -336,14 +337,14 @@ mod tests {
             expiry,
         )?;
         policy.sign(&identity_b)?;
-        let h_policy = policy.h_policy();
+        let _h_policy = policy.h_policy();
         // Create invoice
         let mut invoice = Invoice::new(
             "test".to_string(),
             "terms".to_string(),
             "sat".to_string(),
             1000,
-            hex::encode(h_policy),
+            hex::encode(_h_policy),
             Some(expiry),
         )?;
         invoice.sign(&identity_a)?;
@@ -361,7 +362,7 @@ mod tests {
                 index: 0,
             },
             value: 50, // Too low
-            script_pubkey: mock_script.0,
+            script_pubkey: mock_script.0.clone(),
         };
         let split = bounded_split(&scope, 1000, 100, 1000)?;
         let total = split.iter().sum::<u64>();
@@ -384,7 +385,7 @@ mod tests {
                 index: 0,
             },
             value: 101, // Causes dust change
-            script_pubkey: mock_script.0,
+            script_pubkey: mock_script.0.clone(),
         };
         let priv_keys = vec![[5u8; 32]];
         let result = build_note_tx(
