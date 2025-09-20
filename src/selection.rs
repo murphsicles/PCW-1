@@ -114,7 +114,7 @@ pub fn build_reservations(
                     u_sorted.sort_by(|a, b| {
                         a.value
                             .cmp(&b.value)
-                            .reverse() // Maintain descending order after fan-out
+                            .reverse()
                     });
                     fanout_done = true;
                     let s_i = select_utxos(&u_sorted, &mut used, target, feerate_floor, dust)?;
@@ -151,23 +151,34 @@ fn select_utxos(
     dust: u64,
 ) -> Result<Option<Vec<Utxo>>, PcwError> {
     let base_fee = feerate_floor * 10; // Base tx fee
+    let mut min_selected = None;
+    let mut min_count = usize::MAX;
     let mut sum = 0;
     let mut selected = vec![];
+
+    // Try all possible combinations up to the current selection
     for utxo in utxos.iter().filter(|u| !used.contains(&u.outpoint.hash)) {
         selected.push(utxo.clone());
         sum += utxo.value;
         let m = selected.len();
         let fee = base_fee + feerate_floor * (148 * m as u64 + 34);
         if sum >= target + fee {
-            if sum < target + fee + dust {
-                return Err(PcwError::DustChange);
+            if sum >= target + fee + dust {
+                if m < min_count {
+                    min_selected = Some(selected.clone());
+                    min_count = m;
+                }
             }
-            for utxo in &selected {
-                used.insert(utxo.outpoint.hash);
-            }
-            return Ok(Some(selected));
         }
     }
+
+    if let Some(selected) = min_selected {
+        for utxo in &selected {
+            used.insert(utxo.outpoint.hash);
+        }
+        return Ok(Some(selected));
+    }
+
     Ok(None)
 }
 
@@ -289,7 +300,7 @@ mod tests {
         let s_i = select_utxos(&utxos, &mut used.clone(), target, feerate_floor, dust)?;
         assert!(s_i.is_some());
         let s_i = s_i.unwrap();
-        assert_eq!(s_i.len(), 1); // Expect one UTXO (600) due to descending sort
+        assert_eq!(s_i.len(), 1); // Expect one UTXO
         assert_eq!(s_i[0].value, 600); // Should select the higher-value UTXO
         assert_eq!(used.len(), 0);
         Ok(())
