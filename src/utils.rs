@@ -202,7 +202,7 @@ mod tests {
     }
 
     #[test]
-    fn test_scalar_mul_invalid() {
+    fn test_scalar_mul_invalid() -> Result<(), PcwError> {
         let scalar = [0u8; 32]; // Invalid scalar (zero)
         let result = scalar_mul(&scalar);
         assert!(result.is_err());
@@ -216,7 +216,7 @@ mod tests {
     }
 
     #[test]
-    fn test_nfc_normalize() {
+    fn test_nfc_normalize() -> Result<(), PcwError> {
         let s = "café";
         let normalized = nfc_normalize(s);
         assert_eq!(normalized, "café"); // Should preserve NFC
