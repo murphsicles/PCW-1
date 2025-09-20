@@ -157,13 +157,9 @@ fn select_utxos(
         sum += utxo.value;
         let m = selected.len();
         let fee = base_fee + feerate_floor * (148 * m as u64 + 34);
-        if sum >= target + fee {
-            if sum >= target + fee + dust {
-                if m < min_count {
-                    min_selected = Some(selected.clone());
-                    min_count = m;
-                }
-            }
+        if sum >= target + fee + dust && m < min_count {
+            min_selected = Some(selected.clone());
+            min_count = m;
         }
     }
     if let Some(selected) = min_selected {
