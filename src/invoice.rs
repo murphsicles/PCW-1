@@ -52,10 +52,8 @@ impl Invoice {
                 "Invalid policy_hash format §3.4".to_string(),
             ));
         }
-        if let Some(exp) = expiry {
-            if exp < Utc::now() {
-                return Err(PcwError::Other("Expiry in the past §3.4".to_string()));
-            }
+        if let Some(exp) = expiry && exp < Utc::now() {
+            return Err(PcwError::Other("Expiry in the past §3.4".to_string()));
         }
         Ok(Self {
             id,
@@ -95,10 +93,8 @@ impl Invoice {
         if self.policy_hash != hex::encode(expected_policy_hash) {
             return Err(PcwError::Other("Policy hash mismatch §3.4".to_string()));
         }
-        if let Some(exp) = self.expiry {
-            if Utc::now() > exp {
-                return Err(PcwError::Other("Invoice expired §3.4".to_string()));
-            }
+        if let Some(exp) = self.expiry && Utc::now() > exp {
+            return Err(PcwError::Other("Invoice expired §3.4".to_string()));
         }
         let mut unsigned = self.clone();
         unsigned.by = "".to_string();
