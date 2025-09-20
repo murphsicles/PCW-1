@@ -65,6 +65,7 @@ pub fn build_reservations(
     u_sorted.sort_by(|a, b| {
         a.value
             .cmp(&b.value)
+            .reverse() // Sort in descending order to prioritize higher-value UTXOs
             .then(a.outpoint.hash.cmp(&b.outpoint.hash))
     });
     let base_fee = feerate_floor * 10; // Base tx fee
@@ -110,7 +111,11 @@ pub fn build_reservations(
                         fan_out,
                     ]
                     .concat();
-                    u_sorted.sort_by(|a, b| a.value.cmp(&b.value));
+                    u_sorted.sort_by(|a, b| {
+                        a.value
+                            .cmp(&b.value)
+                            .reverse() // Maintain descending order after fan-out
+                    });
                     fanout_done = true;
                     let s_i = select_utxos(&u_sorted, &mut used, target, feerate_floor, dust)?;
                     if let Some(s_i) = s_i {
@@ -182,7 +187,7 @@ fn fan_out(
         .filter(|u| !used.contains(&u.outpoint.hash))
         .cloned()
         .collect::<Vec<_>>();
-    available.sort_by(|a, b| a.value.cmp(&b.value));
+    available.sort_by(|a, b| a.value.cmp(&b.value).reverse());
     let mut fan_out_utxos = vec![];
     let n = (available.iter().map(|u| u.value).sum::<u64>() / split).max(1) as usize;
     let target = split + base_fee + feerate_floor * (148 + 34 * n as u64);
@@ -284,8 +289,8 @@ mod tests {
         let s_i = select_utxos(&utxos, &mut used.clone(), target, feerate_floor, dust)?;
         assert!(s_i.is_some());
         let s_i = s_i.unwrap();
-        assert_eq!(s_i.len(), 1);
-        assert_eq!(s_i[0].value, 500);
+        assert_eq!(s_i.len(), 1); // Expect one UTXO (600) due to descending sort
+        assert_eq!(s_i[0].value, 600); // Should select the higher-value UTXO
         assert_eq!(used.len(), 0);
         Ok(())
     }
@@ -350,7 +355,7 @@ mod tests {
             value: 1000,
             script_pubkey: mock_script.0,
         }];
-        let used = HashSet::new();
+        let mut used = HashSet::new();
         let split = 400;
         let feerate_floor = 1;
         let dust = 50;
