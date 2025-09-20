@@ -111,7 +111,7 @@ pub fn build_reservations(
                         fan_out,
                     ]
                     .concat();
-                    u_sorted.sort_by(|a, b| {
+                    u_sorted.sort_by(|a, b|
                         a.value
                             .cmp(&b.value)
                             .reverse()
