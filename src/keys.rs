@@ -26,16 +26,23 @@ impl AnchorKeypair {
             return Err(PcwError::Other("Zero private key §3.1".to_string()));
         }
         let secp = Secp256k1::new();
-        let sec_key = SecretKey::from_byte_array(priv_key)
+        let sec_key = SecretKey::from_slice(&priv_key)
             .map_err(|e| PcwError::Other(format!("Invalid private key: {} §3.1", e)))?;
         let pub_key = PublicKey::from_secret_key(&secp, &sec_key);
         Ok(Self { priv_key, pub_key })
     }
 
-    /// Compute ECDH shared secret (§3.2).
+    /// Compute ECDH shared secret Z (§3.2).
     pub fn ecdh(&self, their_pub: &PublicKey) -> Result<[u8; 32], PcwError> {
         let secp = Secp256k1::new();
-        let sec_key = SecretKey::from_byte_array(self.priv_key)
+        // Validate their_pub: 33-byte compressed SEC1, not x-only, on-curve (§3.7)
+        if their_pub.serialize().len() != 33
+            || their_pub.is_xonly()
+            || !secp.verify_point(their_pub).is_ok()
+        {
+            return Err(PcwError::Other("Invalid public key §3.2".to_string()));
+        }
+        let sec_key = SecretKey::from_slice(&self.priv_key)
             .map_err(|e| PcwError::Other(format!("Invalid private key: {} §3.2", e)))?;
         // Convert SecretKey to Scalar for mul_tweak
         let scalar = Scalar::from(sec_key);
@@ -56,7 +63,7 @@ impl IdentityKeypair {
             return Err(PcwError::Other("Zero private key §3.1".to_string()));
         }
         let secp = Secp256k1::new();
-        let sec_key = SecretKey::from_byte_array(priv_key)
+        let sec_key = SecretKey::from_slice(&priv_key)
             .map_err(|e| PcwError::Other(format!("Invalid private key: {} §3.1", e)))?;
         let pub_key = PublicKey::from_secret_key(&secp, &sec_key);
         Ok(Self { priv_key, pub_key })
@@ -69,6 +76,7 @@ mod tests {
 
     // Note: For production, use secure random keys with `rand::rngs::OsRng` (§3.1).
     // Example: `let mut rng = OsRng; let priv_key = SecretKey::new(&mut rng).to_bytes();`
+
     #[test]
     fn test_anchor_keypair() -> Result<(), PcwError> {
         let priv_key = [1u8; 32];
@@ -101,20 +109,18 @@ mod tests {
 
     #[test]
     fn test_anchor_keypair_invalid_key() -> Result<(), PcwError> {
-        // Non-32-byte key (simulated by using an invalid key)
-        let invalid_key = [255u8; 32]; // Out of curve order
+        // Invalid private key (out of curve order)
+        let invalid_key = [0xFFu8; 32];
         let result = AnchorKeypair::new(invalid_key);
-        assert!(result.is_err());
         assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid private key")));
         Ok(())
     }
 
     #[test]
     fn test_identity_keypair_invalid_key() -> Result<(), PcwError> {
-        // Non-32-byte key (simulated by using an invalid key)
-        let invalid_key = [255u8; 32]; // Out of curve order
+        // Invalid private key (out of curve order)
+        let invalid_key = [0xFFu8; 32];
         let result = IdentityKeypair::new(invalid_key);
-        assert!(result.is_err());
         assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid private key")));
         Ok(())
     }
@@ -123,13 +129,9 @@ mod tests {
     fn test_ecdh_invalid_pubkey() -> Result<(), PcwError> {
         let priv_key = [1u8; 32];
         let keypair = AnchorKeypair::new(priv_key)?;
-        let secp = Secp256k1::new();
-        // Create an invalid (zero) public key
-        let invalid_pub = PublicKey::from_slice(&[0u8; 33]).unwrap_or_else(|_| {
-            PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array([0; 32]).unwrap())
-        });
-        let result = keypair.ecdh(&invalid_pub);
-        assert!(result.is_err());
+        // Invalid public key (incorrect 33-byte array)
+        let invalid_pub = [0xFFu8; 33]; // Invalid prefix, not on curve
+        let result = keypair.ecdh(&PublicKey::from_slice(&invalid_pub)?);
         assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid public key")));
         Ok(())
     }
