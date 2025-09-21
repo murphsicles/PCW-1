@@ -12,7 +12,7 @@ use chrono::Utc;
 use secp256k1::{Message, PublicKey, Secp256k1, SecretKey};
 use serde::{Deserialize, Serialize};
 use std::io::Write;
-use sv::messages::Tx;
+use sv::messages::{Tx, TxOut, TxIn, OutPoint};
 use sv::script::Script;
 use sv::script::op_codes::*;
 use sv::transaction::p2pkh::{create_lock_script, create_unlock_script};
@@ -60,7 +60,7 @@ pub struct OutputMeta {
 #[derive(Clone, Debug)]
 pub struct NoteTx(pub Tx);
 
-/// Build and sign note tx per §7-§8.
+/// Build and sign note transaction (T_i) per §7-§8.
 #[allow(clippy::too_many_arguments)]
 pub fn build_note_tx(
     scope: &Scope,
@@ -73,8 +73,19 @@ pub fn build_note_tx(
     dust: u64,
     priv_keys: &[[u8; 32]],
 ) -> Result<(NoteTx, NoteMeta), PcwError> {
+    let secp = Secp256k1::new();
+    // Validate anchor_b and anchor_a (§4.9, §7.7)
+    if anchor_b.serialize().len() != 33
+        || anchor_b.is_xonly()
+        || !secp.verify_point(anchor_b).is_ok()
+        || anchor_a.serialize().len() != 33
+        || anchor_a.is_xonly()
+        || !secp.verify_point(anchor_a).is_ok()
+    {
+        return Err(PcwError::Other("Invalid anchor public key §7".to_string()));
+    }
     if s_i.len() != priv_keys.len() {
-        return Err(PcwError::Other("Mismatched inputs/priv_keys".to_string()));
+        return Err(PcwError::Other("Mismatched inputs/priv_keys §8".to_string()));
     }
     let addr_b = recipient_address(scope, i, anchor_b)?;
     let t_i = scalar_mul(&scope.derive_scalar("recv", i)?)?;
@@ -97,8 +108,8 @@ pub fn build_note_tx(
         outputs: vec![],
         lock_time: 0,
     };
-    // Initial fee estimate with one output
-    let mut fee = (feerate_floor * (base_size + 34)).div_ceil(1000); // 34 bytes for one output
+    // Fee estimate with one output (§7.3)
+    let mut fee = (base_size + 34) * feerate_floor; // 34 bytes for one output
     let mut change = sum_in.saturating_sub(amount + fee);
     if change > 0 && change < dust {
         return Err(PcwError::DustChange);
@@ -108,14 +119,14 @@ pub fn build_note_tx(
     }
     // Add recipient output
     let lock_b = create_lock_script(&h160_b_hash);
-    tx.outputs.push(sv::messages::TxOut {
+    tx.outputs.push(TxOut {
         satoshis: amount as i64,
         lock_script: lock_b,
     });
     // Determine if change output is needed
     let mut addr_a = String::new();
     if change > 0 {
-        fee = (feerate_floor * (base_size + 68)).div_ceil(1000); // 68 bytes for two outputs
+        fee = (base_size + 68) * feerate_floor; // 68 bytes for two outputs
         change = sum_in.saturating_sub(amount + fee);
         if change > 0 && change >= dust {
             addr_a = sender_change_address(scope, i, anchor_a)?;
@@ -125,7 +136,7 @@ pub fn build_note_tx(
             let h160_a = h160(&ser_p(&p_ai));
             let h160_a_hash = Hash160(h160_a);
             let lock_a = create_lock_script(&h160_a_hash);
-            tx.outputs.push(sv::messages::TxOut {
+            tx.outputs.push(TxOut {
                 satoshis: change as i64,
                 lock_script: lock_a,
             });
@@ -135,7 +146,7 @@ pub fn build_note_tx(
     }
     // Add inputs
     for utxo in &s_i_sorted {
-        tx.inputs.push(sv::messages::TxIn {
+        tx.inputs.push(TxIn {
             prev_output: utxo.outpoint.clone(),
             unlock_script: Script::new(),
             sequence: 0xFFFFFFFF,
@@ -154,8 +165,8 @@ pub fn build_note_tx(
         )?;
         let msg = Message::from_digest(sighash.0);
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(msg, &SecretKey::from_byte_array(priv_keys[j])?);
-        let pub_key = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(priv_keys[j])?);
+        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_slice(&priv_keys[j])?);
+        let pub_key = PublicKey::from_secret_key(&secp, &SecretKey::from_slice(&priv_keys[j])?);
         tx.inputs[j].unlock_script = create_unlock_script(&sig.serialize_der(), &ser_p(&pub_key));
     }
     // Finalize metadata
@@ -221,7 +232,7 @@ pub fn build_note_tx(
     Ok((NoteTx(tx), meta))
 }
 
-/// Reverse P2PKH lock to base58 addr (§8.3 optional, for meta).
+/// Reverse P2PKH lock to base58 address (Addr_B,i or Addr_A,i) (§8.3 optional, for meta).
 fn reverse_base58(lock: &[u8]) -> Result<String, PcwError> {
     if lock.len() != 25 {
         return Err(PcwError::Other(
@@ -262,17 +273,17 @@ mod tests {
                 hash: Hash256(mock_hash),
                 index: 0,
             },
-            value: 150,
+            value: 192,
             script_pubkey: mock_script.0,
         };
         let priv_key = [1u8; 32];
-        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(priv_key)?);
+        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_slice(&priv_key)?);
         let anchor_a = anchor_b; // For testing
         let (tx, meta) = build_note_tx(
             &scope,
             0,
             &[utxo],
-            100,
+            191,
             &anchor_b,
             &anchor_a,
             1,
@@ -280,7 +291,7 @@ mod tests {
             &[priv_key],
         )?;
         assert_eq!(tx.0.outputs.len(), 1);
-        assert_eq!(meta.amount, 100);
+        assert_eq!(meta.amount, 191);
         assert_eq!(meta.change_amount, 0);
         assert!(meta.txid.len() > 0);
         Ok(())
@@ -298,11 +309,11 @@ mod tests {
                 hash: Hash256(mock_hash),
                 index: 0,
             },
-            value: 200,
+            value: 259,
             script_pubkey: mock_script.0,
         };
         let priv_key = [1u8; 32];
-        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(priv_key)?);
+        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_slice(&priv_key)?);
         let anchor_a = anchor_b; // For testing
         let (tx, meta) = build_note_tx(
             &scope,
@@ -334,11 +345,11 @@ mod tests {
                 hash: Hash256(mock_hash),
                 index: 0,
             },
-            value: 151,
+            value: 149,
             script_pubkey: mock_script.0,
         };
         let priv_key = [1u8; 32];
-        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(priv_key)?);
+        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_slice(&priv_key)?);
         let anchor_a = anchor_b;
         let result = build_note_tx(
             &scope,
@@ -351,7 +362,6 @@ mod tests {
             50,
             &[priv_key],
         );
-        assert!(result.is_err());
         assert!(matches!(result, Err(PcwError::DustChange)));
         Ok(())
     }
@@ -372,7 +382,7 @@ mod tests {
             script_pubkey: mock_script.0,
         };
         let priv_key = [1u8; 32];
-        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(priv_key)?);
+        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_slice(&priv_key)?);
         let anchor_a = anchor_b;
         let result = build_note_tx(
             &scope,
@@ -385,7 +395,6 @@ mod tests {
             50,
             &[priv_key],
         );
-        assert!(result.is_err());
         assert!(matches!(result, Err(PcwError::Underfunded)));
         Ok(())
     }
@@ -429,7 +438,7 @@ mod tests {
         let lock_script = vec![OP_DUP]; // Invalid script
         let result = reverse_base58(&lock_script);
         assert!(
-            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid script length")),
+            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid script length"))
         );
         Ok(())
     }
@@ -465,7 +474,7 @@ mod tests {
         ];
         let result = reverse_base58(&lock_script);
         assert!(
-            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid script format")),
+            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid script format"))
         );
         Ok(())
     }
