@@ -151,15 +151,26 @@ fn select_utxos(
     let mut min_count = usize::MAX;
     let mut sum = 0;
     let mut selected = vec![];
-    // Try all possible combinations up to the current selection
-    for utxo in utxos.iter().filter(|u| !used.contains(&u.outpoint.hash)) {
+    // Sort UTXOs by value in descending order
+    let mut sorted_utxos = utxos
+        .iter()
+        .filter(|u| !used.contains(&u.outpoint.hash))
+        .cloned()
+        .collect::<Vec<_>>();
+    sorted_utxos.sort_by(|a, b| a.value.cmp(&b.value).reverse());
+    // Try each prefix of sorted UTXOs
+    for utxo in sorted_utxos {
         selected.push(utxo.clone());
         sum += utxo.value;
         let m = selected.len();
         let fee = base_fee + feerate_floor * (148 * m as u64 + 34);
-        if sum >= target + fee + dust && m < min_count {
+        if sum >= target + fee + dust && m <= min_count {
             min_selected = Some(selected.clone());
             min_count = m;
+            // If we have a single UTXO that’s sufficient, we can stop
+            if m == 1 {
+                break;
+            }
         }
     }
     if let Some(selected) = min_selected {
