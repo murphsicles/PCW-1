@@ -1,3 +1,4 @@
+```rust
 //! Module for address generation in the PCW-1 protocol.
 //!
 //! This module provides functions to derive recipient and sender change addresses
@@ -16,7 +17,10 @@ use secp256k1::{PublicKey, Secp256k1};
 pub fn recipient_address(scope: &Scope, i: u32, anchor_b: &PublicKey) -> Result<String, PcwError> {
     // Validate anchor_b is a valid compressed SEC1 public key (§4.9)
     let secp = Secp256k1::new();
-    if anchor_b.serialize().len() != 33 || anchor_b.is_xonly() || !secp.verify_point(anchor_b).is_ok() {
+    if anchor_b.serialize().len() != 33
+        || anchor_b.is_xonly()
+        || !secp.verify_point(anchor_b).is_ok()
+    {
         return Err(PcwError::Other("Invalid public key §4.9".to_string()));
     }
     let t_i = scope.derive_scalar("recv", i)?;
@@ -42,7 +46,10 @@ pub fn sender_change_address(
 ) -> Result<String, PcwError> {
     // Validate anchor_a is a valid compressed SEC1 public key (§7.7)
     let secp = Secp256k1::new();
-    if anchor_a.serialize().len() != 33 || anchor_a.is_xonly() || !secp.verify_point(anchor_a).is_ok() {
+    if anchor_a.serialize().len() != 33
+        || anchor_a.is_xonly()
+        || !secp.verify_point(anchor_a).is_ok()
+    {
         return Err(PcwError::Other("Invalid public key §7.7".to_string()));
     }
     let s_i = scope.derive_scalar("snd", i)?;
@@ -161,3 +168,4 @@ mod tests {
         Ok(())
     }
 }
+```
