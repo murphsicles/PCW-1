@@ -1,4 +1,3 @@
-```rust
 //! Module for address generation in the PCW-1 protocol.
 //!
 //! This module provides functions to derive recipient and sender change addresses
@@ -168,4 +167,3 @@ mod tests {
         Ok(())
     }
 }
-```
