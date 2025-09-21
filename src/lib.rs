@@ -213,12 +213,10 @@ mod tests {
         policy.sign(&identity_b)?;
         let h_policy = policy.h_policy();
         // Malformed invoice JSON (zero total)
-        let malformed_invoice: Value = serde_json::from_str(
-            &format!(
-                r#"{{"invoice_number":"test","terms":"terms","unit":"sat","total":0,"policy_hash":"{}","expiry":"2025-09-15T19:28:00Z","sig_key":"","sig_alg":"","sig":""}}"#,
-                hex::encode(h_policy)
-            ),
-        )?;
+        let malformed_invoice: Value = serde_json::from_str(&format!(
+            r#"{"invoice_number":"test","terms":"terms","unit":"sat","total":0,"policy_hash":"{}","expiry":"2025-09-15T19:28:00Z","sig_key":"","sig_alg":"","sig":""}}"#,
+            hex::encode(h_policy)
+        ))?;
         let result = canonical_json(&malformed_invoice);
         assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Zero total")));
         Ok(())
@@ -382,6 +380,7 @@ mod tests {
         let z = ecdh_z(&priv_a, &identity_b.pub_key)?;
         let scope = Scope::new(z, h_i)?;
         // Test Underfunded
+        let mock_hash = utils::sha256(b"test_tx");
         let mock_h160 = utils::h160(&ser_p(&utxo_pub));
         let mock_script = create_lock_script(&Hash160(mock_h160));
         let utxo = Utxo {
