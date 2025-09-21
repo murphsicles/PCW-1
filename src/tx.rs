@@ -12,7 +12,7 @@ use chrono::Utc;
 use secp256k1::{Message, PublicKey, Secp256k1, SecretKey};
 use serde::{Deserialize, Serialize};
 use std::io::Write;
-use sv::messages::{Tx, TxOut, TxIn, OutPoint};
+use sv::messages::{OutPoint, Tx, TxIn, TxOut};
 use sv::script::Script;
 use sv::script::op_codes::*;
 use sv::transaction::p2pkh::{create_lock_script, create_unlock_script};
@@ -85,7 +85,9 @@ pub fn build_note_tx(
         return Err(PcwError::Other("Invalid anchor public key §7".to_string()));
     }
     if s_i.len() != priv_keys.len() {
-        return Err(PcwError::Other("Mismatched inputs/priv_keys §8".to_string()));
+        return Err(PcwError::Other(
+            "Mismatched inputs/priv_keys §8".to_string(),
+        ));
     }
     let addr_b = recipient_address(scope, i, anchor_b)?;
     let t_i = scalar_mul(&scope.derive_scalar("recv", i)?)?;
