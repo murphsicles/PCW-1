@@ -23,7 +23,9 @@ pub async fn handshake(
         || my_identity.pub_key.is_xonly()
         || !secp.verify_point(&my_identity.pub_key).is_ok()
     {
-        return Err(PcwError::Other("Invalid identity public key §3.5".to_string()));
+        return Err(PcwError::Other(
+            "Invalid identity public key §3.5".to_string(),
+        ));
     }
     // Send my public key
     let my_pub = my_identity.pub_key.serialize();
@@ -128,9 +130,9 @@ pub async fn exchange_invoice(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::invoice::Invoice;
     use crate::keys::IdentityKeypair;
     use crate::policy::Policy;
-    use crate::invoice::Invoice;
     use chrono::Utc;
     use hex;
     use tokio::net::TcpListener;
