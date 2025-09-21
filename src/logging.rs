@@ -18,7 +18,7 @@ pub trait LogRecord: Serialize + Clone {
     fn sign(&mut self, key: &IdentityKeypair) -> Result<(), PcwError>;
     /// Verify the record's signature.
     fn verify(&self) -> Result<(), PcwError>;
-    /// Get the previous hash for chaining.
+    /// Get the previous hash for chaining (H_log of previous record).
     fn prev_hash(&self) -> String;
     /// Set the previous hash for chaining.
     fn set_prev_hash(&mut self, hash: String);
@@ -39,7 +39,7 @@ pub struct OutpointMeta {
     pub index: u32,
 }
 
-/// Reissue record (§11.6).
+/// Reissue record (§13.6).
 #[derive(Serialize, Clone, Debug)]
 pub struct ReissueRecord {
     pub invoice_hash: String,
@@ -72,7 +72,7 @@ impl LogRecord for ReissueRecord {
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(msg, &SecretKey::from_byte_array(key.priv_key)?);
+        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_slice(&key.priv_key)?);
         let sig_hex = hex::encode(sig.serialize_der());
         self.set_signature(by, sig_alg, sig_hex);
         Ok(())
@@ -85,10 +85,13 @@ impl LogRecord for ReissueRecord {
         let bytes = canonical_json(&value)?;
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
-        let pub_key = PublicKey::from_slice(&hex::decode(&self.by)?)?;
-        let sig = Signature::from_der(&hex::decode(&self.sig)?)?;
+        let pub_key = PublicKey::from_slice(&hex::decode(&self.by)?)
+            .map_err(|_| PcwError::Other("Invalid public key §13.6".to_string()))?;
+        let sig = Signature::from_der(&hex::decode(&self.sig)?)
+            .map_err(|_| PcwError::Other("Invalid signature §13.6".to_string()))?;
         let secp = Secp256k1::new();
-        secp.verify_ecdsa(msg, &sig, &pub_key)?;
+        secp.verify_ecdsa(&msg, &sig, &pub_key)
+            .map_err(|_| PcwError::Other("Invalid signature §13.6".to_string()))?;
         Ok(())
     }
 
@@ -119,7 +122,7 @@ impl LogRecord for ReissueRecord {
     }
 }
 
-/// Cancel record (§11.6).
+/// Cancel record (§13.6).
 #[derive(Serialize, Clone, Debug)]
 pub struct CancelRecord {
     pub invoice_hash: String,
@@ -147,7 +150,7 @@ impl LogRecord for CancelRecord {
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(msg, &SecretKey::from_byte_array(key.priv_key)?);
+        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_slice(&key.priv_key)?);
         let sig_hex = hex::encode(sig.serialize_der());
         self.set_signature(by, sig_alg, sig_hex);
         Ok(())
@@ -160,10 +163,13 @@ impl LogRecord for CancelRecord {
         let bytes = canonical_json(&value)?;
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
-        let pub_key = PublicKey::from_slice(&hex::decode(&self.by)?)?;
-        let sig = Signature::from_der(&hex::decode(&self.sig)?)?;
+        let pub_key = PublicKey::from_slice(&hex::decode(&self.by)?)
+            .map_err(|_| PcwError::Other("Invalid public key §13.6".to_string()))?;
+        let sig = Signature::from_der(&hex::decode(&self.sig)?)
+            .map_err(|_| PcwError::Other("Invalid signature §13.6".to_string()))?;
         let secp = Secp256k1::new();
-        secp.verify_ecdsa(msg, &sig, &pub_key)?;
+        secp.verify_ecdsa(&msg, &sig, &pub_key)
+            .map_err(|_| PcwError::Other("Invalid signature §13.6".to_string()))?;
         Ok(())
     }
 
@@ -194,7 +200,7 @@ impl LogRecord for CancelRecord {
     }
 }
 
-/// Conflict record (§11.6).
+/// Conflict record (§13.6).
 #[derive(Serialize, Clone, Debug)]
 pub struct ConflictRecord {
     pub invoice_hash: String,
@@ -221,7 +227,7 @@ impl LogRecord for ConflictRecord {
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(msg, &SecretKey::from_byte_array(key.priv_key)?);
+        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_slice(&key.priv_key)?);
         let sig_hex = hex::encode(sig.serialize_der());
         self.set_signature(by, sig_alg, sig_hex);
         Ok(())
@@ -234,10 +240,13 @@ impl LogRecord for ConflictRecord {
         let bytes = canonical_json(&value)?;
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
-        let pub_key = PublicKey::from_slice(&hex::decode(&self.by)?)?;
-        let sig = Signature::from_der(&hex::decode(&self.sig)?)?;
+        let pub_key = PublicKey::from_slice(&hex::decode(&self.by)?)
+            .map_err(|_| PcwError::Other("Invalid public key §13.6".to_string()))?;
+        let sig = Signature::from_der(&hex::decode(&self.sig)?)
+            .map_err(|_| PcwError::Other("Invalid signature §13.6".to_string()))?;
         let secp = Secp256k1::new();
-        secp.verify_ecdsa(msg, &sig, &pub_key)?;
+        secp.verify_ecdsa(&msg, &sig, &pub_key)
+            .map_err(|_| PcwError::Other("Invalid signature §13.6".to_string()))?;
         Ok(())
     }
 
@@ -268,7 +277,7 @@ impl LogRecord for ConflictRecord {
     }
 }
 
-/// Orphaned record (§11.6).
+/// Orphaned record (§13.6).
 #[derive(Serialize, Clone, Debug)]
 pub struct OrphanedRecord {
     pub invoice_hash: String,
@@ -296,7 +305,7 @@ impl LogRecord for OrphanedRecord {
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(msg, &SecretKey::from_byte_array(key.priv_key)?);
+        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_slice(&key.priv_key)?);
         let sig_hex = hex::encode(sig.serialize_der());
         self.set_signature(by, sig_alg, sig_hex);
         Ok(())
@@ -309,10 +318,13 @@ impl LogRecord for OrphanedRecord {
         let bytes = canonical_json(&value)?;
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
-        let pub_key = PublicKey::from_slice(&hex::decode(&self.by)?)?;
-        let sig = Signature::from_der(&hex::decode(&self.sig)?)?;
+        let pub_key = PublicKey::from_slice(&hex::decode(&self.by)?)
+            .map_err(|_| PcwError::Other("Invalid public key §13.6".to_string()))?;
+        let sig = Signature::from_der(&hex::decode(&self.sig)?)
+            .map_err(|_| PcwError::Other("Invalid signature §13.6".to_string()))?;
         let secp = Secp256k1::new();
-        secp.verify_ecdsa(msg, &sig, &pub_key)?;
+        secp.verify_ecdsa(&msg, &sig, &pub_key)
+            .map_err(|_| PcwError::Other("Invalid signature §13.6".to_string()))?;
         Ok(())
     }
 
@@ -424,7 +436,7 @@ mod tests {
             addr_change: "addr_a".to_string(),
             fee: 100,
             feerate_used: 1,
-            at: Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+            at: "2025-09-21T14:00:00Z".to_string(),
             by: "".to_string(),
             sig_alg: "".to_string(),
             sig: "".to_string(),
@@ -447,7 +459,7 @@ mod tests {
             event: "cancel".to_string(),
             reason: "test".to_string(),
             version: 1,
-            at: Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+            at: "2025-09-21T14:00:00Z".to_string(),
             by: "".to_string(),
             sig_alg: "".to_string(),
             sig: "".to_string(),
@@ -472,7 +484,7 @@ mod tests {
                 hash: "tx".to_string(),
                 index: 0,
             },
-            at: Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+            at: "2025-09-21T14:00:00Z".to_string(),
             by: "".to_string(),
             sig_alg: "".to_string(),
             sig: "".to_string(),
@@ -495,7 +507,7 @@ mod tests {
             event: "orphaned".to_string(),
             txid: "tx".to_string(),
             rebroadcast: true,
-            at: Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+            at: "2025-09-21T14:00:00Z".to_string(),
             by: "".to_string(),
             sig_alg: "".to_string(),
             sig: "".to_string(),
@@ -525,7 +537,7 @@ mod tests {
             addr_change: "addr_a1".to_string(),
             fee: 100,
             feerate_used: 1,
-            at: Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+            at: "2025-09-21T14:00:00Z".to_string(),
             by: "".to_string(),
             sig_alg: "".to_string(),
             sig: "".to_string(),
@@ -547,7 +559,7 @@ mod tests {
             addr_change: "addr_a2".to_string(),
             fee: 200,
             feerate_used: 2,
-            at: Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+            at: "2025-09-21T14:00:00Z".to_string(),
             by: "".to_string(),
             sig_alg: "".to_string(),
             sig: "".to_string(),
@@ -588,7 +600,7 @@ mod tests {
             addr_change: "addr_a1".to_string(),
             fee: 100,
             feerate_used: 1,
-            at: Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+            at: "2025-09-21T14:00:00Z".to_string(),
             by: "".to_string(),
             sig_alg: "".to_string(),
             sig: "".to_string(),
@@ -610,7 +622,7 @@ mod tests {
             addr_change: "addr_a2".to_string(),
             fee: 200,
             feerate_used: 2,
-            at: Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+            at: "2025-09-21T14:00:00Z".to_string(),
             by: "".to_string(),
             sig_alg: "".to_string(),
             sig: "".to_string(),
@@ -626,22 +638,17 @@ mod tests {
         let mut tampered_log = log.clone();
         tampered_log[1].set_prev_hash("invalid_hash".to_string());
         let result = verify_log_chain(&tampered_log);
-        assert!(result.is_err());
         assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid prev_hash")));
         // Tamper with seq
         let mut tampered_log = log.clone();
         tampered_log[1].set_seq(3);
         let result = verify_log_chain(&tampered_log);
-        assert!(
-            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid sequence number")),
-        );
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid sequence number")));
         // Tamper with first record's prev_hash
         let mut tampered_log = log.clone();
         tampered_log[0].set_prev_hash("invalid_hash".to_string());
         let result = verify_log_chain(&tampered_log);
-        assert!(
-            matches!(result, Err(PcwError::Other(msg)) if msg.contains("First record must have empty prev_hash")),
-        );
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("First record must have empty prev_hash")));
         Ok(())
     }
 }
