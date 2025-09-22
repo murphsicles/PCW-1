@@ -7,7 +7,7 @@
 use crate::errors::PcwError;
 use base58::ToBase58;
 use ripemd::Ripemd160;
-use secp256k1::{PublicKey, Secp256k1, SecretKey};
+use secp256k1::{PublicKey, Scalar, Secp256k1, SecretKey};
 use sha2::{Digest, Sha256};
 use unicode_normalization::UnicodeNormalization;
 
@@ -71,6 +71,27 @@ pub fn scalar_mul(scalar: &[u8; 32]) -> Result<PublicKey, PcwError> {
         .map_err(|e| PcwError::Other(format!("Invalid scalar: {} §4.3", e)))?;
     let pub_key = PublicKey::from_secret_key(&secp, &secret_key);
     Ok(pub_key)
+}
+
+/// ECDH shared secret computation: priv_key * pub_key (§3.2).
+pub fn ecdh_z(priv_key: &[u8; 32], pub_key: &PublicKey) -> Result<[u8; 32], PcwError> {
+    if *priv_key == [0; 32] {
+        return Err(PcwError::Other("Zero private key §3.2".to_string()));
+    }
+    let secp = Secp256k1::new();
+    // Validate pub_key: 33-byte compressed SEC1 (§3.7)
+    if pub_key.serialize().len() != 33 {
+        return Err(PcwError::Other("Invalid public key §3.2".to_string()));
+    }
+    let sec_key = SecretKey::from_byte_array(*priv_key)
+        .map_err(|e| PcwError::Other(format!("Invalid private key: {} §3.2", e)))?;
+    let scalar = Scalar::from(sec_key);
+    let shared_point = pub_key.mul_tweak(&secp, &scalar)?;
+    let shared_bytes = shared_point.serialize();
+    let z: [u8; 32] = shared_bytes[1..33]
+        .try_into()
+        .map_err(|_| PcwError::Other("Invalid ECDH point §3.2".to_string()))?;
+    Ok(z)
 }
 
 /// NFC normalize string (§2).
@@ -211,6 +232,34 @@ mod tests {
         let scalar = [0xFFu8; 32]; // Beyond curve order
         let result = scalar_mul(&scalar);
         assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid scalar")));
+        Ok(())
+    }
+
+    #[test]
+    fn test_ecdh_z() -> Result<(), PcwError> {
+        let priv_key1 = [1u8; 32];
+        let priv_key2 = [2u8; 32];
+        let secp = Secp256k1::new();
+        let pub_key1 = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_key1)?);
+        let pub_key2 = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_key2)?);
+        let z1 = ecdh_z(&priv_key1, &pub_key2)?;
+        let z2 = ecdh_z(&priv_key2, &pub_key1)?;
+        assert_eq!(z1, z2); // ECDH symmetry
+        Ok(())
+    }
+
+    #[test]
+    fn test_ecdh_z_invalid() -> Result<(), PcwError> {
+        let priv_key = [1u8; 32];
+        // Invalid public key (incorrect 33-byte array)
+        let invalid_pub = [0xFFu8; 33]; // Invalid prefix, not on curve
+        let result = ecdh_z(&priv_key, &PublicKey::from_slice(&invalid_pub)?);
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid public key")));
+        // Zero private key
+        let secp = Secp256k1::new();
+        let pub_key = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&[1u8; 32])?);
+        let result = ecdh_z(&[0u8; 32], &pub_key);
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Zero private key")));
         Ok(())
     }
 
