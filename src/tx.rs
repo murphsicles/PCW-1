@@ -273,7 +273,7 @@ mod tests {
             script_pubkey: mock_script.0,
         };
         let priv_key = [1u8; 32];
-        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_key)?);
+        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(priv_key)?);
         let anchor_a = anchor_b; // For testing
         let (tx, meta) = build_note_tx(
             &scope,
@@ -309,7 +309,7 @@ mod tests {
             script_pubkey: mock_script.0,
         };
         let priv_key = [1u8; 32];
-        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_key)?);
+        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(priv_key)?);
         let anchor_a = anchor_b; // For testing
         let (tx, meta) = build_note_tx(
             &scope,
@@ -345,7 +345,7 @@ mod tests {
             script_pubkey: mock_script.0,
         };
         let priv_key = [1u8; 32];
-        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_key)?);
+        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(priv_key)?);
         let anchor_a = anchor_b;
         let result = build_note_tx(
             &scope,
@@ -378,7 +378,7 @@ mod tests {
             script_pubkey: mock_script.0,
         };
         let priv_key = [1u8; 32];
-        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_key)?);
+        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(priv_key)?);
         let anchor_a = anchor_b;
         let result = build_note_tx(
             &scope,
