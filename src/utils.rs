@@ -196,9 +196,9 @@ mod tests {
     #[test]
     fn test_point_add() -> Result<(), PcwError> {
         let secp = Secp256k1::new();
-        let sk1 = SecretKey::from_byte_array(&[1u8; 32])?;
+        let sk1 = SecretKey::from_byte_array([1u8; 32])?;
         let pk1 = PublicKey::from_secret_key(&secp, &sk1);
-        let sk2 = SecretKey::from_byte_array(&[2u8; 32])?;
+        let sk2 = SecretKey::from_byte_array([2u8; 32])?;
         let pk2 = PublicKey::from_secret_key(&secp, &sk2);
         let _sum = point_add(&pk1, &pk2)?; // Should not panic
         Ok(())
@@ -207,7 +207,7 @@ mod tests {
     #[test]
     fn test_point_add_invalid() -> Result<(), PcwError> {
         let secp = Secp256k1::new();
-        let sk = SecretKey::from_byte_array(&[1u8; 32])?;
+        let sk = SecretKey::from_byte_array([1u8; 32])?;
         let pk = PublicKey::from_secret_key(&secp, &sk);
         // Invalid public key (incorrect 33-byte array)
         let invalid_pk = [0xFFu8; 33]; // Invalid prefix, not on curve
@@ -240,8 +240,8 @@ mod tests {
         let priv_key1 = [1u8; 32];
         let priv_key2 = [2u8; 32];
         let secp = Secp256k1::new();
-        let pub_key1 = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_key1)?);
-        let pub_key2 = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_key2)?);
+        let pub_key1 = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(priv_key1)?);
+        let pub_key2 = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(priv_key2)?);
         let z1 = ecdh_z(&priv_key1, &pub_key2)?;
         let z2 = ecdh_z(&priv_key2, &pub_key1)?;
         assert_eq!(z1, z2); // ECDH symmetry
@@ -257,7 +257,7 @@ mod tests {
         assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid public key")));
         // Zero private key
         let secp = Secp256k1::new();
-        let pub_key = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&[1u8; 32])?);
+        let pub_key = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array([1u8; 32])?);
         let result = ecdh_z(&[0u8; 32], &pub_key);
         assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Zero private key")));
         Ok(())
