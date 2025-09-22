@@ -19,10 +19,7 @@ pub async fn handshake(
 ) -> Result<[u8; 32], PcwError> {
     let secp = Secp256k1::new();
     // Validate my public key (§3.7)
-    if my_identity.pub_key.serialize().len() != 33
-        || my_identity.pub_key.is_xonly()
-        || !secp.verify_point(&my_identity.pub_key).is_ok()
-    {
+    if my_identity.pub_key.serialize().len() != 33 {
         return Err(PcwError::Other(
             "Invalid identity public key §3.5".to_string(),
         ));
