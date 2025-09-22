@@ -396,8 +396,8 @@ pub fn verify_log_chain<T: LogRecord>(log: &[T]) -> Result<(), PcwError> {
             let mut prev_unsigned = log[i - 1].clone();
             prev_unsigned.set_signature("".to_string(), "".to_string(), "".to_string());
             let value = serde_json::to_value(&prev_unsigned)?;
-            let prev_bytes = canonical_json(&value)?;
-            let expected_prev_hash = hex::encode(sha256(&prev_bytes));
+            let p_bytes = canonical_json(&value)?;
+            let expected_prev_hash = hex::encode(sha256(&p_bytes));
             if log[i].prev_hash() != expected_prev_hash {
                 return Err(PcwError::Other(format!(
                     "Invalid prev_hash at index {} §13.7",
