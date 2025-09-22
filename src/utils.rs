@@ -52,14 +52,8 @@ pub fn base58check(version: u8, payload: &[u8]) -> Result<String, PcwError> {
 /// Point add: P1 + P2 using secp256k1 (§4.3).
 pub fn point_add(p1: &PublicKey, p2: &PublicKey) -> Result<PublicKey, PcwError> {
     let secp = Secp256k1::new();
-    // Validate p1 and p2: 33-byte compressed SEC1, not x-only, on-curve (§4.3)
-    if p1.serialize().len() != 33
-        || p1.is_xonly()
-        || !secp.verify_point(p1).is_ok()
-        || p2.serialize().len() != 33
-        || p2.is_xonly()
-        || !secp.verify_point(p2).is_ok()
-    {
+    // Validate p1 and p2: 33-byte compressed SEC1 (§4.3)
+    if p1.serialize().len() != 33 || p2.serialize().len() != 33 {
         return Err(PcwError::Other("Invalid public key §4.3".to_string()));
     }
     let p1_point = *p1;
@@ -74,7 +68,7 @@ pub fn scalar_mul(scalar: &[u8; 32]) -> Result<PublicKey, PcwError> {
         return Err(PcwError::Other("Zero scalar §4.3".to_string()));
     }
     let secp = Secp256k1::new();
-    let secret_key = SecretKey::from_slice(scalar)
+    let secret_key = SecretKey::from_byte_array(scalar)
         .map_err(|e| PcwError::Other(format!("Invalid scalar: {} §4.3", e)))?;
     let pub_key = PublicKey::from_secret_key(&secp, &secret_key);
     Ok(pub_key)
@@ -182,9 +176,9 @@ mod tests {
     #[test]
     fn test_point_add() -> Result<(), PcwError> {
         let secp = Secp256k1::new();
-        let sk1 = SecretKey::from_slice(&[1u8; 32])?;
+        let sk1 = SecretKey::from_byte_array(&[1u8; 32])?;
         let pk1 = PublicKey::from_secret_key(&secp, &sk1);
-        let sk2 = SecretKey::from_slice(&[2u8; 32])?;
+        let sk2 = SecretKey::from_byte_array(&[2u8; 32])?;
         let pk2 = PublicKey::from_secret_key(&secp, &sk2);
         let _sum = point_add(&pk1, &pk2)?; // Should not panic
         Ok(())
@@ -193,7 +187,7 @@ mod tests {
     #[test]
     fn test_point_add_invalid() -> Result<(), PcwError> {
         let secp = Secp256k1::new();
-        let sk = SecretKey::from_slice(&[1u8; 32])?;
+        let sk = SecretKey::from_byte_array(&[1u8; 32])?;
         let pk = PublicKey::from_secret_key(&secp, &sk);
         // Invalid public key (incorrect 33-byte array)
         let invalid_pk = [0xFFu8; 33]; // Invalid prefix, not on curve
