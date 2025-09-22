@@ -4,8 +4,7 @@ use pcw_protocol::{
     AnchorKeypair, Entry, IdentityKeypair, Invoice, Manifest, PcwError, Policy, Scope, Utxo,
     addressing::{recipient_address, sender_change_address},
     bounded_split, build_note_tx, build_reservations, compute_leaves, generate_proof, merkle_root,
-    utils::{h160, ser_p, sha256},
-    verify_proof,
+    utils::{ecdh_z, h160, ser_p, sha256}, verify_proof,
 };
 use secp256k1::{PublicKey, Secp256k1, SecretKey};
 use sv::messages::OutPoint;
@@ -23,7 +22,7 @@ fn main() -> Result<(), PcwError> {
     let anchor_b = AnchorKeypair::new([4u8; 32])?;
     // Create mock UTXO private key
     let utxo_priv = [5u8; 32];
-    let utxo_pub = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&utxo_priv)?);
+    let utxo_pub = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(utxo_priv)?);
     // Create and sign policy
     let expiry = Utc::now() + Duration::days(1);
     let mut policy = Policy::new(
@@ -48,7 +47,7 @@ fn main() -> Result<(), PcwError> {
     invoice.sign(&identity_a)?;
     let h_i = invoice.h_i();
     // Create scope and derive address
-    let z = identity_a.ecdh(&identity_b.pub_key)?;
+    let z = ecdh_z(&priv_a, &identity_b.pub_key)?;
     let scope = Scope::new(z, h_i)?;
     let addr_b = recipient_address(&scope, 0, &anchor_b.pub_key)?;
     let addr_a = sender_change_address(&scope, 0, &anchor_a.pub_key)?;
@@ -95,17 +94,18 @@ fn main() -> Result<(), PcwError> {
         &priv_keys,
     )?;
     // Generate receipt
-    let addr_payloads = amounts
+    let addr_payloads: Vec<[u8; 21]> = amounts
         .iter()
         .enumerate()
         .map(|(i, _)| {
             let addr = recipient_address(&scope, i as u32, &anchor_b.pub_key)?;
-            let lock_script =
-                create_lock_script(&Hash160(h160(&ser_p(&pcw_protocol::utils::point_add(
+            let lock_script = create_lock_script(&Hash160(h160(&ser_p(
+                &pcw_protocol::utils::point_add(
                     &anchor_b.pub_key,
                     &pcw_protocol::utils::scalar_mul(&scope.derive_scalar("recv", i as u32)?)?,
-                )?))));
-            Ok(lock_script.0[0..21].to_vec())
+                )?,
+            ))));
+            Ok(lock_script.0[0..21].try_into().unwrap())
         })
         .collect::<Result<Vec<_>, PcwError>>()?;
     let mut entries = vec![];
