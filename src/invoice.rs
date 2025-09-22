@@ -94,10 +94,8 @@ impl Invoice {
         if self.policy_hash != hex::encode(expected_policy_hash) {
             return Err(PcwError::Other("Policy hash mismatch §3.4".to_string()));
         }
-        if let Some(exp) = self.expiry {
-            if Utc::now() > exp {
-                return Err(PcwError::Other("Invoice expired §3.4".to_string()));
-            }
+        if let Some(exp) = self.expiry && Utc::now() > exp {
+            return Err(PcwError::Other("Invoice expired §3.4".to_string()));
         }
         let mut unsigned = self.clone();
         unsigned.sig_key = "".to_string();
