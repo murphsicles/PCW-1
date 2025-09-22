@@ -12,7 +12,7 @@ use chrono::Utc;
 use secp256k1::{Message, PublicKey, Secp256k1, SecretKey};
 use serde::{Deserialize, Serialize};
 use std::io::Write;
-use sv::messages::{OutPoint, Tx, TxIn, TxOut};
+use sv::messages::{Tx, TxIn, TxOut};
 use sv::script::Script;
 use sv::script::op_codes::*;
 use sv::transaction::p2pkh::{create_lock_script, create_unlock_script};
@@ -75,13 +75,7 @@ pub fn build_note_tx(
 ) -> Result<(NoteTx, NoteMeta), PcwError> {
     let secp = Secp256k1::new();
     // Validate anchor_b and anchor_a (§4.9, §7.7)
-    if anchor_b.serialize().len() != 33
-        || anchor_b.is_xonly()
-        || !secp.verify_point(anchor_b).is_ok()
-        || anchor_a.serialize().len() != 33
-        || anchor_a.is_xonly()
-        || !secp.verify_point(anchor_a).is_ok()
-    {
+    if anchor_b.serialize().len() != 33 || anchor_a.serialize().len() != 33 {
         return Err(PcwError::Other("Invalid anchor public key §7".to_string()));
     }
     if s_i.len() != priv_keys.len() {
@@ -167,8 +161,8 @@ pub fn build_note_tx(
         )?;
         let msg = Message::from_digest(sighash.0);
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_slice(&priv_keys[j])?);
-        let pub_key = PublicKey::from_secret_key(&secp, &SecretKey::from_slice(&priv_keys[j])?);
+        let sig = secp.sign_ecdsa(msg, &SecretKey::from_byte_array(&priv_keys[j])?);
+        let pub_key = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_keys[j])?);
         tx.inputs[j].unlock_script = create_unlock_script(&sig.serialize_der(), &ser_p(&pub_key));
     }
     // Finalize metadata
@@ -279,7 +273,7 @@ mod tests {
             script_pubkey: mock_script.0,
         };
         let priv_key = [1u8; 32];
-        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_slice(&priv_key)?);
+        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_key)?);
         let anchor_a = anchor_b; // For testing
         let (tx, meta) = build_note_tx(
             &scope,
@@ -315,7 +309,7 @@ mod tests {
             script_pubkey: mock_script.0,
         };
         let priv_key = [1u8; 32];
-        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_slice(&priv_key)?);
+        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_key)?);
         let anchor_a = anchor_b; // For testing
         let (tx, meta) = build_note_tx(
             &scope,
@@ -351,7 +345,7 @@ mod tests {
             script_pubkey: mock_script.0,
         };
         let priv_key = [1u8; 32];
-        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_slice(&priv_key)?);
+        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_key)?);
         let anchor_a = anchor_b;
         let result = build_note_tx(
             &scope,
@@ -384,7 +378,7 @@ mod tests {
             script_pubkey: mock_script.0,
         };
         let priv_key = [1u8; 32];
-        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_slice(&priv_key)?);
+        let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_key)?);
         let anchor_a = anchor_b;
         let result = build_note_tx(
             &scope,
