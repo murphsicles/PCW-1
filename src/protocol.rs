@@ -8,7 +8,7 @@ use crate::invoice::Invoice;
 use crate::json::canonical_json;
 use crate::keys::{AnchorKeypair, IdentityKeypair};
 use crate::policy::Policy;
-use secp256k1::{PublicKey, Secp256k1};
+use secp256k1::PublicKey;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
@@ -17,7 +17,6 @@ pub async fn handshake(
     stream: &mut TcpStream,
     my_identity: &IdentityKeypair,
 ) -> Result<[u8; 32], PcwError> {
-    let secp = Secp256k1::new();
     // Validate my public key (§3.7)
     if my_identity.pub_key.serialize().len() != 33 {
         return Err(PcwError::Other(
