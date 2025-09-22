@@ -73,7 +73,7 @@ pub fn build_note_tx(
     dust: u64,
     priv_keys: &[[u8; 32]],
 ) -> Result<(NoteTx, NoteMeta), PcwError> {
-    let secp = Secp256k1::new();
+    let _secp = Secp256k1::new();
     // Validate anchor_b and anchor_a (§4.9, §7.7)
     if anchor_b.serialize().len() != 33 || anchor_a.serialize().len() != 33 {
         return Err(PcwError::Other("Invalid anchor public key §7".to_string()));
