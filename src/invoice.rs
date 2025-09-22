@@ -244,7 +244,11 @@ mod tests {
         let value = serde_json::to_value(&invoice)?;
         let serialized = canonical_json(&value)?;
         let expected = serde_json::to_string(&value)?;
-        assert_eq!(String::from_utf8(serialized)?, expected);
+        assert_eq!(
+            String::from_utf8(serialized)
+                .map_err(|e| PcwError::Other(format!("UTF-8 error: {}", e)))?,
+            expected
+        );
         Ok(())
     }
 
