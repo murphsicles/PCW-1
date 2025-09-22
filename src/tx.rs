@@ -161,9 +161,8 @@ pub fn build_note_tx(
         )?;
         let msg = Message::from_digest(sighash.0);
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(msg, &SecretKey::from_byte_array(&priv_keys[j])?);
-        let pub_key =
-            PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&priv_keys[j])?);
+        let sig = secp.sign_ecdsa(msg, &SecretKey::from_byte_array(priv_keys[j])?);
+        let pub_key = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(priv_keys[j])?);
         tx.inputs[j].unlock_script = create_unlock_script(&sig.serialize_der(), &ser_p(&pub_key));
     }
     // Finalize metadata
