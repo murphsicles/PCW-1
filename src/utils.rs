@@ -51,7 +51,6 @@ pub fn base58check(version: u8, payload: &[u8]) -> Result<String, PcwError> {
 
 /// Point add: P1 + P2 using secp256k1 (§4.3).
 pub fn point_add(p1: &PublicKey, p2: &PublicKey) -> Result<PublicKey, PcwError> {
-    let secp = Secp256k1::new();
     // Validate p1 and p2: 33-byte compressed SEC1 (§4.3)
     if p1.serialize().len() != 33 || p2.serialize().len() != 33 {
         return Err(PcwError::Other("Invalid public key §4.3".to_string()));
@@ -68,7 +67,7 @@ pub fn scalar_mul(scalar: &[u8; 32]) -> Result<PublicKey, PcwError> {
         return Err(PcwError::Other("Zero scalar §4.3".to_string()));
     }
     let secp = Secp256k1::new();
-    let secret_key = SecretKey::from_byte_array(scalar)
+    let secret_key = SecretKey::from_byte_array(*scalar)
         .map_err(|e| PcwError::Other(format!("Invalid scalar: {} §4.3", e)))?;
     let pub_key = PublicKey::from_secret_key(&secp, &secret_key);
     Ok(pub_key)
