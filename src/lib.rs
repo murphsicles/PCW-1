@@ -98,7 +98,7 @@ mod tests {
         assert_eq!(split.iter().sum::<u64>(), 1000);
         // Create mock UTXO
         let mock_hash = utils::sha256(b"test_tx");
-        let mock_h160 = utils::h160(&ser_p(&utxo_pub));
+        let mock_h160 = utils::h160(&utils::ser_p(&utxo_pub));
         let mock_script = create_lock_script(&Hash160(mock_h160));
         let utxo = Utxo {
             outpoint: OutPoint {
@@ -171,6 +171,7 @@ mod tests {
         verify_proof(&proof, &manifest)?;
         Ok(())
     }
+
     #[test]
     fn test_invalid_keys() -> Result<(), PcwError> {
         // Test invalid private key
@@ -185,6 +186,7 @@ mod tests {
         assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid public key")));
         Ok(())
     }
+
     #[test]
     fn test_malformed_json() -> Result<(), PcwError> {
         let secp = Secp256k1::new();
@@ -218,6 +220,7 @@ mod tests {
         assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Zero total")));
         Ok(())
     }
+
     #[test]
     fn test_large_inputs() -> Result<(), PcwError> {
         let secp = Secp256k1::new();
@@ -228,7 +231,7 @@ mod tests {
         let anchor_a = AnchorKeypair::new([3u8; 32])?;
         let anchor_b = AnchorKeypair::new([4u8; 32])?;
         let utxo_priv = [5u8; 32];
-        let utxo_pub = PublicKey::from_secret_key(&secp, &SecretKey::from_slice(&utxo_priv)?);
+        let utxo_pub = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&utxo_priv)?);
         let expiry = Utc::now() + Duration::days(1);
         // Create policy
         let mut policy = Policy::new(
@@ -253,14 +256,14 @@ mod tests {
         invoice.sign(&identity_a)?;
         let h_i = invoice.h_i();
         // Create scope
-        let z = ecdh_z(&priv_a, &identity_b.pub_key)?;
+        let z = identity_a.ecdh(&identity_b.pub_key)?;
         let scope = Scope::new(z, h_i)?;
         // Large split (10 notes)
         let split = bounded_split(&scope, 10000, 100, 1000)?;
         assert_eq!(split.len(), 10);
         assert_eq!(split.iter().sum::<u64>(), 10000);
         // Large UTXO set (20 UTXOs)
-        let mock_h160 = utils::h160(&ser_p(&utxo_pub));
+        let mock_h160 = utils::h160(&utils::ser_p(&utxo_pub));
         let mock_script = create_lock_script(&Hash160(mock_h160));
         let mut utxos = vec![];
         for i in 0..20 {
@@ -347,7 +350,7 @@ mod tests {
         let anchor_a = AnchorKeypair::new([3u8; 32])?;
         let anchor_b = AnchorKeypair::new([4u8; 32])?;
         let utxo_priv = [5u8; 32];
-        let utxo_pub = PublicKey::from_secret_key(&secp, &SecretKey::from_slice(&utxo_priv)?);
+        let utxo_pub = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&utxo_priv)?);
         let expiry = Utc::now() + Duration::days(1);
         // Create policy
         let mut policy = Policy::new(
@@ -372,11 +375,11 @@ mod tests {
         invoice.sign(&identity_a)?;
         let h_i = invoice.h_i();
         // Create scope
-        let z = ecdh_z(&priv_a, &identity_b.pub_key)?;
+        let z = identity_a.ecdh(&identity_b.pub_key)?;
         let scope = Scope::new(z, h_i)?;
         // Test Underfunded
         let mock_hash = utils::sha256(b"test_tx");
-        let mock_h160 = utils::h160(&ser_p(&utxo_pub));
+        let mock_h160 = utils::h160(&utils::ser_p(&utxo_pub));
         let mock_script = create_lock_script(&Hash160(mock_h160));
         let utxo = Utxo {
             outpoint: OutPoint {
