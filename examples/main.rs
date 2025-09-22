@@ -1,18 +1,20 @@
-use chrono::Utc;
+use chrono::{Duration, Utc};
 use hex;
 use pcw_protocol::{
     AnchorKeypair, Entry, IdentityKeypair, Invoice, Manifest, PcwError, Policy, Scope, Utxo,
     addressing::{recipient_address, sender_change_address},
-    bounded_split, build_note_tx, build_reservations, compute_leaves, ecdh_z, generate_proof,
+    bounded_split, build_note_tx, build_reservations, compute_leaves, generate_proof,
     merkle_root,
-    utils::{h160, sha256},
+    utils::{h160, ser_p, sha256},
     verify_proof,
 };
+use secp256k1::{PublicKey, Secp256k1, SecretKey};
 use sv::messages::OutPoint;
 use sv::transaction::p2pkh::create_lock_script;
 use sv::util::{Hash160, Hash256};
 
 fn main() -> Result<(), PcwError> {
+    let secp = Secp256k1::new();
     // Mock keys
     let priv_a = [1u8; 32];
     let priv_b = [2u8; 32];
@@ -20,9 +22,11 @@ fn main() -> Result<(), PcwError> {
     let identity_b = IdentityKeypair::new(priv_b)?;
     let anchor_a = AnchorKeypair::new([3u8; 32])?;
     let anchor_b = AnchorKeypair::new([4u8; 32])?;
-
+    // Create mock UTXO private key
+    let utxo_priv = [5u8; 32];
+    let utxo_pub = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&utxo_priv)?);
     // Create and sign policy
-    let expiry = Utc::now() + chrono::Duration::days(1);
+    let expiry = Utc::now() + Duration::days(1);
     let mut policy = Policy::new(
         hex::encode(anchor_b.pub_key.serialize()),
         100,
@@ -33,7 +37,6 @@ fn main() -> Result<(), PcwError> {
     )?;
     policy.sign(&identity_b)?;
     let h_policy = policy.h_policy();
-
     // Create and sign invoice
     let mut invoice = Invoice::new(
         "inv1".to_string(),
@@ -45,20 +48,17 @@ fn main() -> Result<(), PcwError> {
     )?;
     invoice.sign(&identity_a)?;
     let h_i = invoice.h_i();
-
     // Create scope and derive address
-    let z = ecdh_z(&priv_a, &identity_b.pub_key)?;
+    let z = identity_a.ecdh(&identity_b.pub_key)?;
     let scope = Scope::new(z, h_i)?;
     let addr_b = recipient_address(&scope, 0, &anchor_b.pub_key)?;
     let addr_a = sender_change_address(&scope, 0, &anchor_a.pub_key)?;
-
     // Split amount
     let split = bounded_split(&scope, 1000, 100, 1000)?;
     let amounts = split;
-
     // Create mock UTXO
     let mock_hash = sha256(b"test_tx");
-    let mock_h160 = h160(&mock_hash);
+    let mock_h160 = h160(&ser_p(&utxo_pub));
     let mock_script = create_lock_script(&Hash160(mock_h160));
     let u0 = vec![Utxo {
         outpoint: OutPoint {
@@ -68,7 +68,6 @@ fn main() -> Result<(), PcwError> {
         value: 1500,
         script_pubkey: mock_script.0,
     }];
-
     // Build reservations
     let total = amounts.iter().sum::<u64>();
     let (reservations, _addrs, _amounts, _n) = build_reservations(
@@ -81,10 +80,8 @@ fn main() -> Result<(), PcwError> {
         50,    // dust
         false, // fanout_allowed
     )?;
-
     // Access reservations
     let s_i = reservations.get(0).unwrap().as_ref().unwrap();
-
     // Build transaction
     let priv_keys = vec![[5u8; 32]; s_i.len()];
     let (note_tx, meta) = build_note_tx(
@@ -98,9 +95,21 @@ fn main() -> Result<(), PcwError> {
         1,
         &priv_keys,
     )?;
-
     // Generate receipt
-    let addr_payloads = vec![[0u8; 21]; amounts.len()];
+    let addr_payloads = amounts
+        .iter()
+        .enumerate()
+        .map(|(i, _)| {
+            let addr = recipient_address(&scope, i as u32, &anchor_b.pub_key)?;
+            let lock_script = create_lock_script(&Hash160(h160(&ser_p(
+                &pcw_protocol::utils::point_add(
+                    &anchor_b.pub_key,
+                    &pcw_protocol::utils::scalar_mul(&scope.derive_scalar("recv", i as u32)?)?,
+                )?,
+            ))));
+            Ok(lock_script.0[0..21].to_vec())
+        })
+        .collect::<Result<Vec<_>, PcwError>>()?;
     let mut entries = vec![];
     for j in 0..amounts.len() {
         entries.push(Entry {
@@ -119,13 +128,11 @@ fn main() -> Result<(), PcwError> {
     manifest.merkle_root = hex::encode(root);
     let proof = generate_proof(&leaves, 0, &manifest, &amounts, &addr_payloads)?;
     verify_proof(&proof, &manifest)?;
-
-    // Print results (example)
+    // Print results
     println!("Recipient address: {}", addr_b);
     println!("Sender change address: {}", addr_a);
     println!("Selected UTXOs: {:?}", s_i);
     println!("Note transaction: {:?}", note_tx);
     println!("Transaction metadata: {:?}", meta);
-
     Ok(())
 }
