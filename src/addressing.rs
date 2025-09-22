@@ -15,7 +15,7 @@ use secp256k1::{PublicKey, Secp256k1};
 /// that only the recipient can spend (per §4).
 pub fn recipient_address(scope: &Scope, i: u32, anchor_b: &PublicKey) -> Result<String, PcwError> {
     // Validate anchor_b is a valid compressed SEC1 public key (§4.9)
-    let secp = Secp256k1::new();
+    let _secp = Secp256k1::new();
     if anchor_b.serialize().len() != 33 {
         return Err(PcwError::Other("Invalid public key §4.9".to_string()));
     }
@@ -41,7 +41,7 @@ pub fn sender_change_address(
     anchor_a: &PublicKey,
 ) -> Result<String, PcwError> {
     // Validate anchor_a is a valid compressed SEC1 public key (§7.7)
-    let secp = Secp256k1::new();
+    let _secp = Secp256k1::new();
     if anchor_a.serialize().len() != 33 {
         return Err(PcwError::Other("Invalid public key §7.7".to_string()));
     }
