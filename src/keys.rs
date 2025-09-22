@@ -26,7 +26,7 @@ impl AnchorKeypair {
             return Err(PcwError::Other("Zero private key §3.1".to_string()));
         }
         let secp = Secp256k1::new();
-        let sec_key = SecretKey::from_byte_array(&priv_key)
+        let sec_key = SecretKey::from_byte_array(priv_key)
             .map_err(|e| PcwError::Other(format!("Invalid private key: {} §3.1", e)))?;
         let pub_key = PublicKey::from_secret_key(&secp, &sec_key);
         Ok(Self { priv_key, pub_key })
@@ -39,7 +39,7 @@ impl AnchorKeypair {
         if their_pub.serialize().len() != 33 {
             return Err(PcwError::Other("Invalid public key §3.2".to_string()));
         }
-        let sec_key = SecretKey::from_byte_array(&self.priv_key)
+        let sec_key = SecretKey::from_byte_array(self.priv_key)
             .map_err(|e| PcwError::Other(format!("Invalid private key: {} §3.2", e)))?;
         // Convert SecretKey to Scalar for mul_tweak
         let scalar = Scalar::from(sec_key);
@@ -60,7 +60,7 @@ impl IdentityKeypair {
             return Err(PcwError::Other("Zero private key §3.1".to_string()));
         }
         let secp = Secp256k1::new();
-        let sec_key = SecretKey::from_byte_array(&priv_key)
+        let sec_key = SecretKey::from_byte_array(priv_key)
             .map_err(|e| PcwError::Other(format!("Invalid private key: {} §3.1", e)))?;
         let pub_key = PublicKey::from_secret_key(&secp, &sec_key);
         Ok(Self { priv_key, pub_key })
