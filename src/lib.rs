@@ -36,6 +36,7 @@ pub use scope::Scope;
 pub use selection::{Utxo, build_reservations};
 pub use split::bounded_split;
 pub use tx::{NoteMeta, NoteTx, build_note_tx};
+pub use utils::ecdh_z;
 
 #[cfg(test)]
 mod tests {
@@ -59,7 +60,7 @@ mod tests {
         let anchor_b = AnchorKeypair::new([4u8; 32])?;
         // Create mock UTXO private key
         let utxo_priv = [5u8; 32];
-        let utxo_pub = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&utxo_priv)?);
+        let utxo_pub = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(utxo_priv)?);
         // Create and sign policy
         let expiry = Utc::now() + Duration::days(1);
         let mut policy = Policy::new(
@@ -86,7 +87,7 @@ mod tests {
         invoice.verify(&h_policy)?;
         let h_i = invoice.h_i();
         // Create scope
-        let z = identity_a.ecdh(&identity_b.pub_key)?;
+        let z = ecdh_z(&priv_a, &identity_b.pub_key)?;
         let scope = Scope::new(z, h_i)?;
         // Derive addresses
         let addr_b = recipient_address(&scope, 0, &anchor_b.pub_key)?;
@@ -138,7 +139,7 @@ mod tests {
         assert!(meta.txid.len() > 0);
         // Create receipt
         let amounts = split;
-        let addr_payloads = amounts
+        let addr_payloads: Vec<[u8; 21]> = amounts
             .iter()
             .enumerate()
             .map(|(i, _)| {
@@ -148,7 +149,7 @@ mod tests {
                         &anchor_b.pub_key,
                         &utils::scalar_mul(&scope.derive_scalar("recv", i as u32)?)?,
                     )?))));
-                Ok(lock_script.0[0..21].to_vec())
+                Ok(lock_script.0[0..21].try_into().unwrap())
             })
             .collect::<Result<Vec<_>, PcwError>>()?;
         let mut entries = vec![];
@@ -189,7 +190,7 @@ mod tests {
 
     #[test]
     fn test_malformed_json() -> Result<(), PcwError> {
-        let secp = Secp256k1::new();
+        let _secp = Secp256k1::new();
         let priv_b = [2u8; 32];
         let identity_b = IdentityKeypair::new(priv_b)?;
         let anchor_b = AnchorKeypair::new([4u8; 32])?;
@@ -213,7 +214,7 @@ mod tests {
         let h_policy = policy.h_policy();
         // Malformed invoice JSON (zero total)
         let malformed_invoice: Value = serde_json::from_str(&format!(
-            r#"{"invoice_number":"test","terms":"terms","unit":"sat","total":0,"policy_hash":"{}","expiry":"2025-09-15T19:28:00Z","sig_key":"","sig_alg":"","sig":""}}"#,
+            r#"{{"invoice_number":"test","terms":"terms","unit":"sat","total":0,"policy_hash":"{}","expiry":"2025-09-15T19:28:00Z","sig_key":"","sig_alg":"","sig":""}}"#,
             hex::encode(h_policy)
         ))?;
         let result = canonical_json(&malformed_invoice);
@@ -231,7 +232,7 @@ mod tests {
         let anchor_a = AnchorKeypair::new([3u8; 32])?;
         let anchor_b = AnchorKeypair::new([4u8; 32])?;
         let utxo_priv = [5u8; 32];
-        let utxo_pub = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&utxo_priv)?);
+        let utxo_pub = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(utxo_priv)?);
         let expiry = Utc::now() + Duration::days(1);
         // Create policy
         let mut policy = Policy::new(
@@ -256,7 +257,7 @@ mod tests {
         invoice.sign(&identity_a)?;
         let h_i = invoice.h_i();
         // Create scope
-        let z = identity_a.ecdh(&identity_b.pub_key)?;
+        let z = ecdh_z(&priv_a, &identity_b.pub_key)?;
         let scope = Scope::new(z, h_i)?;
         // Large split (10 notes)
         let split = bounded_split(&scope, 10000, 100, 1000)?;
@@ -306,7 +307,7 @@ mod tests {
         assert_eq!(meta.amount, split[0]);
         // Create receipt for large set
         let amounts = split;
-        let addr_payloads = amounts
+        let addr_payloads: Vec<[u8; 21]> = amounts
             .iter()
             .enumerate()
             .map(|(i, _)| {
@@ -316,7 +317,7 @@ mod tests {
                         &anchor_b.pub_key,
                         &utils::scalar_mul(&scope.derive_scalar("recv", i as u32)?)?,
                     )?))));
-                Ok(lock_script.0[0..21].to_vec())
+                Ok(lock_script.0[0..21].try_into().unwrap())
             })
             .collect::<Result<Vec<_>, PcwError>>()?;
         let mut entries = vec![];
@@ -350,7 +351,7 @@ mod tests {
         let anchor_a = AnchorKeypair::new([3u8; 32])?;
         let anchor_b = AnchorKeypair::new([4u8; 32])?;
         let utxo_priv = [5u8; 32];
-        let utxo_pub = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&utxo_priv)?);
+        let utxo_pub = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(utxo_priv)?);
         let expiry = Utc::now() + Duration::days(1);
         // Create policy
         let mut policy = Policy::new(
@@ -375,7 +376,7 @@ mod tests {
         invoice.sign(&identity_a)?;
         let h_i = invoice.h_i();
         // Create scope
-        let z = identity_a.ecdh(&identity_b.pub_key)?;
+        let z = ecdh_z(&priv_a, &identity_b.pub_key)?;
         let scope = Scope::new(z, h_i)?;
         // Test Underfunded
         let mock_hash = utils::sha256(b"test_tx");
