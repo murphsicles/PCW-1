@@ -28,7 +28,7 @@ pub use json::canonical_json;
 pub use keys::{AnchorKeypair, IdentityKeypair};
 pub use logging::{LogRecord, append_to_log};
 pub use policy::Policy;
-pub use protocol::{ecdh_z, exchange_invoice, exchange_policy, handshake};
+pub use protocol::{exchange_invoice, exchange_policy, handshake};
 pub use receipts::{
     Entry, Manifest, Proof, compute_leaves, generate_proof, merkle_root, verify_proof,
 };
@@ -59,7 +59,7 @@ mod tests {
         let anchor_b = AnchorKeypair::new([4u8; 32])?;
         // Create mock UTXO private key
         let utxo_priv = [5u8; 32];
-        let utxo_pub = PublicKey::from_secret_key(&secp, &SecretKey::from_slice(&utxo_priv)?);
+        let utxo_pub = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(&utxo_priv)?);
         // Create and sign policy
         let expiry = Utc::now() + Duration::days(1);
         let mut policy = Policy::new(
@@ -86,7 +86,7 @@ mod tests {
         invoice.verify(&h_policy)?;
         let h_i = invoice.h_i();
         // Create scope
-        let z = ecdh_z(&priv_a, &identity_b.pub_key)?;
+        let z = identity_a.ecdh(&identity_b.pub_key)?;
         let scope = Scope::new(z, h_i)?;
         // Derive addresses
         let addr_b = recipient_address(&scope, 0, &anchor_b.pub_key)?;
@@ -171,7 +171,6 @@ mod tests {
         verify_proof(&proof, &manifest)?;
         Ok(())
     }
-
     #[test]
     fn test_invalid_keys() -> Result<(), PcwError> {
         // Test invalid private key
@@ -186,7 +185,6 @@ mod tests {
         assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid public key")));
         Ok(())
     }
-
     #[test]
     fn test_malformed_json() -> Result<(), PcwError> {
         let secp = Secp256k1::new();
@@ -220,7 +218,6 @@ mod tests {
         assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Zero total")));
         Ok(())
     }
-
     #[test]
     fn test_large_inputs() -> Result<(), PcwError> {
         let secp = Secp256k1::new();
