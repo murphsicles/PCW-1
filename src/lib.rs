@@ -143,12 +143,11 @@ mod tests {
             .enumerate()
             .map(|(i, _)| {
                 let addr = recipient_address(&scope, i as u32, &anchor_b.pub_key)?;
-                let lock_script = 
+                let lock_script =
                     create_lock_script(&Hash160(utils::h160(&utils::ser_p(&utils::point_add(
                         &anchor_b.pub_key,
                         &utils::scalar_mul(&scope.derive_scalar("recv", i as u32)?)?,
-                    )?,
-                ))));
+                    )?))));
                 Ok(lock_script.0[0..21].to_vec())
             })
             .collect::<Result<Vec<_>, PcwError>>()?;
@@ -312,12 +311,11 @@ mod tests {
             .enumerate()
             .map(|(i, _)| {
                 let addr = recipient_address(&scope, i as u32, &anchor_b.pub_key)?;
-                let lock_script = 
+                let lock_script =
                     create_lock_script(&Hash160(utils::h160(&utils::ser_p(&utils::point_add(
                         &anchor_b.pub_key,
                         &utils::scalar_mul(&scope.derive_scalar("recv", i as u32)?)?,
-                    )?,
-                ))));
+                    )?))));
                 Ok(lock_script.0[0..21].to_vec())
             })
             .collect::<Result<Vec<_>, PcwError>>()?;
