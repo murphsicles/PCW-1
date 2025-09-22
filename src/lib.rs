@@ -143,7 +143,7 @@ mod tests {
             .iter()
             .enumerate()
             .map(|(i, _)| {
-                let addr = recipient_address(&scope, i as u32, &anchor_b.pub_key)?;
+                let _addr = recipient_address(&scope, i as u32, &anchor_b.pub_key)?;
                 let lock_script =
                     create_lock_script(&Hash160(utils::h160(&utils::ser_p(&utils::point_add(
                         &anchor_b.pub_key,
@@ -214,7 +214,7 @@ mod tests {
         let h_policy = policy.h_policy();
         // Malformed invoice JSON (zero total)
         let malformed_invoice: Value = serde_json::from_str(&format!(
-            r#"{{"invoice_number":"test","terms":"terms","unit":"sat","total":0,"policy_hash":"{}","expiry":"2025-09-15T19:28:00Z","sig_key":"","sig_alg":"","sig":""}}"#,
+            r#"{"invoice_number":"test","terms":"terms","unit":"sat","total":0,"policy_hash":"{}","expiry":"2025-09-15T19:28:00Z","sig_key":"","sig_alg":"","sig":""}"#,
             hex::encode(h_policy)
         ))?;
         let result = canonical_json(&malformed_invoice);
