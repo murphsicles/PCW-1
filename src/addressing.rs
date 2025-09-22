@@ -16,10 +16,7 @@ use secp256k1::{PublicKey, Secp256k1};
 pub fn recipient_address(scope: &Scope, i: u32, anchor_b: &PublicKey) -> Result<String, PcwError> {
     // Validate anchor_b is a valid compressed SEC1 public key (§4.9)
     let secp = Secp256k1::new();
-    if anchor_b.serialize().len() != 33
-        || anchor_b.is_xonly()
-        || !secp.verify_point(anchor_b).is_ok()
-    {
+    if anchor_b.serialize().len() != 33 {
         return Err(PcwError::Other("Invalid public key §4.9".to_string()));
     }
     let t_i = scope.derive_scalar("recv", i)?;
@@ -45,10 +42,7 @@ pub fn sender_change_address(
 ) -> Result<String, PcwError> {
     // Validate anchor_a is a valid compressed SEC1 public key (§7.7)
     let secp = Secp256k1::new();
-    if anchor_a.serialize().len() != 33
-        || anchor_a.is_xonly()
-        || !secp.verify_point(anchor_a).is_ok()
-    {
+    if anchor_a.serialize().len() != 33 {
         return Err(PcwError::Other("Invalid public key §7.7".to_string()));
     }
     let s_i = scope.derive_scalar("snd", i)?;
@@ -70,7 +64,7 @@ mod tests {
     #[test]
     fn test_recipient_address() -> Result<(), PcwError> {
         let scope = Scope::new([1; 32], [2; 32])?;
-        let secret_key = SecretKey::from_slice(&[1; 32])?;
+        let secret_key = SecretKey::from_byte_array(&[1; 32])?;
         let secp = Secp256k1::new();
         let anchor_b = PublicKey::from_secret_key(&secp, &secret_key);
         let addr = recipient_address(&scope, 0, &anchor_b)?;
@@ -84,7 +78,7 @@ mod tests {
     #[test]
     fn test_sender_change_address() -> Result<(), PcwError> {
         let scope = Scope::new([1; 32], [2; 32])?;
-        let secret_key = SecretKey::from_slice(&[1; 32])?;
+        let secret_key = SecretKey::from_byte_array(&[1; 32])?;
         let secp = Secp256k1::new();
         let anchor_a = PublicKey::from_secret_key(&secp, &secret_key);
         let addr = sender_change_address(&scope, 0, &anchor_a)?;
@@ -118,7 +112,7 @@ mod tests {
     #[test]
     fn test_recipient_address_zero_scalar() -> Result<(), PcwError> {
         let scope = Scope::new([1; 32], [2; 32])?;
-        let secret_key = SecretKey::from_slice(&[1; 32])?;
+        let secret_key = SecretKey::from_byte_array(&[1; 32])?;
         let secp = Secp256k1::new();
         let anchor_b = PublicKey::from_secret_key(&secp, &secret_key);
         // Mock a zero scalar by overriding derive_scalar (not directly possible, but tested via scalar_mul)
@@ -130,7 +124,7 @@ mod tests {
     #[test]
     fn test_sender_change_address_zero_scalar() -> Result<(), PcwError> {
         let scope = Scope::new([1; 32], [2; 32])?;
-        let secret_key = SecretKey::from_slice(&[1; 32])?;
+        let secret_key = SecretKey::from_byte_array(&[1; 32])?;
         let secp = Secp256k1::new();
         let anchor_a = PublicKey::from_secret_key(&secp, &secret_key);
         // Mock a zero scalar by overriding derive_scalar (not directly possible, but tested via scalar_mul)
@@ -142,7 +136,7 @@ mod tests {
     #[test]
     fn test_recipient_address_boundary_index() -> Result<(), PcwError> {
         let scope = Scope::new([1; 32], [2; 32])?;
-        let secret_key = SecretKey::from_slice(&[1; 32])?;
+        let secret_key = SecretKey::from_byte_array(&[1; 32])?;
         let secp = Secp256k1::new();
         let anchor_b = PublicKey::from_secret_key(&secp, &secret_key);
         let addr = recipient_address(&scope, u32::MAX, &anchor_b)?;
@@ -156,7 +150,7 @@ mod tests {
     #[test]
     fn test_sender_change_address_boundary_index() -> Result<(), PcwError> {
         let scope = Scope::new([1; 32], [2; 32])?;
-        let secret_key = SecretKey::from_slice(&[1; 32])?;
+        let secret_key = SecretKey::from_byte_array(&[1; 32])?;
         let secp = Secp256k1::new();
         let anchor_a = PublicKey::from_secret_key(&secp, &secret_key);
         let addr = sender_change_address(&scope, u32::MAX, &anchor_a)?;
