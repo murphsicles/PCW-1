@@ -51,7 +51,9 @@ impl Invoice {
             return Err(PcwError::Other("Invalid policy_hash format".to_string()));
         }
         // Validate expiry not in the past (§3.4)
-        if let Some(exp) = expiry && exp < Utc::now() {
+        if let Some(exp) = expiry
+            && exp < Utc::now()
+        {
             return Err(PcwError::Other("Expiry in the past §3.4".to_string()));
         }
         Ok(Self {
