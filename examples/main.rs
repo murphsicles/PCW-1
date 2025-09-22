@@ -4,7 +4,8 @@ use pcw_protocol::{
     AnchorKeypair, Entry, IdentityKeypair, Invoice, Manifest, PcwError, Policy, Scope, Utxo,
     addressing::{recipient_address, sender_change_address},
     bounded_split, build_note_tx, build_reservations, compute_leaves, generate_proof, merkle_root,
-    utils::{ecdh_z, h160, ser_p, sha256}, verify_proof,
+    utils::{ecdh_z, h160, ser_p, sha256},
+    verify_proof,
 };
 use secp256k1::{PublicKey, Secp256k1, SecretKey};
 use sv::messages::OutPoint;
@@ -99,12 +100,11 @@ fn main() -> Result<(), PcwError> {
         .enumerate()
         .map(|(i, _)| {
             let addr = recipient_address(&scope, i as u32, &anchor_b.pub_key)?;
-            let lock_script = create_lock_script(&Hash160(h160(&ser_p(
-                &pcw_protocol::utils::point_add(
+            let lock_script =
+                create_lock_script(&Hash160(h160(&ser_p(&pcw_protocol::utils::point_add(
                     &anchor_b.pub_key,
                     &pcw_protocol::utils::scalar_mul(&scope.derive_scalar("recv", i as u32)?)?,
-                )?,
-            ))));
+                )?))));
             Ok(lock_script.0[0..21].try_into().unwrap())
         })
         .collect::<Result<Vec<_>, PcwError>>()?;
