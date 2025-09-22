@@ -82,7 +82,7 @@ impl Invoice {
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_slice(&key.priv_key)?);
+        let sig = secp.sign_ecdsa(msg, &SecretKey::from_byte_array(&key.priv_key)?);
         self.sig_key = sig_key;
         self.sig_alg = sig_alg;
         self.sig = hex::encode(sig.serialize_der());
@@ -112,7 +112,7 @@ impl Invoice {
             .map_err(|_| PcwError::Other("Invalid signature".to_string()))?;
         let sig = Signature::from_der(&hex::decode(&self.sig)?)
             .map_err(|_| PcwError::Other("Invalid signature".to_string()))?;
-        secp.verify_ecdsa(&msg, &sig, &pub_key)
+        secp.verify_ecdsa(msg, &sig, &pub_key)
             .map_err(|_| PcwError::Other("Invalid signature".to_string()))?;
         Ok(())
     }
