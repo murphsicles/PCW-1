@@ -102,8 +102,8 @@ fn main() -> Result<(), PcwError> {
             let addr = recipient_address(&scope, i as u32, &anchor_b.pub_key)?;
             let lock_script =
                 create_lock_script(&Hash160(h160(&ser_p(&pcw_protocol::utils::point_add(
-                        &anchor_b.pub_key,
-                        &pcw_protocol::utils::scalar_mul(&scope.derive_scalar("recv", i as u32)?)?,
+                    &anchor_b.pub_key,
+                    &pcw_protocol::utils::scalar_mul(&scope.derive_scalar("recv", i as u32)?)?,
                 )?))));
             Ok(lock_script.0[0..21].to_vec())
         })
