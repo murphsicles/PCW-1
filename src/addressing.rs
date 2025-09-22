@@ -64,7 +64,7 @@ mod tests {
     #[test]
     fn test_recipient_address() -> Result<(), PcwError> {
         let scope = Scope::new([1; 32], [2; 32])?;
-        let secret_key = SecretKey::from_byte_array(&[1; 32])?;
+        let secret_key = SecretKey::from_byte_array([1; 32])?;
         let secp = Secp256k1::new();
         let anchor_b = PublicKey::from_secret_key(&secp, &secret_key);
         let addr = recipient_address(&scope, 0, &anchor_b)?;
@@ -78,7 +78,7 @@ mod tests {
     #[test]
     fn test_sender_change_address() -> Result<(), PcwError> {
         let scope = Scope::new([1; 32], [2; 32])?;
-        let secret_key = SecretKey::from_byte_array(&[1; 32])?;
+        let secret_key = SecretKey::from_byte_array([1; 32])?;
         let secp = Secp256k1::new();
         let anchor_a = PublicKey::from_secret_key(&secp, &secret_key);
         let addr = sender_change_address(&scope, 0, &anchor_a)?;
@@ -112,7 +112,7 @@ mod tests {
     #[test]
     fn test_recipient_address_zero_scalar() -> Result<(), PcwError> {
         let scope = Scope::new([1; 32], [2; 32])?;
-        let secret_key = SecretKey::from_byte_array(&[1; 32])?;
+        let secret_key = SecretKey::from_byte_array([1; 32])?;
         let secp = Secp256k1::new();
         let anchor_b = PublicKey::from_secret_key(&secp, &secret_key);
         // Mock a zero scalar by overriding derive_scalar (not directly possible, but tested via scalar_mul)
@@ -124,7 +124,7 @@ mod tests {
     #[test]
     fn test_sender_change_address_zero_scalar() -> Result<(), PcwError> {
         let scope = Scope::new([1; 32], [2; 32])?;
-        let secret_key = SecretKey::from_byte_array(&[1; 32])?;
+        let secret_key = SecretKey::from_byte_array([1; 32])?;
         let secp = Secp256k1::new();
         let anchor_a = PublicKey::from_secret_key(&secp, &secret_key);
         // Mock a zero scalar by overriding derive_scalar (not directly possible, but tested via scalar_mul)
@@ -136,7 +136,7 @@ mod tests {
     #[test]
     fn test_recipient_address_boundary_index() -> Result<(), PcwError> {
         let scope = Scope::new([1; 32], [2; 32])?;
-        let secret_key = SecretKey::from_byte_array(&[1; 32])?;
+        let secret_key = SecretKey::from_byte_array([1; 32])?;
         let secp = Secp256k1::new();
         let anchor_b = PublicKey::from_secret_key(&secp, &secret_key);
         let addr = recipient_address(&scope, u32::MAX, &anchor_b)?;
@@ -150,7 +150,7 @@ mod tests {
     #[test]
     fn test_sender_change_address_boundary_index() -> Result<(), PcwError> {
         let scope = Scope::new([1; 32], [2; 32])?;
-        let secret_key = SecretKey::from_byte_array(&[1; 32])?;
+        let secret_key = SecretKey::from_byte_array([1; 32])?;
         let secp = Secp256k1::new();
         let anchor_a = PublicKey::from_secret_key(&secp, &secret_key);
         let addr = sender_change_address(&scope, u32::MAX, &anchor_a)?;
