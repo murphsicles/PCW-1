@@ -1,8 +1,9 @@
-//! Module for protocol handling in the PCW-1 protocol.
-//!
-//! This module implements the async protocol functions for handshake (§3.5), policy exchange
-//! (§3.5, §14.1), and invoice exchange (§3.5, §14.2) over TCP streams. It uses Tokio for
-//! asynchronous I/O and serde_json for serialization/deserialization.
+/*! Module for protocol handling in the PCW-1 protocol.
+
+This module implements the async protocol functions for handshake (§3.5), policy exchange
+(§3.5, §14.1), and invoice exchange (§3.5, §14.2) over TCP streams. It uses Tokio for
+asynchronous I/O and serde_json for serialization/deserialization.
+*/
 use crate::errors::PcwError;
 use crate::invoice::Invoice;
 use crate::json::canonical_json;
@@ -221,21 +222,22 @@ mod tests {
             .map_err(|e| PcwError::Io(format!("Get local addr failed: {}", e)))?;
         let key = IdentityKeypair::new([1u8; 32])?;
         let key_clone = key.clone();
+        let expiry = Utc::now() + chrono::Duration::days(1);
+        let policy = Policy::new(
+            hex::encode(key.pub_key.serialize()),
+            100,
+            1000,
+            500,
+            1,
+            expiry,
+        )?;
+        let policy_clone = policy.clone();
         let t1 = tokio::spawn(async move {
             let (mut stream, _) = listener
                 .accept()
                 .await
                 .map_err(|e| PcwError::Io(format!("Accept failed: {}", e)))?;
-            let expiry = Utc::now() + chrono::Duration::days(1);
-            let mut policy = Policy::new(
-                hex::encode(key_clone.pub_key.serialize()),
-                100,
-                1000,
-                500,
-                1,
-                expiry,
-            )?;
-            policy.sign(&key_clone)?;
+            let policy = exchange_policy(&mut stream, Some(policy_clone)).await?;
             let policy_hash = policy.h_policy();
             let mut invoice = Invoice::new(
                 "test".to_string(),
@@ -252,16 +254,7 @@ mod tests {
             let mut stream = TcpStream::connect(addr)
                 .await
                 .map_err(|e| PcwError::Io(format!("Connect failed: {}", e)))?;
-            let expiry = Utc::now() + chrono::Duration::days(1);
-            let mut policy = Policy::new(
-                hex::encode(key.pub_key.serialize()),
-                100,
-                1000,
-                500,
-                1,
-                expiry,
-            )?;
-            policy.sign(&key)?;
+            let policy = exchange_policy(&mut stream, None).await?;
             let policy_hash = policy.h_policy();
             exchange_invoice(&mut stream, None, &policy_hash).await
         });
