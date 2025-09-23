@@ -23,7 +23,11 @@ pub fn sha256(data: &[u8]) -> [u8; 32] {
 pub fn h160(data: &[u8]) -> [u8; 20] {
     let mut hasher = Ripemd160::new();
     hasher.update(sha256(data));
-    hasher.finalize().as_slice().try_into().expect("RIPEMD160 output is 20 bytes")
+    hasher
+        .finalize()
+        .as_slice()
+        .try_into()
+        .expect("RIPEMD160 output is 20 bytes")
 }
 
 /// serP: Compressed SEC1 public key encoding (§2).
