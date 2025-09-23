@@ -78,7 +78,6 @@ impl LogRecord for ReissueRecord {
         self.set_signature(by, sig_alg, sig_hex);
         Ok(())
     }
-
     fn verify(&self) -> Result<(), PcwError> {
         let mut unsigned = self.clone();
         unsigned.set_signature("".to_string(), "".to_string(), "".to_string());
@@ -95,27 +94,21 @@ impl LogRecord for ReissueRecord {
             .map_err(|_| PcwError::Other("Invalid signature §13.6".to_string()))?;
         Ok(())
     }
-
     fn prev_hash(&self) -> String {
         self.prev_hash.clone()
     }
-
     fn set_prev_hash(&mut self, hash: String) {
         self.prev_hash = hash;
     }
-
     fn seq(&self) -> u64 {
         self.seq
     }
-
     fn set_seq(&mut self, seq: u64) {
         self.seq = seq;
     }
-
     fn set_at(&mut self, at: String) {
         self.at = at;
     }
-
     fn set_signature(&mut self, by: String, sig_alg: String, sig: String) {
         self.by = by;
         self.sig_alg = sig_alg;
@@ -156,7 +149,6 @@ impl LogRecord for CancelRecord {
         self.set_signature(by, sig_alg, sig_hex);
         Ok(())
     }
-
     fn verify(&self) -> Result<(), PcwError> {
         let mut unsigned = self.clone();
         unsigned.set_signature("".to_string(), "".to_string(), "".to_string());
@@ -173,27 +165,21 @@ impl LogRecord for CancelRecord {
             .map_err(|_| PcwError::Other("Invalid signature §13.6".to_string()))?;
         Ok(())
     }
-
     fn prev_hash(&self) -> String {
         self.prev_hash.clone()
     }
-
     fn set_prev_hash(&mut self, hash: String) {
         self.prev_hash = hash;
     }
-
     fn seq(&self) -> u64 {
         self.seq
     }
-
     fn set_seq(&mut self, seq: u64) {
         self.seq = seq;
     }
-
     fn set_at(&mut self, at: String) {
         self.at = at;
     }
-
     fn set_signature(&mut self, by: String, sig_alg: String, sig: String) {
         self.by = by;
         self.sig_alg = sig_alg;
@@ -233,7 +219,6 @@ impl LogRecord for ConflictRecord {
         self.set_signature(by, sig_alg, sig_hex);
         Ok(())
     }
-
     fn verify(&self) -> Result<(), PcwError> {
         let mut unsigned = self.clone();
         unsigned.set_signature("".to_string(), "".to_string(), "".to_string());
@@ -250,27 +235,21 @@ impl LogRecord for ConflictRecord {
             .map_err(|_| PcwError::Other("Invalid signature §13.6".to_string()))?;
         Ok(())
     }
-
     fn prev_hash(&self) -> String {
         self.prev_hash.clone()
     }
-
     fn set_prev_hash(&mut self, hash: String) {
         self.prev_hash = hash;
     }
-
     fn seq(&self) -> u64 {
         self.seq
     }
-
     fn set_seq(&mut self, seq: u64) {
         self.seq = seq;
     }
-
     fn set_at(&mut self, at: String) {
         self.at = at;
     }
-
     fn set_signature(&mut self, by: String, sig_alg: String, sig: String) {
         self.by = by;
         self.sig_alg = sig_alg;
@@ -311,7 +290,6 @@ impl LogRecord for OrphanedRecord {
         self.set_signature(by, sig_alg, sig_hex);
         Ok(())
     }
-
     fn verify(&self) -> Result<(), PcwError> {
         let mut unsigned = self.clone();
         unsigned.set_signature("".to_string(), "".to_string(), "".to_string());
@@ -328,27 +306,21 @@ impl LogRecord for OrphanedRecord {
             .map_err(|_| PcwError::Other("Invalid signature §13.6".to_string()))?;
         Ok(())
     }
-
     fn prev_hash(&self) -> String {
         self.prev_hash.clone()
     }
-
     fn set_prev_hash(&mut self, hash: String) {
         self.prev_hash = hash;
     }
-
     fn seq(&self) -> u64 {
         self.seq
     }
-
     fn set_seq(&mut self, seq: u64) {
         self.seq = seq;
     }
-
     fn set_at(&mut self, at: String) {
         self.at = at;
     }
-
     fn set_signature(&mut self, by: String, sig_alg: String, sig: String) {
         self.by = by;
         self.sig_alg = sig_alg;
@@ -383,38 +355,36 @@ pub fn verify_log_chain<T: LogRecord>(log: &[T]) -> Result<(), PcwError> {
         return Ok(());
     }
     // Pass 1: Verify sequence numbers and previous hashes
-    for i in 0..log.len() {
-        // Verify sequence number
-        if log[i].seq() != (i + 1) as u64 {
+    for (i, record) in log.iter().enumerate() {
+        if record.seq() != (i as u64 + 1) {
             return Err(PcwError::Other(format!(
                 "Invalid sequence number at index {}: expected {}, found {} §13.7",
                 i,
                 i + 1,
-                log[i].seq()
+                record.seq()
             )));
         }
-        // Verify previous hash
         if i > 0 {
             let mut prev_unsigned = log[i - 1].clone();
             prev_unsigned.set_signature("".to_string(), "".to_string(), "".to_string());
             let value = serde_json::to_value(&prev_unsigned)?;
             let p_bytes = canonical_json(&value)?;
             let expected_prev_hash = hex::encode(sha256(&p_bytes));
-            if log[i].prev_hash() != expected_prev_hash {
+            if record.prev_hash() != expected_prev_hash {
                 return Err(PcwError::Other(format!(
                     "Invalid prev_hash at index {} §13.7",
                     i
                 )));
             }
-        } else if log[i].prev_hash() != "" {
+        } else if record.prev_hash() != "" {
             return Err(PcwError::Other(
                 "First record must have empty prev_hash §13.7".to_string(),
             ));
         }
     }
     // Pass 2: Verify signatures
-    for i in 0..log.len() {
-        log[i].verify()?;
+    for record in log {
+        record.verify()?;
     }
     Ok(())
 }
