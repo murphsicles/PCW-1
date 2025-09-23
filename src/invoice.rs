@@ -217,12 +217,16 @@ mod tests {
         // Tamper with signature
         invoice.sig = "invalid".to_string();
         let result = invoice.verify(&policy_hash);
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid signature format")));
+        assert!(
+            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid signature format"))
+        );
         // Tamper with invoice field
         let mut tampered = invoice.clone();
         tampered.total = 2000;
         let result = tampered.verify(&policy_hash);
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Signature verification failed")));
+        assert!(
+            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Signature verification failed"))
+        );
         Ok(())
     }
 
