@@ -129,6 +129,7 @@ mod tests {
     use crate::invoice::Invoice;
     use crate::keys::IdentityKeypair;
     use crate::policy::Policy;
+    use crate::utils::ecdh_z;
     use chrono::Utc;
     use hex;
     use tokio::net::TcpListener;
@@ -177,6 +178,7 @@ mod tests {
             .local_addr()
             .map_err(|e| PcwError::Io(format!("Get local addr failed: {}", e)))?;
         let key = IdentityKeypair::new([1u8; 32])?;
+        let key_clone = key.clone();
         let t1 = tokio::spawn(async move {
             let (mut stream, _) = listener
                 .accept()
@@ -184,14 +186,14 @@ mod tests {
                 .map_err(|e| PcwError::Io(format!("Accept failed: {}", e)))?;
             let expiry = Utc::now() + chrono::Duration::days(1);
             let mut policy = Policy::new(
-                hex::encode(key.pub_key.serialize()),
+                hex::encode(key_clone.pub_key.serialize()),
                 100,
                 1000,
                 500,
                 1,
                 expiry,
             )?;
-            policy.sign(&key)?;
+            policy.sign(&key_clone)?;
             exchange_policy(&mut stream, Some(policy)).await
         });
         let t2 = tokio::spawn(async move {
@@ -219,6 +221,7 @@ mod tests {
             .local_addr()
             .map_err(|e| PcwError::Io(format!("Get local addr failed: {}", e)))?;
         let key = IdentityKeypair::new([1u8; 32])?;
+        let key_clone = key.clone();
         let t1 = tokio::spawn(async move {
             let (mut stream, _) = listener
                 .accept()
@@ -226,14 +229,14 @@ mod tests {
                 .map_err(|e| PcwError::Io(format!("Accept failed: {}", e)))?;
             let expiry = Utc::now() + chrono::Duration::days(1);
             let mut policy = Policy::new(
-                hex::encode(key.pub_key.serialize()),
+                hex::encode(key_clone.pub_key.serialize()),
                 100,
                 1000,
                 500,
                 1,
                 expiry,
             )?;
-            policy.sign(&key)?;
+            policy.sign(&key_clone)?;
             let policy_hash = policy.h_policy();
             let mut invoice = Invoice::new(
                 "test".to_string(),
@@ -243,7 +246,7 @@ mod tests {
                 hex::encode(policy_hash),
                 Some(expiry),
             )?;
-            invoice.sign(&key)?;
+            invoice.sign(&key_clone)?;
             exchange_invoice(&mut stream, Some(invoice), &policy_hash).await
         });
         let t2 = tokio::spawn(async move {
