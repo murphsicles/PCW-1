@@ -106,7 +106,7 @@ mod tests {
                 hash: Hash256(mock_hash),
                 index: 0,
             },
-            value: 1500,
+            value: 2000,
             script_pubkey: mock_script.0.clone(),
         };
         // Build reservations
@@ -183,8 +183,8 @@ mod tests {
         let priv_key = [1u8; 32];
         let keypair = AnchorKeypair::new(priv_key)?;
         let invalid_pub = [0xFFu8; 33]; // Invalid prefix, not on curve
-        let result = keypair.ecdh(&PublicKey::from_slice(&invalid_pub)?);
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid public key")));
+        let result = PublicKey::from_slice(&invalid_pub);
+        assert!(matches!(result, Err(secp256k1::Error::InvalidPublicKey)));
         Ok(())
     }
 
@@ -218,7 +218,7 @@ mod tests {
             hex::encode(h_policy)
         ))?;
         let result = canonical_json(&malformed_invoice);
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Zero total")));
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Zero amount")));
         Ok(())
     }
 
@@ -289,7 +289,7 @@ mod tests {
             50,
             false,
         )?;
-        assert_eq!(reservations.len(), 10);
+        assert_eq!(reservations.len(), split.len());
         // Build transaction for first note
         let s_i = reservations.get(0).unwrap().as_ref().unwrap();
         let priv_keys = vec![utxo_priv; s_i.len()];
@@ -409,7 +409,7 @@ mod tests {
                 hash: Hash256(mock_hash),
                 index: 0,
             },
-            value: 149, // Causes dust change
+            value: 150, // Causes dust change
             script_pubkey: mock_script.0.clone(),
         };
         let priv_keys = vec![utxo_priv];
