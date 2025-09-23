@@ -108,12 +108,12 @@ impl Invoice {
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
         let pub_key = PublicKey::from_slice(&hex::decode(&self.sig_key)?)
-            .map_err(|_| PcwError::Other("Invalid signature".to_string()))?;
+            .map_err(|_| PcwError::Other("Invalid public key §3.4".to_string()))?;
         let sig = Signature::from_der(&hex::decode(&self.sig)?)
-            .map_err(|_| PcwError::Other("Invalid signature".to_string()))?;
+            .map_err(|_| PcwError::Other("Invalid signature format §3.4".to_string()))?;
         let secp = Secp256k1::new();
         secp.verify_ecdsa(msg, &sig, &pub_key)
-            .map_err(|_| PcwError::Other("Invalid signature".to_string()))?;
+            .map_err(|_| PcwError::Other("Signature verification failed §3.4".to_string()))?;
         Ok(())
     }
 
@@ -217,12 +217,12 @@ mod tests {
         // Tamper with signature
         invoice.sig = "invalid".to_string();
         let result = invoice.verify(&policy_hash);
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid signature")));
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid signature format")));
         // Tamper with invoice field
         let mut tampered = invoice.clone();
         tampered.total = 2000;
         let result = tampered.verify(&policy_hash);
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid signature")));
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Signature verification failed")));
         Ok(())
     }
 
