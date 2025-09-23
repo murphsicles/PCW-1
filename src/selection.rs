@@ -1,8 +1,9 @@
-//! Module for UTXO selection and reservation logic in the PCW-1 protocol.
-//!
-//! This module implements the UTXO selection and reservation logic as per §6, including
-//! `build_reservations` with stages A-D (§6.4), deterministic ordering, and optional fan-out (§6.8).
-//! It manages disjoint input sets (S_i) for each note in a payment, ensuring privacy and auditability.
+/*! Module for UTXO selection and reservation logic in the PCW-1 protocol.
+
+This module implements the UTXO selection and reservation logic as per §6, including
+`build_reservations` with stages A-D (§6.4), deterministic ordering, and optional fan-out (§6.8).
+It manages disjoint input sets (S_i) for each note in a payment, ensuring privacy and auditability.
+*/
 use crate::addressing::recipient_address;
 use crate::errors::PcwError;
 use crate::scope::Scope;
@@ -149,28 +150,33 @@ fn select_utxos(
     let base_fee = feerate_floor * 10; // Base tx fee
     let mut min_selected = None;
     let mut min_count = usize::MAX;
-    let mut sum = 0;
-    let mut selected = vec![];
-    // Sort UTXOs by value in descending order
+    // Stage A: Try single-input exact or near-over (§6.4, preference 1-2)
     let mut sorted_utxos = utxos
         .iter()
         .filter(|u| !used.contains(&u.outpoint.hash))
         .cloned()
         .collect::<Vec<_>>();
     sorted_utxos.sort_by(|a, b| a.value.cmp(&b.value).reverse());
-    // Try each prefix of sorted UTXOs
+    for utxo in &sorted_utxos {
+        let m = 1;
+        let fee = base_fee + feerate_floor * (148 * m as u64 + 34); // 1 input, 1 output
+        if utxo.value >= target + fee {
+            // Exact or near-over match
+            used.insert(utxo.outpoint.hash);
+            return Ok(Some(vec![utxo.clone()]));
+        }
+    }
+    // Stage B: Try multiple inputs (§6.4, preference 3)
+    let mut sum = 0;
+    let mut selected = vec![];
     for utxo in sorted_utxos {
         selected.push(utxo.clone());
         sum += utxo.value;
         let m = selected.len();
-        let fee = base_fee + feerate_floor * (148 * m as u64 + 34);
+        let fee = base_fee + feerate_floor * (148 * m as u64 + 34 * 2); // Assume 2 outputs
         if sum >= target + fee + dust && m <= min_count {
             min_selected = Some(selected.clone());
             min_count = m;
-            // If we have a single UTXO that’s sufficient, we can stop
-            if m == 1 {
-                break;
-            }
         }
     }
     if let Some(selected) = min_selected {
