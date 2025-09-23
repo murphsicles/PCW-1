@@ -1,8 +1,9 @@
-//! Module for logging in the PCW-1 protocol.
-//!
-//! This module provides a signed, append-only logging system as per §13.6-§13.7,
-//! with record types for reissues, cancellations, conflicts, and orphaned notes.
-//! Logs are chained via previous hashes and signed with identity keypairs.
+/*! Module for logging in the PCW-1 protocol.
+
+This module provides a signed, append-only logging system as per §13.6-§13.7,
+with record types for reissues, cancellations, conflicts, and orphaned notes.
+Logs are chained via previous hashes and signed with identity keypairs.
+*/
 use crate::errors::PcwError;
 use crate::json::canonical_json;
 use crate::keys::IdentityKeypair;
@@ -381,6 +382,7 @@ pub fn verify_log_chain<T: LogRecord>(log: &[T]) -> Result<(), PcwError> {
     if log.is_empty() {
         return Ok(());
     }
+    // Pass 1: Verify sequence numbers and previous hashes
     for i in 0..log.len() {
         // Verify sequence number
         if log[i].seq() != (i + 1) as u64 {
@@ -409,7 +411,9 @@ pub fn verify_log_chain<T: LogRecord>(log: &[T]) -> Result<(), PcwError> {
                 "First record must have empty prev_hash §13.7".to_string(),
             ));
         }
-        // Verify signature
+    }
+    // Pass 2: Verify signatures
+    for i in 0..log.len() {
         log[i].verify()?;
     }
     Ok(())
