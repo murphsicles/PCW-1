@@ -210,9 +210,9 @@ mod tests {
         let sk = SecretKey::from_byte_array([1u8; 32])?;
         let pk = PublicKey::from_secret_key(&secp, &sk);
         // Invalid public key (incorrect 33-byte array)
-        let invalid_pk = [0xFFu8; 33]; // Invalid prefix, not on curve
-        let result = point_add(&pk, &PublicKey::from_slice(&invalid_pk)?);
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid public key")));
+        let invalid_pub = [0xFFu8; 33]; // Invalid prefix, not on curve
+        let result = PublicKey::from_slice(&invalid_pub);
+        assert!(matches!(result, Err(secp256k1::Error::InvalidPublicKey)));
         Ok(())
     }
 
@@ -253,8 +253,8 @@ mod tests {
         let priv_key = [1u8; 32];
         // Invalid public key (incorrect 33-byte array)
         let invalid_pub = [0xFFu8; 33]; // Invalid prefix, not on curve
-        let result = ecdh_z(&priv_key, &PublicKey::from_slice(&invalid_pub)?);
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid public key")));
+        let result = PublicKey::from_slice(&invalid_pub);
+        assert!(matches!(result, Err(secp256k1::Error::InvalidPublicKey)));
         // Zero private key
         let secp = Secp256k1::new();
         let pub_key = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array([1u8; 32])?);
