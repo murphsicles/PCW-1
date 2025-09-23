@@ -1,8 +1,9 @@
-//! Module for invoice management in the PCW-1 protocol.
-//!
-//! This module implements the invoice structure and signing as per §3.4, including
-//! fields for invoice details, policy hash, and signatures. Invoices are signed and
-//! verified using secp256k1 ECDSA, with validation for policy compliance.
+/*! Module for invoice management in the PCW-1 protocol.
+
+This module implements the invoice structure and signing as per §3.4, including
+fields for invoice details, policy hash, and signatures. Invoices are signed and
+verified using secp256k1 ECDSA, with validation for policy compliance.
+*/
 use crate::errors::PcwError;
 use crate::json::canonical_json;
 use crate::keys::IdentityKeypair;
@@ -218,7 +219,7 @@ mod tests {
         invoice.sig = "invalid".to_string();
         let result = invoice.verify(&policy_hash);
         assert!(
-            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid signature format"))
+            matches!(result, Err(PcwError::Other(msg)) if msg == "Invalid signature format §3.4")
         );
         // Tamper with invoice field
         let mut tampered = invoice.clone();
