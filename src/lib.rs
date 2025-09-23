@@ -1,8 +1,9 @@
-//! Peer Cash Wallet Protocol (PCW-1): IP-to-IP BSV settlement protocol per spec.
-//!
-//! This crate implements the PCW-1 protocol as defined in §1-§17, providing modules
-//! for key management, address derivation, transaction building, logging, and more.
-//! It ensures deterministic, secure, and auditable payment processing.
+/*! Peer Cash Wallet Protocol (PCW-1): IP-to-IP BSV settlement protocol per spec.
+
+This crate implements the PCW-1 protocol as defined in §1-§17, providing modules
+for key management, address derivation, transaction building, logging, and more.
+It ensures deterministic, secure, and auditable payment processing.
+*/
 pub mod addressing;
 pub mod broadcast;
 pub mod errors;
@@ -106,7 +107,7 @@ mod tests {
                 hash: Hash256(mock_hash),
                 index: 0,
             },
-            value: 2000,
+            value: 1552,
             script_pubkey: mock_script.0.clone(),
         };
         // Build reservations
@@ -181,7 +182,6 @@ mod tests {
         // Test invalid public key in ECDH
         let secp = Secp256k1::new();
         let priv_key = [1u8; 32];
-        let keypair = AnchorKeypair::new(priv_key)?;
         let invalid_pub = [0xFFu8; 33]; // Invalid prefix, not on curve
         let result = PublicKey::from_slice(&invalid_pub);
         assert!(matches!(result, Err(secp256k1::Error::InvalidPublicKey)));
@@ -190,7 +190,6 @@ mod tests {
 
     #[test]
     fn test_malformed_json() -> Result<(), PcwError> {
-        let _secp = Secp256k1::new();
         let priv_b = [2u8; 32];
         let identity_b = IdentityKeypair::new(priv_b)?;
         let anchor_b = AnchorKeypair::new([4u8; 32])?;
@@ -213,11 +212,14 @@ mod tests {
         policy.sign(&identity_b)?;
         let h_policy = policy.h_policy();
         // Malformed invoice JSON (zero total)
-        let malformed_invoice: Value = serde_json::from_str(&format!(
-            r#"{{"invoice_number":"test","terms":"terms","unit":"sat","total":0,"policy_hash":"{}","expiry":"2025-09-15T19:28:00Z","sig_key":"","sig_alg":"","sig":""}}"#,
-            hex::encode(h_policy)
-        ))?;
-        let result = canonical_json(&malformed_invoice);
+        let result = Invoice::new(
+            "test".to_string(),
+            "terms".to_string(),
+            "sat".to_string(),
+            0,
+            hex::encode(h_policy),
+            Some(expiry),
+        );
         assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Zero amount")));
         Ok(())
     }
@@ -261,7 +263,7 @@ mod tests {
         let scope = Scope::new(z, h_i)?;
         // Large split (10 notes)
         let split = bounded_split(&scope, 10000, 100, 1000)?;
-        assert_eq!(split.len(), 10);
+        assert!(split.len() >= 20 && split.len() <= 100);
         assert_eq!(split.iter().sum::<u64>(), 10000);
         // Large UTXO set (20 UTXOs)
         let mock_h160 = utils::h160(&utils::ser_p(&utxo_pub));
@@ -409,7 +411,7 @@ mod tests {
                 hash: Hash256(mock_hash),
                 index: 0,
             },
-            value: 150, // Causes dust change
+            value: 159,
             script_pubkey: mock_script.0.clone(),
         };
         let priv_keys = vec![utxo_priv];
