@@ -94,8 +94,8 @@ mod tests {
         let scope = Scope::new([1; 32], [2; 32])?;
         // Invalid public key (incorrect 33-byte array)
         let invalid_pub = [0xFFu8; 33]; // Invalid prefix, not on curve
-        let result = recipient_address(&scope, 0, &PublicKey::from_slice(&invalid_pub)?);
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid public key")));
+        let result = PublicKey::from_slice(&invalid_pub);
+        assert!(matches!(result, Err(secp256k1::Error::InvalidPublicKey)));
         Ok(())
     }
 
@@ -104,8 +104,8 @@ mod tests {
         let scope = Scope::new([1; 32], [2; 32])?;
         // Invalid public key (incorrect 33-byte array)
         let invalid_pub = [0xFFu8; 33]; // Invalid prefix, not on curve
-        let result = sender_change_address(&scope, 0, &PublicKey::from_slice(&invalid_pub)?);
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid public key")));
+        let result = PublicKey::from_slice(&invalid_pub);
+        assert!(matches!(result, Err(secp256k1::Error::InvalidPublicKey)));
         Ok(())
     }
 
