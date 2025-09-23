@@ -63,7 +63,7 @@ mod tests {
 
     #[test]
     fn test_recipient_address() -> Result<(), PcwError> {
-        let _scope = Scope::new([1; 32], [2; 32])?;
+        let scope = Scope::new([1; 32], [2; 32])?;
         let secret_key = SecretKey::from_byte_array([1; 32])?;
         let secp = Secp256k1::new();
         let anchor_b = PublicKey::from_secret_key(&secp, &secret_key);
@@ -77,7 +77,7 @@ mod tests {
 
     #[test]
     fn test_sender_change_address() -> Result<(), PcwError> {
-        let _scope = Scope::new([1; 32], [2; 32])?;
+        let scope = Scope::new([1; 32], [2; 32])?;
         let secret_key = SecretKey::from_byte_array([1; 32])?;
         let secp = Secp256k1::new();
         let anchor_a = PublicKey::from_secret_key(&secp, &secret_key);
@@ -111,10 +111,10 @@ mod tests {
 
     #[test]
     fn test_recipient_address_zero_scalar() -> Result<(), PcwError> {
-        let scope = Scope::new([1; 32], [2; 32])?;
+        let _scope = Scope::new([1; 32], [2; 32])?;
         let secret_key = SecretKey::from_byte_array([1; 32])?;
         let secp = Secp256k1::new();
-        let anchor_b = PublicKey::from_secret_key(&secp, &secret_key);
+        let _anchor_b = PublicKey::from_secret_key(&secp, &secret_key);
         // Mock a zero scalar by overriding derive_scalar (not directly possible, but tested via scalar_mul)
         let result = scalar_mul(&[0; 32]);
         assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Zero scalar")));
@@ -123,10 +123,10 @@ mod tests {
 
     #[test]
     fn test_sender_change_address_zero_scalar() -> Result<(), PcwError> {
-        let scope = Scope::new([1; 32], [2; 32])?;
+        let _scope = Scope::new([1; 32], [2; 32])?;
         let secret_key = SecretKey::from_byte_array([1; 32])?;
         let secp = Secp256k1::new();
-        let anchor_a = PublicKey::from_secret_key(&secp, &secret_key);
+        let _anchor_a = PublicKey::from_secret_key(&secp, &secret_key);
         // Mock a zero scalar by overriding derive_scalar (not directly possible, but tested via scalar_mul)
         let result = scalar_mul(&[0; 32]);
         assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Zero scalar")));
