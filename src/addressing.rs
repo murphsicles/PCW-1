@@ -1,8 +1,9 @@
-//! Module for address generation in the PCW-1 protocol.
-//!
-//! This module provides functions to derive recipient and sender change addresses
-//! based on the protocol's deterministic scoping, using ECDH-derived shared secrets
-//! and invoice fingerprints as per §3-§7 of the spec.
+/*! Module for address generation in the PCW-1 protocol.
+
+This module provides functions to derive recipient and sender change addresses
+based on the protocol's deterministic scoping, using ECDH-derived shared secrets
+and invoice fingerprints as per §3-§7 of the spec.
+*/
 use crate::errors::PcwError;
 use crate::scope::Scope;
 use crate::utils::{base58check, h160, point_add, scalar_mul, ser_p};
@@ -110,6 +111,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(unused_variables)]
     fn test_recipient_address_zero_scalar() -> Result<(), PcwError> {
         let _scope = Scope::new([1; 32], [2; 32])?;
         let secret_key = SecretKey::from_byte_array([1; 32])?;
@@ -122,6 +124,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(unused_variables)]
     fn test_sender_change_address_zero_scalar() -> Result<(), PcwError> {
         let _scope = Scope::new([1; 32], [2; 32])?;
         let secret_key = SecretKey::from_byte_array([1; 32])?;
