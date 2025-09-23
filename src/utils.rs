@@ -1,9 +1,10 @@
-//! Module for utility functions in the PCW-1 protocol.
-//!
-//! This module provides cryptographic and encoding utilities as per §2 and §4.3, including
-//! hashing (SHA-256, H160), address encoding (Base58Check), and elliptic curve operations
-//! (point addition, scalar multiplication). These functions support the deterministic and
-//! secure construction of transactions and addresses.
+/*! Module for utility functions in the PCW-1 protocol.
+
+This module provides cryptographic and encoding utilities as per §2 and §4.3, including
+hashing (SHA-256, H160), address encoding (Base58Check), and elliptic curve operations
+(point addition, scalar multiplication). These functions support the deterministic and
+secure construction of transactions and addresses.
+*/
 use crate::errors::PcwError;
 use base58::ToBase58;
 use ripemd::Ripemd160;
@@ -22,7 +23,7 @@ pub fn sha256(data: &[u8]) -> [u8; 32] {
 pub fn h160(data: &[u8]) -> [u8; 20] {
     let mut hasher = Ripemd160::new();
     hasher.update(sha256(data));
-    hasher.finalize().into()
+    hasher.finalize().as_slice().try_into().expect("RIPEMD160 output is 20 bytes")
 }
 
 /// serP: Compressed SEC1 public key encoding (§2).
@@ -145,6 +146,11 @@ mod tests {
     #[test]
     fn test_h160_empty() {
         let data = b"";
+        let sha = sha256(data); // Debug intermediate SHA-256
+        assert_eq!(
+            hex::encode(&sha),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
         let h160 = h160(data);
         assert_eq!(h160.len(), 20);
         // Expected RIPEMD160(SHA256(""))
@@ -250,7 +256,6 @@ mod tests {
 
     #[test]
     fn test_ecdh_z_invalid() -> Result<(), PcwError> {
-        let priv_key = [1u8; 32];
         // Invalid public key (incorrect 33-byte array)
         let invalid_pub = [0xFFu8; 33]; // Invalid prefix, not on curve
         let result = PublicKey::from_slice(&invalid_pub);
