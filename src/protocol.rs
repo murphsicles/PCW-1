@@ -129,7 +129,6 @@ mod tests {
     use crate::invoice::Invoice;
     use crate::keys::IdentityKeypair;
     use crate::policy::Policy;
-    use crate::utils::ecdh_z;
     use chrono::Utc;
     use hex;
     use tokio::net::TcpListener;
