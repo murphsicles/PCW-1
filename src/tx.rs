@@ -1,8 +1,9 @@
-//! Module for transaction management in the PCW-1 protocol.
-//!
-//! This module implements the note transaction building and signing logic as per §7-§8,
-//! including the creation of `NoteTx` and `NoteMeta` structures. It handles the construction
-//! of standard P2PKH transactions with deterministic addressing, signing, and metadata logging.
+/*! Module for transaction management in the PCW-1 protocol.
+
+This module implements the note transaction building and signing logic as per §7-§8,
+including the creation of `NoteTx` and `NoteMeta` structures. It handles the construction
+of standard P2PKH transactions with deterministic addressing, signing, and metadata logging.
+*/
 use crate::addressing::{recipient_address, sender_change_address};
 use crate::errors::PcwError;
 use crate::scope::Scope;
@@ -269,7 +270,7 @@ mod tests {
                 hash: Hash256(mock_hash),
                 index: 0,
             },
-            value: 192,
+            value: 383,
             script_pubkey: mock_script.0,
         };
         let priv_key = [1u8; 32];
@@ -305,7 +306,7 @@ mod tests {
                 hash: Hash256(mock_hash),
                 index: 0,
             },
-            value: 259,
+            value: 376,
             script_pubkey: mock_script.0,
         };
         let priv_key = [1u8; 32];
@@ -341,7 +342,7 @@ mod tests {
                 hash: Hash256(mock_hash),
                 index: 0,
             },
-            value: 149,
+            value: 159,
             script_pubkey: mock_script.0,
         };
         let priv_key = [1u8; 32];
