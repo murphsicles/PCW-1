@@ -180,8 +180,6 @@ mod tests {
         let result = IdentityKeypair::new([0u8; 32]);
         assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Zero private key")));
         // Test invalid public key in ECDH
-        let secp = Secp256k1::new();
-        let priv_key = [1u8; 32];
         let invalid_pub = [0xFFu8; 33]; // Invalid prefix, not on curve
         let result = PublicKey::from_slice(&invalid_pub);
         assert!(matches!(result, Err(secp256k1::Error::InvalidPublicKey)));
