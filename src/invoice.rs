@@ -196,7 +196,9 @@ mod tests {
             hex::encode(policy_hash),
             expiry,
         );
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Expiry in the past")));
+        assert!(
+            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Expiry in the past"))
+        );
         Ok(())
     }
 
@@ -215,8 +217,8 @@ mod tests {
             expiry,
         )?;
         invoice.sign(&key)?;
-        // Tamper with signature
-        invoice.sig = "invalid".to_string();
+        // Use valid hex but invalid DER
+        invoice.sig = hex::encode([0u8; 32]);
         let result = invoice.verify(&policy_hash);
         assert!(
             matches!(result, Err(PcwError::Other(msg)) if msg == "Invalid signature format §3.4")
@@ -226,7 +228,7 @@ mod tests {
         tampered.total = 2000;
         let result = tampered.verify(&policy_hash);
         assert!(
-            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Signature verification failed"))
+            matches!(result, Err(PcwError::Other(msg)) if msg == "Signature verification failed §3.4")
         );
         Ok(())
     }
@@ -270,7 +272,9 @@ mod tests {
             hex::encode(policy_hash),
             expiry,
         );
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Empty invoice id")));
+        assert!(
+            matches!(result, Err(PcwError::Other(msg)) if msg == "Empty invoice id §3.4")
+        );
         // Empty unit
         let result = Invoice::new(
             "test".to_string(),
@@ -280,7 +284,9 @@ mod tests {
             hex::encode(policy_hash),
             expiry,
         );
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Empty unit")));
+        assert!(
+            matches!(result, Err(PcwError::Other(msg)) if msg == "Empty unit §3.4")
+        );
         // Zero total
         let result = Invoice::new(
             "test".to_string(),
@@ -290,7 +296,9 @@ mod tests {
             hex::encode(policy_hash),
             expiry,
         );
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Zero amount")));
+        assert!(
+            matches!(result, Err(PcwError::Other(msg)) if msg == "Zero amount §3.4")
+        );
         // Expired invoice at creation
         let result = Invoice::new(
             "test".to_string(),
@@ -300,7 +308,9 @@ mod tests {
             hex::encode(policy_hash),
             Some(Utc::now() - chrono::Duration::days(1)),
         );
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Expiry in the past")));
+        assert!(
+            matches!(result, Err(PcwError::Other(msg)) if msg == "Expiry in the past §3.4")
+        );
         Ok(())
     }
 }
