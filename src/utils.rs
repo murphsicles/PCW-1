@@ -216,8 +216,6 @@ mod tests {
 
     #[test]
     fn test_point_add_invalid() -> Result<(), PcwError> {
-        let secp = Secp256k1::new();
-        let sk = SecretKey::from_byte_array([1u8; 32])?;
         // Invalid public key (incorrect 33-byte array)
         let invalid_pub = [0xFFu8; 33]; // Invalid prefix, not on curve
         let result = PublicKey::from_slice(&invalid_pub);
