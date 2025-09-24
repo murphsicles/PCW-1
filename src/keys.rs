@@ -72,7 +72,7 @@ impl AnchorKeypair {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use secp256k1::{PublicKey, Secp256k1, SecretKey};
+    use secp256k1::PublicKey;
 
     #[test]
     fn test_identity_keypair() -> Result<(), PcwError> {
@@ -122,7 +122,6 @@ mod tests {
 
     #[test]
     fn test_ecdh_invalid_pubkey() -> Result<(), PcwError> {
-        let _priv_key = [1u8; 32];
         let invalid_pub = [0xFFu8; 33]; // Invalid prefix, not on curve
         let result = PublicKey::from_slice(&invalid_pub);
         assert!(matches!(result, Err(secp256k1::Error::InvalidPublicKey)));
