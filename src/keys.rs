@@ -122,7 +122,7 @@ mod tests {
 
     #[test]
     fn test_ecdh_invalid_pubkey() -> Result<(), PcwError> {
-        let priv_key = [1u8; 32];
+        let _priv_key = [1u8; 32];
         let invalid_pub = [0xFFu8; 33]; // Invalid prefix, not on curve
         let result = PublicKey::from_slice(&invalid_pub);
         assert!(matches!(result, Err(secp256k1::Error::InvalidPublicKey)));
