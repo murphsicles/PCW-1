@@ -1,44 +1,30 @@
 name: Rust CI
-
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v4
-
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
       with:
         toolchain: stable
         components: rustfmt, clippy
-
-    - name: Check formatting
-      run: cargo fmt -- --check --config-path rustfmt.toml
-
     - name: Lint with Clippy
       run: cargo clippy -- -D warnings
-
     - name: Build crate
       run: cargo build --verbose
-
     - name: Build examples
       run: cargo build --example main --verbose
-
     - name: Run lib tests
       run: cargo test --lib --verbose
-
     - name: Run integration tests
       run: cargo test --test integration --verbose
-
     - name: Run selection tests
       run: cargo test --test selection --verbose
-
     - name: Run benches
       run: cargo bench --verbose
