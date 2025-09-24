@@ -49,7 +49,7 @@ impl Invoice {
         }
         // Validate policy_hash format (64-character hex)
         if hex::decode(&policy_hash).is_err() || policy_hash.len() != 64 {
-            return Err(PcwError::Other("Invalid policy_hash format".to_string()));
+            return Err(PcwError::Other("Invalid policy_hash format §3.4".to_string()));
         }
         // Validate expiry not in the past (§3.4)
         if let Some(exp) = expiry
@@ -272,7 +272,9 @@ mod tests {
             hex::encode(policy_hash),
             expiry,
         );
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg == "Empty invoice id §3.4"));
+        assert!(
+            matches!(result, Err(PcwError::Other(msg)) if msg == "Empty invoice id §3.4")
+        );
         // Empty unit
         let result = Invoice::new(
             "test".to_string(),
@@ -282,7 +284,9 @@ mod tests {
             hex::encode(policy_hash),
             expiry,
         );
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg == "Empty unit §3.4"));
+        assert!(
+            matches!(result, Err(PcwError::Other(msg)) if msg == "Empty unit §3.4")
+        );
         // Zero total
         let result = Invoice::new(
             "test".to_string(),
@@ -292,7 +296,9 @@ mod tests {
             hex::encode(policy_hash),
             expiry,
         );
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg == "Zero amount §3.4"));
+        assert!(
+            matches!(result, Err(PcwError::Other(msg)) if msg == "Zero amount §3.4")
+        );
         // Expired invoice at creation
         let result = Invoice::new(
             "test".to_string(),
@@ -302,7 +308,9 @@ mod tests {
             hex::encode(policy_hash),
             Some(Utc::now() - chrono::Duration::days(1)),
         );
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg == "Expiry in the past §3.4"));
+        assert!(
+            matches!(result, Err(PcwError::Other(msg)) if msg == "Expiry in the past §3.4")
+        );
         Ok(())
     }
 }
