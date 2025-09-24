@@ -1,5 +1,4 @@
 /*! Module for logging in the PCW-1 protocol.
-
 This module provides a signed, append-only logging system as per §13.6-§13.7,
 with record types for reissues, cancellations, conflicts, and orphaned notes.
 Logs are chained via previous hashes and signed with identity keypairs.
@@ -354,11 +353,7 @@ pub fn verify_log_chain<T: LogRecord>(log: &[T]) -> Result<(), PcwError> {
     if log.is_empty() {
         return Ok(());
     }
-    // Pass 1: Verify signatures
-    for record in log {
-        record.verify()?;
-    }
-    // Pass 2: Verify sequence numbers and previous hashes
+    // Pass 1: Verify sequence numbers and previous hashes
     for (i, record) in log.iter().enumerate() {
         if record.seq() != (i as u64 + 1) {
             return Err(PcwError::Other(format!(
@@ -385,6 +380,10 @@ pub fn verify_log_chain<T: LogRecord>(log: &[T]) -> Result<(), PcwError> {
                 "First record must have empty prev_hash §13.7".to_string(),
             ));
         }
+    }
+    // Pass 2: Verify signatures
+    for record in log {
+        record.verify()?;
     }
     Ok(())
 }
@@ -612,30 +611,22 @@ mod tests {
         let mut tampered_log = log.clone();
         tampered_log[1].sig = hex::encode(vec![0u8; 32]);
         let result = verify_log_chain(&tampered_log);
-        assert!(
-            matches!(result, Err(PcwError::Other(msg)) if msg == "Invalid signature §13.6")
-        );
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg == "Invalid signature §13.6"));
         // Tamper with prev_hash
         let mut tampered_log = log.clone();
         tampered_log[1].set_prev_hash("invalid_hash".to_string());
         let result = verify_log_chain(&tampered_log);
-        assert!(
-            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid prev_hash"))
-        );
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid prev_hash §13.7")));
         // Tamper with seq
         let mut tampered_log = log.clone();
         tampered_log[1].set_seq(3);
         let result = verify_log_chain(&tampered_log);
-        assert!(
-            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid sequence number"))
-        );
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid sequence number §13.7")));
         // Tamper with first record's prev_hash
         let mut tampered_log = log.clone();
         tampered_log[0].set_prev_hash("invalid_hash".to_string());
         let result = verify_log_chain(&tampered_log);
-        assert!(
-            matches!(result, Err(PcwError::Other(msg)) if msg.contains("First record must have empty prev_hash"))
-        );
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("First record must have empty prev_hash §13.7")));
         Ok(())
     }
 }
