@@ -166,7 +166,7 @@ mod tests {
             "invalid".to_string(),
             expiry,
         );
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid policy_hash format")));
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid policy_hash format §3.4")));
         // Wrong length policy hash
         let result = Invoice::new(
             "test".to_string(),
@@ -176,7 +176,7 @@ mod tests {
             "0".repeat(60),
             expiry,
         );
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid policy_hash format")));
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid policy_hash format §3.4")));
         Ok(())
     }
 
