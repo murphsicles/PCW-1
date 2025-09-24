@@ -616,17 +616,23 @@ mod tests {
         let mut tampered_log = log.clone();
         tampered_log[1].set_prev_hash("invalid_hash".to_string());
         let result = verify_log_chain(&tampered_log);
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid prev_hash §13.7")));
+        assert!(
+            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid prev_hash §13.7"))
+        );
         // Tamper with seq
         let mut tampered_log = log.clone();
         tampered_log[1].set_seq(3);
         let result = verify_log_chain(&tampered_log);
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid sequence number §13.7")));
+        assert!(
+            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid sequence number §13.7"))
+        );
         // Tamper with first record's prev_hash
         let mut tampered_log = log.clone();
         tampered_log[0].set_prev_hash("invalid_hash".to_string());
         let result = verify_log_chain(&tampered_log);
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("First record must have empty prev_hash §13.7")));
+        assert!(
+            matches!(result, Err(PcwError::Other(msg)) if msg.contains("First record must have empty prev_hash §13.7"))
+        );
         Ok(())
     }
 }
