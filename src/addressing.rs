@@ -111,7 +111,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(unused_variables)]
     fn test_recipient_address_zero_scalar() -> Result<(), PcwError> {
         let _scope = Scope::new([1; 32], [2; 32])?;
         let secret_key = SecretKey::from_byte_array([1; 32])?;
@@ -124,7 +123,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(unused_variables)]
     fn test_sender_change_address_zero_scalar() -> Result<(), PcwError> {
         let _scope = Scope::new([1; 32], [2; 32])?;
         let secret_key = SecretKey::from_byte_array([1; 32])?;
