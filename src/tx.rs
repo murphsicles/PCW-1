@@ -105,13 +105,13 @@ pub fn build_note_tx(
         lock_time: 0,
     };
     // Fee estimate with one output (§7.3)
-    let mut fee = (base_size + 34) * feerate_floor; // 34 bytes for one output
-    let mut change = sum_in.saturating_sub(amount + fee);
+    let fee = (base_size + 34) * feerate_floor; // 34 bytes for one output
+    let change = sum_in
+        .checked_sub(amount)
+        .and_then(|x| x.checked_sub(fee))
+        .ok_or(PcwError::Underfunded)?;
     if change > 0 && change < dust {
         return Err(PcwError::DustChange);
-    }
-    if sum_in < amount + fee {
-        return Err(PcwError::Underfunded);
     }
     // Add recipient output
     let lock_b = create_lock_script(&h160_b_hash);
@@ -121,10 +121,14 @@ pub fn build_note_tx(
     });
     // Determine if change output is needed
     let mut addr_a = String::new();
+    let mut change_amount = 0;
     if change > 0 {
-        fee = (base_size + 68) * feerate_floor; // 68 bytes for two outputs
-        change = sum_in.saturating_sub(amount + fee);
-        if change > 0 && change >= dust {
+        let fee_two_outputs = (base_size + 68) * feerate_floor; // 68 bytes for two outputs
+        let change_two_outputs = sum_in
+            .checked_sub(amount)
+            .and_then(|x| x.checked_sub(fee_two_outputs))
+            .ok_or(PcwError::Underfunded)?;
+        if change_two_outputs > 0 && change_two_outputs >= dust {
             addr_a = sender_change_address(scope, i, anchor_a)?;
             let s_i_scalar = scope.derive_scalar("snd", i)?;
             let tweak_a = scalar_mul(&s_i_scalar)?;
@@ -133,10 +137,11 @@ pub fn build_note_tx(
             let h160_a_hash = Hash160(h160_a);
             let lock_a = create_lock_script(&h160_a_hash);
             tx.outputs.push(TxOut {
-                satoshis: change as i64,
+                satoshis: change_two_outputs as i64,
                 lock_script: lock_a,
             });
-        } else if change > 0 {
+            change_amount = change_two_outputs;
+        } else if change_two_outputs > 0 {
             return Err(PcwError::DustChange);
         }
     }
@@ -197,9 +202,9 @@ pub fn build_note_tx(
         amount,
         txid,
         change_addr: addr_a,
-        change_amount: change,
+        change_amount,
         size_bytes: tx_bytes.len() as u64,
-        fee,
+        fee: if tx.outputs.len() == 1 { fee } else { fee + 34 * feerate_floor },
         feerate_used: feerate_floor,
         inputs: s_i_sorted
             .iter()
@@ -369,9 +374,15 @@ mod tests {
             let sum_in: u64 = 258;
             let base_size = 10 + 148 * 1;
             let fee_one_output = (base_size + 34) * 1;
-            let change_one_output = sum_in.saturating_sub(100 + fee_one_output);
+            let change_one_output = sum_in
+                .checked_sub(100)
+                .and_then(|x| x.checked_sub(fee_one_output))
+                .unwrap_or(0);
             let fee_two_outputs = (base_size + 68) * 1;
-            let change_two_outputs = sum_in.saturating_sub(100 + fee_two_outputs);
+            let change_two_outputs = sum_in
+                .checked_sub(100)
+                .and_then(|x| x.checked_sub(fee_two_outputs))
+                .unwrap_or(0);
             panic!(
                 "Expected DustChange, got {:?}. sum_in={}, fee_one_output={}, change_one_output={}, fee_two_outputs={}, change_two_outputs={}",
                 result, sum_in, fee_one_output, change_one_output, fee_two_outputs, change_two_outputs
