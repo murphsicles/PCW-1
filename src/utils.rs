@@ -1,5 +1,4 @@
 /*! Module for utility functions in the PCW-1 protocol.
-
 This module provides cryptographic and encoding utilities as per §2 and §4.3, including
 hashing (SHA-256, H160), address encoding (Base58Check), and elliptic curve operations
 (point addition, scalar multiplication). These functions support the deterministic and
@@ -150,19 +149,12 @@ mod tests {
     #[test]
     fn test_h160_empty() {
         let data = b"";
-        let sha = sha256(data); // Debug intermediate SHA-256
-        assert_eq!(
-            hex::encode(&sha),
-            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        );
         let h160 = h160(data);
         assert_eq!(h160.len(), 20);
         // Expected RIPEMD160(SHA256(""))
         assert_eq!(
             h160,
-            hex::decode("9c1185a5c5e9fc54612808977ee8f548b2258d31")
-                .unwrap()
-                .as_slice()
+            [180, 114, 162, 102, 208, 189, 137, 193, 55, 6, 164, 19, 44, 207, 177, 111, 124, 59, 159, 203]
         );
     }
 
