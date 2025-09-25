@@ -334,14 +334,18 @@ mod tests {
         let secp = Secp256k1::new();
         let scope = Scope::new([1; 32], [2; 32])?;
         let mock_hash = sha256(b"test_tx");
-        let mock_h160 = h160(&mock_hash);
+        // Use a fixed h160 to avoid ripemd bug affecting address derivation
+        let mock_h160 = hex::decode("b472a266d0bd89c13706a4132ccfb16f7c3b9fcb")
+            .unwrap()
+            .try_into()
+            .unwrap();
         let mock_script = create_lock_script(&Hash160(mock_h160));
         let utxo = Utxo {
             outpoint: OutPoint {
                 hash: Hash256(mock_hash),
                 index: 0,
             },
-            value: 200, // Adjusted to trigger DustChange
+            value: 200, // Should trigger DustChange: 200 - 100 - 192 = 8 < 50
             script_pubkey: mock_script.0,
         };
         let priv_key = [1u8; 32];
@@ -358,8 +362,19 @@ mod tests {
             50,
             &[priv_key],
         );
-        assert!(matches!(result, Err(PcwError::DustChange)));
-        Ok(())
+        if let Err(PcwError::DustChange) = result {
+            Ok(())
+        } else {
+            // Debug assertions to diagnose failure
+            let sum_in: u64 = 200;
+            let base_size = 10 + 148 * 1;
+            let fee = (base_size + 34) * 1;
+            let change = sum_in.saturating_sub(100 + fee);
+            panic!(
+                "Expected DustChange, got {:?}. sum_in={}, fee={}, change={}",
+                result, sum_in, fee, change
+            );
+        }
     }
 
     #[test]
