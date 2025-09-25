@@ -159,7 +159,7 @@ mod tests {
         // Expected RIPEMD160(SHA256(""))
         assert_eq!(
             h160,
-            hex::decode("0b86df2b6e1f6e6c7e1f6e6c7e1f6e6c7e1f6e6c")
+            hex::decode("9c1185a5c5e9fc54612808977ee8f548b2258d31")
                 .unwrap()
                 .as_slice()
         );
