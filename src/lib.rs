@@ -408,7 +408,7 @@ mod tests {
                 hash: Hash256(mock_hash),
                 index: 0,
             },
-            value: 200, // Adjusted to trigger DustChange
+            value: 258, // Adjusted to trigger DustChange
             script_pubkey: mock_script.0.clone(),
         };
         let priv_keys = vec![utxo_priv];
