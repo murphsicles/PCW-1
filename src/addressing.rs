@@ -91,7 +91,7 @@ mod tests {
 
     #[test]
     fn test_recipient_address_invalid_pubkey() -> Result<(), PcwError> {
-        let scope = Scope::new([1; 32], [2; 32])?;
+        let _scope = Scope::new([1; 32], [2; 32])?;
         // Invalid public key (incorrect 33-byte array)
         let invalid_pub = [0xFFu8; 33]; // Invalid prefix, not on curve
         let result = PublicKey::from_slice(&invalid_pub);
@@ -101,7 +101,7 @@ mod tests {
 
     #[test]
     fn test_sender_change_address_invalid_pubkey() -> Result<(), PcwError> {
-        let scope = Scope::new([1; 32], [2; 32])?;
+        let _scope = Scope::new([1; 32], [2; 32])?;
         // Invalid public key (incorrect 33-byte array)
         let invalid_pub = [0xFFu8; 33]; // Invalid prefix, not on curve
         let result = PublicKey::from_slice(&invalid_pub);
