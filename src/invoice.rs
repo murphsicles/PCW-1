@@ -82,7 +82,7 @@ impl Invoice {
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_byte_array(key.priv_key)?);
+        let sig = secp.sign_ecdsa(msg, &SecretKey::from_byte_array(key.priv_key)?);
         self.sig_key = sig_key;
         self.sig_alg = sig_alg;
         self.sig = hex::encode(sig.serialize_der());
@@ -120,7 +120,7 @@ impl Invoice {
     /// Compute invoice hash H_I (§3.4).
     pub fn h_i(&self) -> [u8; 32] {
         let value = serde_json::to_value(self)
-            .map_err(|e| PcwError::Other(format!("Serialization failed: {}", e)))
+            .map_err(|e| PcwError::Other(format!("Serialization failed: {} §3.4", e)))
             .unwrap_or_default();
         let bytes = canonical_json(&value).unwrap_or_default();
         sha256(&bytes)
@@ -255,7 +255,7 @@ mod tests {
         let expected = serde_json::to_string(&value)?;
         assert_eq!(
             String::from_utf8(serialized)
-                .map_err(|e| PcwError::Other(format!("UTF-8 error: {}", e)))?,
+                .map_err(|e| PcwError::Other(format!("UTF-8 error: {} §3.4", e)))?,
             expected
         );
         Ok(())
