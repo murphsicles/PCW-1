@@ -1,5 +1,4 @@
 /*! Module for address generation in the PCW-1 protocol.
-
 This module provides functions to derive recipient and sender change addresses
 based on the protocol's deterministic scoping, using ECDH-derived shared secrets
 and invoice fingerprints as per §3-§7 of the spec.
@@ -64,11 +63,11 @@ mod tests {
 
     #[test]
     fn test_recipient_address() -> Result<(), PcwError> {
-        let scope = Scope::new([1; 32], [2; 32])?;
+        let _scope = Scope::new([1; 32], [2; 32])?;
         let secret_key = SecretKey::from_byte_array([1; 32])?;
         let secp = Secp256k1::new();
         let anchor_b = PublicKey::from_secret_key(&secp, &secret_key);
-        let addr = recipient_address(&scope, 0, &anchor_b)?;
+        let addr = recipient_address(&_scope, 0, &anchor_b)?;
         assert!(
             addr.starts_with("1"),
             "Address should start with '1' for mainnet P2PKH"
@@ -78,11 +77,11 @@ mod tests {
 
     #[test]
     fn test_sender_change_address() -> Result<(), PcwError> {
-        let scope = Scope::new([1; 32], [2; 32])?;
+        let _scope = Scope::new([1; 32], [2; 32])?;
         let secret_key = SecretKey::from_byte_array([1; 32])?;
         let secp = Secp256k1::new();
         let anchor_a = PublicKey::from_secret_key(&secp, &secret_key);
-        let addr = sender_change_address(&scope, 0, &anchor_a)?;
+        let addr = sender_change_address(&_scope, 0, &anchor_a)?;
         assert!(
             addr.starts_with("1"),
             "Address should start with '1' for mainnet P2PKH"
