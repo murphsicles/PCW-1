@@ -341,7 +341,7 @@ mod tests {
                 hash: Hash256(mock_hash),
                 index: 0,
             },
-            value: 200,
+            value: 258, // Adjusted to trigger DustChange
             script_pubkey: mock_script.0,
         };
         let priv_key = [1u8; 32];
