@@ -6,7 +6,7 @@ secure construction of transactions and addresses.
 */
 use crate::errors::PcwError;
 use base58::ToBase58;
-use ripemd::Ripemd160;
+use ripemd160::Ripemd160;
 use secp256k1::{PublicKey, Scalar, Secp256k1, SecretKey};
 use sha2::{Digest, Sha256};
 use unicode_normalization::UnicodeNormalization;
@@ -160,7 +160,7 @@ mod tests {
         assert_eq!(
             h160_hex,
             "9c1185a5c5e9fc54612808977ee8f548b2258d31",
-            "RIPEMD160(SHA256(\"\")) incorrect, got {}, expected 9c1185a5c5e9fc54612808977ee8f548b2258d31. Check ripemd crate version (should be 0.1.3) or consider switching to ripemd160 crate.",
+            "RIPEMD160(SHA256(\"\")) incorrect, got {}, expected 9c1185a5c5e9fc54612808977ee8f548b2258d31",
             h160_hex
         );
         // Expected RIPEMD160(SHA256(""))
@@ -169,7 +169,7 @@ mod tests {
             hex::decode("9c1185a5c5e9fc54612808977ee8f548b2258d31")
                 .unwrap()
                 .as_slice(),
-            "RIPEMD160(SHA256(\"\")) incorrect, got {}, expected 9c1185a5c5e9fc54612808977ee8f548b2258d31. Check ripemd crate version (should be 0.1.3) or consider switching to ripemd160 crate.",
+            "RIPEMD160(SHA256(\"\")) incorrect, got {}, expected 9c1185a5c5e9fc54612808977ee8f548b2258d31",
             h160_hex
         );
     }
