@@ -124,7 +124,8 @@ mod tests {
         // Expected SHA-256 of empty input
         assert_eq!(
             hex::encode(&hash),
-            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "SHA-256 of empty input incorrect"
         );
     }
 
@@ -159,7 +160,7 @@ mod tests {
         assert_eq!(
             h160_hex,
             "9c1185a5c5e9fc54612808977ee8f548b2258d31",
-            "RIPEMD160(SHA256(\"\")) incorrect, got {}",
+            "RIPEMD160(SHA256(\"\")) incorrect, got {}, expected 9c1185a5c5e9fc54612808977ee8f548b2258d31. Check ripemd crate version (should be 0.1.3) or consider switching to ripemd160 crate.",
             h160_hex
         );
         // Expected RIPEMD160(SHA256(""))
@@ -168,7 +169,8 @@ mod tests {
             hex::decode("9c1185a5c5e9fc54612808977ee8f548b2258d31")
                 .unwrap()
                 .as_slice(),
-            "RIPEMD160(SHA256(\"\")) incorrect"
+            "RIPEMD160(SHA256(\"\")) incorrect, got {}, expected 9c1185a5c5e9fc54612808977ee8f548b2258d31. Check ripemd crate version (should be 0.1.3) or consider switching to ripemd160 crate.",
+            h160_hex
         );
     }
 
