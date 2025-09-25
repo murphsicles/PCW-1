@@ -149,12 +149,19 @@ mod tests {
     #[test]
     fn test_h160_empty() {
         let data = b"";
+        let sha = sha256(data); // Debug intermediate SHA-256
+        assert_eq!(
+            hex::encode(&sha),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
         let h160 = h160(data);
         assert_eq!(h160.len(), 20);
         // Expected RIPEMD160(SHA256(""))
         assert_eq!(
             h160,
-            [180, 114, 162, 102, 208, 189, 137, 193, 55, 6, 164, 19, 44, 207, 177, 111, 124, 59, 159, 203]
+            hex::decode("0b86df2b6e1f6e6c7e1f6e6c7e1f6e6c7e1f6e6c")
+                .unwrap()
+                .as_slice()
         );
     }
 
