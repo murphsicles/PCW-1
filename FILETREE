@@ -5,7 +5,6 @@ pcw-protocol/
 ├── Cargo.toml
 ├── Cargo.lock
 ├── rustfmt.toml
-├── clippy.toml
 ├── README.md
 ├── LICENSE
 ├── diagram.png
