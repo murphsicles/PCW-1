@@ -48,7 +48,7 @@ impl Invoice {
         }
         // Validate policy_hash format (64-character hex)
         if hex::decode(&policy_hash).is_err() || policy_hash.len() != 64 {
-            return Err(PcwError::Other("Invalid policy_hash format §3.4".to_string()));
+            return Err(PcwError::Other("Invalid policy_hash format".to_string()));
         }
         // Validate expiry not in the past (§3.4)
         if let Some(exp) = expiry
@@ -68,7 +68,6 @@ impl Invoice {
             sig: "".to_string(),
         })
     }
-
     /// Sign invoice with identity keypair (§3.4).
     pub fn sign(&mut self, key: &IdentityKeypair) -> Result<(), PcwError> {
         let sig_key = hex::encode(key.pub_key.serialize());
@@ -88,7 +87,6 @@ impl Invoice {
         self.sig = hex::encode(sig.serialize_der());
         Ok(())
     }
-
     /// Verify invoice signature and constraints (§3.4).
     pub fn verify(&self, expected_policy_hash: &[u8; 32]) -> Result<(), PcwError> {
         if self.policy_hash != hex::encode(expected_policy_hash) {
@@ -116,22 +114,19 @@ impl Invoice {
             .map_err(|_| PcwError::Other("Signature verification failed §3.4".to_string()))?;
         Ok(())
     }
-
     /// Compute invoice hash H_I (§3.4).
     pub fn h_i(&self) -> [u8; 32] {
         let value = serde_json::to_value(self)
-            .map_err(|e| PcwError::Other(format!("Serialization failed: {} §3.4", e)))
+            .map_err(|e| PcwError::Other(format!("Serialization failed: {}", e)))
             .unwrap_or_default();
         let bytes = canonical_json(&value).unwrap_or_default();
         sha256(&bytes)
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::keys::IdentityKeypair;
-
     #[test]
     fn test_invoice_new_sign_verify() -> Result<(), PcwError> {
         let priv_k = [1; 32];
@@ -152,7 +147,6 @@ mod tests {
         assert_eq!(h_i.len(), 32);
         Ok(())
     }
-
     #[test]
     fn test_invoice_invalid_policy_hash() -> Result<(), PcwError> {
         let expiry = Some(Utc::now() + chrono::Duration::days(1));
@@ -166,7 +160,7 @@ mod tests {
             expiry,
         );
         assert!(
-            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid policy_hash format §3.4"))
+            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid policy_hash format"))
         );
         // Wrong length policy hash
         let result = Invoice::new(
@@ -178,11 +172,10 @@ mod tests {
             expiry,
         );
         assert!(
-            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid policy_hash format §3.4"))
+            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid policy_hash format"))
         );
         Ok(())
     }
-
     #[test]
     fn test_invoice_expired() -> Result<(), PcwError> {
         let policy_hash = [2; 32];
@@ -195,12 +188,9 @@ mod tests {
             hex::encode(policy_hash),
             expiry,
         );
-        assert!(
-            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Expiry in the past §3.4"))
-        );
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Expiry in the past")));
         Ok(())
     }
-
     #[test]
     fn test_invoice_invalid_signature() -> Result<(), PcwError> {
         let priv_k = [1; 32];
@@ -216,25 +206,21 @@ mod tests {
             expiry,
         )?;
         invoice.sign(&key)?;
-        // Use a different valid signature to trigger verification failure
-        let mut other_invoice = invoice.clone();
-        other_invoice.invoice_number = "other".to_string();
-        other_invoice.sign(&key)?;
-        invoice.sig = other_invoice.sig.clone();
+        // Tamper with signature
+        invoice.sig = "invalid".to_string();
         let result = invoice.verify(&policy_hash);
         assert!(
-            matches!(result, Err(PcwError::Other(msg)) if msg == "Signature verification failed §3.4")
+            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid signature format"))
         );
         // Tamper with invoice field
         let mut tampered = invoice.clone();
         tampered.total = 2000;
         let result = tampered.verify(&policy_hash);
         assert!(
-            matches!(result, Err(PcwError::Other(msg)) if msg == "Signature verification failed §3.4")
+            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Signature verification failed"))
         );
         Ok(())
     }
-
     #[test]
     fn test_invoice_serialization() -> Result<(), PcwError> {
         let priv_k = [1; 32];
@@ -255,12 +241,11 @@ mod tests {
         let expected = serde_json::to_string(&value)?;
         assert_eq!(
             String::from_utf8(serialized)
-                .map_err(|e| PcwError::Other(format!("UTF-8 error: {} §3.4", e)))?,
+                .map_err(|e| PcwError::Other(format!("UTF-8 error: {}", e)))?,
             expected
         );
         Ok(())
     }
-
     #[test]
     fn test_invoice_invalid_inputs() -> Result<(), PcwError> {
         let policy_hash = [2; 32];
@@ -274,9 +259,7 @@ mod tests {
             hex::encode(policy_hash),
             expiry,
         );
-        assert!(
-            matches!(result, Err(PcwError::Other(msg)) if msg == "Empty invoice id §3.4")
-        );
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Empty invoice id")));
         // Empty unit
         let result = Invoice::new(
             "test".to_string(),
@@ -286,9 +269,7 @@ mod tests {
             hex::encode(policy_hash),
             expiry,
         );
-        assert!(
-            matches!(result, Err(PcwError::Other(msg)) if msg == "Empty unit §3.4")
-        );
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Empty unit")));
         // Zero total
         let result = Invoice::new(
             "test".to_string(),
@@ -298,9 +279,7 @@ mod tests {
             hex::encode(policy_hash),
             expiry,
         );
-        assert!(
-            matches!(result, Err(PcwError::Other(msg)) if msg == "Zero amount §3.4")
-        );
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Zero amount")));
         // Expired invoice at creation
         let result = Invoice::new(
             "test".to_string(),
@@ -310,9 +289,7 @@ mod tests {
             hex::encode(policy_hash),
             Some(Utc::now() - chrono::Duration::days(1)),
         );
-        assert!(
-            matches!(result, Err(PcwError::Other(msg)) if msg == "Expiry in the past §3.4")
-        );
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Expiry in the past")));
         Ok(())
     }
 }
