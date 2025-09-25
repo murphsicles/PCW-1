@@ -1,5 +1,4 @@
 /*! Module for invoice management in the PCW-1 protocol.
-
 This module implements the invoice structure and signing as per §3.4, including
 fields for invoice details, policy hash, and signatures. Invoices are signed and
 verified using secp256k1 ECDSA, with validation for policy compliance.
@@ -113,7 +112,7 @@ impl Invoice {
         let sig = Signature::from_der(&hex::decode(&self.sig)?)
             .map_err(|_| PcwError::Other("Invalid signature format §3.4".to_string()))?;
         let secp = Secp256k1::new();
-        secp.verify_ecdsa(msg, &sig, &pub_key)
+        secp.verify_ecdsa(&msg, &sig, &pub_key)
             .map_err(|_| PcwError::Other("Signature verification failed §3.4".to_string()))?;
         Ok(())
     }
@@ -217,11 +216,14 @@ mod tests {
             expiry,
         )?;
         invoice.sign(&key)?;
-        // Use valid hex but invalid DER
-        invoice.sig = hex::encode(vec![0u8; 32]);
+        // Use a different valid signature to trigger verification failure
+        let mut other_invoice = invoice.clone();
+        other_invoice.invoice_number = "other".to_string();
+        other_invoice.sign(&key)?;
+        invoice.sig = other_invoice.sig.clone();
         let result = invoice.verify(&policy_hash);
         assert!(
-            matches!(result, Err(PcwError::Other(msg)) if msg == "Invalid signature format §3.4")
+            matches!(result, Err(PcwError::Other(msg)) if msg == "Signature verification failed §3.4")
         );
         // Tamper with invoice field
         let mut tampered = invoice.clone();
