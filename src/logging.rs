@@ -72,7 +72,7 @@ impl LogRecord for ReissueRecord {
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_byte_array(key.priv_key)?);
+        let sig = secp.sign_ecdsa(msg, &SecretKey::from_byte_array(key.priv_key)?);
         let sig_hex = hex::encode(sig.serialize_der());
         self.set_signature(by, sig_alg, sig_hex);
         Ok(())
@@ -89,7 +89,7 @@ impl LogRecord for ReissueRecord {
         let sig = Signature::from_der(&hex::decode(&self.sig)?)
             .map_err(|_| PcwError::Other("Invalid signature §13.6".to_string()))?;
         let secp = Secp256k1::new();
-        secp.verify_ecdsa(&msg, &sig, &pub_key)
+        secp.verify_ecdsa(msg, &sig, &pub_key)
             .map_err(|_| PcwError::Other("Invalid signature §13.6".to_string()))?;
         Ok(())
     }
@@ -143,7 +143,7 @@ impl LogRecord for CancelRecord {
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_byte_array(key.priv_key)?);
+        let sig = secp.sign_ecdsa(msg, &SecretKey::from_byte_array(key.priv_key)?);
         let sig_hex = hex::encode(sig.serialize_der());
         self.set_signature(by, sig_alg, sig_hex);
         Ok(())
@@ -160,7 +160,7 @@ impl LogRecord for CancelRecord {
         let sig = Signature::from_der(&hex::decode(&self.sig)?)
             .map_err(|_| PcwError::Other("Invalid signature §13.6".to_string()))?;
         let secp = Secp256k1::new();
-        secp.verify_ecdsa(&msg, &sig, &pub_key)
+        secp.verify_ecdsa(msg, &sig, &pub_key)
             .map_err(|_| PcwError::Other("Invalid signature §13.6".to_string()))?;
         Ok(())
     }
@@ -213,7 +213,7 @@ impl LogRecord for ConflictRecord {
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_byte_array(key.priv_key)?);
+        let sig = secp.sign_ecdsa(msg, &SecretKey::from_byte_array(key.priv_key)?);
         let sig_hex = hex::encode(sig.serialize_der());
         self.set_signature(by, sig_alg, sig_hex);
         Ok(())
@@ -230,7 +230,7 @@ impl LogRecord for ConflictRecord {
         let sig = Signature::from_der(&hex::decode(&self.sig)?)
             .map_err(|_| PcwError::Other("Invalid signature §13.6".to_string()))?;
         let secp = Secp256k1::new();
-        secp.verify_ecdsa(&msg, &sig, &pub_key)
+        secp.verify_ecdsa(msg, &sig, &pub_key)
             .map_err(|_| PcwError::Other("Invalid signature §13.6".to_string()))?;
         Ok(())
     }
@@ -284,7 +284,7 @@ impl LogRecord for OrphanedRecord {
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_byte_array(key.priv_key)?);
+        let sig = secp.sign_ecdsa(msg, &SecretKey::from_byte_array(key.priv_key)?);
         let sig_hex = hex::encode(sig.serialize_der());
         self.set_signature(by, sig_alg, sig_hex);
         Ok(())
@@ -301,7 +301,7 @@ impl LogRecord for OrphanedRecord {
         let sig = Signature::from_der(&hex::decode(&self.sig)?)
             .map_err(|_| PcwError::Other("Invalid signature §13.6".to_string()))?;
         let secp = Secp256k1::new();
-        secp.verify_ecdsa(&msg, &sig, &pub_key)
+        secp.verify_ecdsa(msg, &sig, &pub_key)
             .map_err(|_| PcwError::Other("Invalid signature §13.6".to_string()))?;
         Ok(())
     }
