@@ -123,10 +123,8 @@ mod tests {
         assert_eq!(hash.len(), 32);
         // Expected SHA-256 of empty input
         assert_eq!(
-            hash,
-            hex::decode("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
-                .unwrap()
-                .as_slice(),
+            hex::encode(&hash),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
         );
     }
 
@@ -149,19 +147,28 @@ mod tests {
     #[test]
     fn test_h160_empty() {
         let data = b"";
-        let sha = sha256(data); // Debug intermediate SHA-256
+        let sha = sha256(data);
         assert_eq!(
             hex::encode(&sha),
-            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "SHA-256 of empty input incorrect"
         );
         let h160 = h160(data);
         assert_eq!(h160.len(), 20);
+        let h160_hex = hex::encode(&h160);
+        assert_eq!(
+            h160_hex,
+            "9c1185a5c5e9fc54612808977ee8f548b2258d31",
+            "RIPEMD160(SHA256(\"\")) incorrect, got {}",
+            h160_hex
+        );
         // Expected RIPEMD160(SHA256(""))
         assert_eq!(
             h160,
             hex::decode("9c1185a5c5e9fc54612808977ee8f548b2258d31")
                 .unwrap()
-                .as_slice()
+                .as_slice(),
+            "RIPEMD160(SHA256(\"\")) incorrect"
         );
     }
 
