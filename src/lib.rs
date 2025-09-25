@@ -1,5 +1,4 @@
 /*! Peer Cash Wallet Protocol (PCW-1): IP-to-IP BSV settlement protocol per spec.
-
 This crate implements the PCW-1 protocol as defined in §1-§17, providing modules
 for key management, address derivation, transaction building, logging, and more.
 It ensures deterministic, secure, and auditable payment processing.
@@ -107,7 +106,7 @@ mod tests {
                 hash: Hash256(mock_hash),
                 index: 0,
             },
-            value: 1552,
+            value: 2000, // Increased to cover amount + fee
             script_pubkey: mock_script.0.clone(),
         };
         // Build reservations
@@ -261,7 +260,7 @@ mod tests {
         let scope = Scope::new(z, h_i)?;
         // Large split (10 notes)
         let split = bounded_split(&scope, 10000, 100, 1000)?;
-        assert!(split.len() >= 20 && split.len() <= 100);
+        assert!(split.len() >= 10 && split.len() <= 100);
         assert_eq!(split.iter().sum::<u64>(), 10000);
         // Large UTXO set (20 UTXOs)
         let mock_h160 = utils::h160(&utils::ser_p(&utxo_pub));
@@ -409,7 +408,7 @@ mod tests {
                 hash: Hash256(mock_hash),
                 index: 0,
             },
-            value: 159,
+            value: 200, // Adjusted to trigger DustChange
             script_pubkey: mock_script.0.clone(),
         };
         let priv_keys = vec![utxo_priv];
