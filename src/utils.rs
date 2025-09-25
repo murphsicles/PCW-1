@@ -6,7 +6,7 @@ secure construction of transactions and addresses.
 */
 use crate::errors::PcwError;
 use base58::ToBase58;
-use ripemd::Ripemd160;
+use ripemd160::Ripemd160;
 use secp256k1::{PublicKey, Scalar, Secp256k1, SecretKey};
 use sha2::{Digest, Sha256};
 use unicode_normalization::UnicodeNormalization;
