@@ -345,7 +345,7 @@ mod tests {
                 hash: Hash256(mock_hash),
                 index: 0,
             },
-            value: 200, // Should trigger DustChange: 200 - 100 - 192 = 8 < 50
+            value: 258, // Triggers DustChange: 258 - 100 - 226 = 32 < 50
             script_pubkey: mock_script.0,
         };
         let priv_key = [1u8; 32];
@@ -366,13 +366,15 @@ mod tests {
             Ok(())
         } else {
             // Debug assertions to diagnose failure
-            let sum_in: u64 = 200;
+            let sum_in: u64 = 258;
             let base_size = 10 + 148 * 1;
-            let fee = (base_size + 34) * 1;
-            let change = sum_in.saturating_sub(100 + fee);
+            let fee_one_output = (base_size + 34) * 1;
+            let change_one_output = sum_in.saturating_sub(100 + fee_one_output);
+            let fee_two_outputs = (base_size + 68) * 1;
+            let change_two_outputs = sum_in.saturating_sub(100 + fee_two_outputs);
             panic!(
-                "Expected DustChange, got {:?}. sum_in={}, fee={}, change={}",
-                result, sum_in, fee, change
+                "Expected DustChange, got {:?}. sum_in={}, fee_one_output={}, change_one_output={}, fee_two_outputs={}, change_two_outputs={}",
+                result, sum_in, fee_one_output, change_one_output, fee_two_outputs, change_two_outputs
             );
         }
     }
