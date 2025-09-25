@@ -72,7 +72,7 @@ impl LogRecord for ReissueRecord {
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(msg, &SecretKey::from_byte_array(key.priv_key)?);
+        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_byte_array(key.priv_key)?);
         let sig_hex = hex::encode(sig.serialize_der());
         self.set_signature(by, sig_alg, sig_hex);
         Ok(())
@@ -89,7 +89,7 @@ impl LogRecord for ReissueRecord {
         let sig = Signature::from_der(&hex::decode(&self.sig)?)
             .map_err(|_| PcwError::Other("Invalid signature §13.6".to_string()))?;
         let secp = Secp256k1::new();
-        secp.verify_ecdsa(msg, &sig, &pub_key)
+        secp.verify_ecdsa(&msg, &sig, &pub_key)
             .map_err(|_| PcwError::Other("Invalid signature §13.6".to_string()))?;
         Ok(())
     }
@@ -143,7 +143,7 @@ impl LogRecord for CancelRecord {
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(msg, &SecretKey::from_byte_array(key.priv_key)?);
+        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_byte_array(key.priv_key)?);
         let sig_hex = hex::encode(sig.serialize_der());
         self.set_signature(by, sig_alg, sig_hex);
         Ok(())
@@ -160,7 +160,7 @@ impl LogRecord for CancelRecord {
         let sig = Signature::from_der(&hex::decode(&self.sig)?)
             .map_err(|_| PcwError::Other("Invalid signature §13.6".to_string()))?;
         let secp = Secp256k1::new();
-        secp.verify_ecdsa(msg, &sig, &pub_key)
+        secp.verify_ecdsa(&msg, &sig, &pub_key)
             .map_err(|_| PcwError::Other("Invalid signature §13.6".to_string()))?;
         Ok(())
     }
@@ -213,7 +213,7 @@ impl LogRecord for ConflictRecord {
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(msg, &SecretKey::from_byte_array(key.priv_key)?);
+        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_byte_array(key.priv_key)?);
         let sig_hex = hex::encode(sig.serialize_der());
         self.set_signature(by, sig_alg, sig_hex);
         Ok(())
@@ -230,7 +230,7 @@ impl LogRecord for ConflictRecord {
         let sig = Signature::from_der(&hex::decode(&self.sig)?)
             .map_err(|_| PcwError::Other("Invalid signature §13.6".to_string()))?;
         let secp = Secp256k1::new();
-        secp.verify_ecdsa(msg, &sig, &pub_key)
+        secp.verify_ecdsa(&msg, &sig, &pub_key)
             .map_err(|_| PcwError::Other("Invalid signature §13.6".to_string()))?;
         Ok(())
     }
@@ -284,7 +284,7 @@ impl LogRecord for OrphanedRecord {
         let hash = sha256(&bytes);
         let msg = Message::from_digest(hash);
         let secp = Secp256k1::new();
-        let sig = secp.sign_ecdsa(msg, &SecretKey::from_byte_array(key.priv_key)?);
+        let sig = secp.sign_ecdsa(&msg, &SecretKey::from_byte_array(key.priv_key)?);
         let sig_hex = hex::encode(sig.serialize_der());
         self.set_signature(by, sig_alg, sig_hex);
         Ok(())
@@ -301,7 +301,7 @@ impl LogRecord for OrphanedRecord {
         let sig = Signature::from_der(&hex::decode(&self.sig)?)
             .map_err(|_| PcwError::Other("Invalid signature §13.6".to_string()))?;
         let secp = Secp256k1::new();
-        secp.verify_ecdsa(msg, &sig, &pub_key)
+        secp.verify_ecdsa(&msg, &sig, &pub_key)
             .map_err(|_| PcwError::Other("Invalid signature §13.6".to_string()))?;
         Ok(())
     }
@@ -607,9 +607,29 @@ mod tests {
         append_to_log(&mut log, record2, Some(&prev_record))?;
         // Verify valid chain
         verify_log_chain(&log)?;
-        // Tamper with signature
+        // Tamper with signature (use a valid DER signature from a different record)
         let mut tampered_log = log.clone();
-        tampered_log[1].sig = hex::encode(vec![0u8; 32]);
+        let mut tamper_record = ReissueRecord {
+            invoice_hash: "tamper".to_string(),
+            i: 1,
+            note_id: "note2".to_string(),
+            event: "reissue".to_string(),
+            version: 1,
+            supersedes: "old2".to_string(),
+            txid_new: "new2".to_string(),
+            addr_recv: "addr_b2".to_string(),
+            addr_change: "addr_a2".to_string(),
+            fee: 200,
+            feerate_used: 2,
+            at: "2025-09-21T14:00:00Z".to_string(),
+            by: "".to_string(),
+            sig_alg: "".to_string(),
+            sig: "".to_string(),
+            prev_hash: "".to_string(),
+            seq: 0,
+        };
+        tamper_record.sign(&key)?;
+        tampered_log[1].sig = tamper_record.sig.clone();
         let result = verify_log_chain(&tampered_log);
         assert!(matches!(result, Err(PcwError::Other(msg)) if msg == "Invalid signature §13.6"));
         // Tamper with prev_hash
