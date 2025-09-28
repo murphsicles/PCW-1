@@ -356,15 +356,17 @@ mod tests {
         let priv_key = [1u8; 32];
         let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(priv_key)?);
         let anchor_a = anchor_b;
+        let amount = 100;
+        let dust = 50;
         let result = build_note_tx(
             &scope,
             0,
             &[utxo],
-            100,
+            amount,
             &anchor_b,
             &anchor_a,
             1,
-            50,
+            dust,
             &[priv_key],
         );
         if let Err(PcwError::DustChange) = result {
@@ -375,17 +377,17 @@ mod tests {
             let base_size = 10 + 148 * 1;
             let fee_one_output = (base_size + 34) * 1;
             let change_one_output = sum_in
-                .checked_sub(100)
+                .checked_sub(amount)
                 .and_then(|x| x.checked_sub(fee_one_output))
                 .unwrap_or(0);
             let fee_two_outputs = (base_size + 68) * 1;
             let change_two_outputs = sum_in
-                .checked_sub(100)
+                .checked_sub(amount)
                 .and_then(|x| x.checked_sub(fee_two_outputs))
                 .unwrap_or(0);
             panic!(
-                "Expected DustChange, got {:?}. sum_in={}, fee_one_output={}, change_one_output={}, fee_two_outputs={}, change_two_outputs={}",
-                result, sum_in, fee_one_output, change_one_output, fee_two_outputs, change_two_outputs
+                "Expected DustChange, got {:?}. sum_in={}, amount={}, dust={}, fee_one_output={}, change_one_output={}, fee_two_outputs={}, change_two_outputs={}",
+                result, sum_in, amount, dust, fee_one_output, change_one_output, fee_two_outputs, change_two_outputs
             );
         }
     }
