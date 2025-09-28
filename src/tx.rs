@@ -121,14 +121,12 @@ pub fn build_note_tx(
     let mut change_amount = 0;
     let mut fee = fee_one_output; // Default to one-output fee
     // Check two-output case first for DustChange
-    let after_amount = sum_in.checked_sub(amount);
-    if let Some(after) = after_amount {
-        let change_two_outputs = after.checked_sub(fee_two_outputs);
-        if let Some(change_two) = change_two_outputs {
-            if change_two > 0 && change_two < dust {
+    if let Some(after_amount) = sum_in.checked_sub(amount) {
+        if let Some(change_two_outputs) = after_amount.checked_sub(fee_two_outputs) {
+            if change_two_outputs > 0 && change_two_outputs < dust {
                 return Err(PcwError::DustChange);
             }
-            if change_two >= dust {
+            if change_two_outputs >= dust {
                 addr_a = sender_change_address(scope, i, anchor_a)?;
                 let s_i_scalar = scope.derive_scalar("snd", i)?;
                 let tweak_a = scalar_mul(&s_i_scalar)?;
@@ -137,16 +135,18 @@ pub fn build_note_tx(
                 let h160_a_hash = Hash160(h160_a);
                 let lock_a = create_lock_script(&h160_a_hash); // RPN: OP_DUP OP_HASH160 <pubkeyHash> OP_EQUALVERIFY OP_CHECKSIG
                 tx.outputs.push(TxOut {
-                    satoshis: change_two as i64,
+                    satoshis: change_two_outputs as i64,
                     lock_script: lock_a,
                 });
-                change_amount = change_two;
+                change_amount = change_two_outputs;
                 fee = fee_two_outputs; // Update fee for two outputs
             }
         }
-    }
-    // Check for Underfunded if two-output case doesn't apply
-    if sum_in < amount + fee_one_output {
+        // Check one-output case only if two-output case doesn't produce DustChange
+        if after_amount.checked_sub(fee_one_output).is_none() {
+            return Err(PcwError::Underfunded);
+        }
+    } else {
         return Err(PcwError::Underfunded);
     }
     // Add inputs
