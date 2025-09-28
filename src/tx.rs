@@ -105,18 +105,17 @@ pub fn build_note_tx(
         lock_time: 0,
     };
     // Fee estimate with one output (§7.3)
-    let fee = (base_size + 34) * feerate_floor; // 34 bytes for one output
-    // Debug: Log inputs to trace failure
-    let change = sum_in
+    let fee_one_output = (base_size + 34) * feerate_floor; // 34 bytes for one output
+    let change_one_output = sum_in
         .checked_sub(amount)
-        .and_then(|x| x.checked_sub(fee))
+        .and_then(|x| x.checked_sub(fee_one_output))
         .ok_or_else(|| {
             PcwError::Other(format!(
-                "Underfunded in first check: sum_in={}, amount={}, fee={}",
-                sum_in, amount, fee
+                "Underfunded in first check: sum_in={}, amount={}, fee_one_output={}",
+                sum_in, amount, fee_one_output
             ))
         })?;
-    if change > 0 && change < dust {
+    if change_one_output > 0 && change_one_output < dust {
         return Err(PcwError::DustChange);
     }
     // Add recipient output
@@ -128,7 +127,8 @@ pub fn build_note_tx(
     // Determine if change output is needed
     let mut addr_a = String::new();
     let mut change_amount = 0;
-    if change > 0 {
+    let mut fee = fee_one_output; // Default to one-output fee
+    if change_one_output > 0 {
         let fee_two_outputs = (base_size + 68) * feerate_floor; // 68 bytes for two outputs
         let change_two_outputs = sum_in
             .checked_sub(amount)
@@ -152,6 +152,7 @@ pub fn build_note_tx(
                 lock_script: lock_a,
             });
             change_amount = change_two_outputs;
+            fee = fee_two_outputs; // Update fee for two outputs
         } else if change_two_outputs > 0 {
             return Err(PcwError::DustChange);
         }
@@ -215,7 +216,7 @@ pub fn build_note_tx(
         change_addr: addr_a,
         change_amount,
         size_bytes: tx_bytes.len() as u64,
-        fee: if tx.outputs.len() == 1 { fee } else { fee + 34 * feerate_floor },
+        fee,
         feerate_used: feerate_floor,
         inputs: s_i_sorted
             .iter()
