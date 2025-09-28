@@ -106,10 +106,16 @@ pub fn build_note_tx(
     };
     // Fee estimate with one output (§7.3)
     let fee = (base_size + 34) * feerate_floor; // 34 bytes for one output
+    // Debug: Log inputs to trace failure
     let change = sum_in
         .checked_sub(amount)
         .and_then(|x| x.checked_sub(fee))
-        .ok_or(PcwError::Underfunded)?;
+        .ok_or_else(|| {
+            PcwError::Other(format!(
+                "Underfunded in first check: sum_in={}, amount={}, fee={}",
+                sum_in, amount, fee
+            ))
+        })?;
     if change > 0 && change < dust {
         return Err(PcwError::DustChange);
     }
@@ -127,7 +133,12 @@ pub fn build_note_tx(
         let change_two_outputs = sum_in
             .checked_sub(amount)
             .and_then(|x| x.checked_sub(fee_two_outputs))
-            .ok_or(PcwError::Underfunded)?;
+            .ok_or_else(|| {
+                PcwError::Other(format!(
+                    "Underfunded in second check: sum_in={}, amount={}, fee_two_outputs={}",
+                    sum_in, amount, fee_two_outputs
+                ))
+            })?;
         if change_two_outputs > 0 && change_two_outputs >= dust {
             addr_a = sender_change_address(scope, i, anchor_a)?;
             let s_i_scalar = scope.derive_scalar("snd", i)?;
