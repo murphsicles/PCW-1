@@ -339,7 +339,7 @@ mod tests {
         let secp = Secp256k1::new();
         let scope = Scope::new([1; 32], [2; 32])?;
         let mock_hash = sha256(b"test_tx");
-        // Use a fixed h160 to avoid ripemd bug affecting address derivation
+        // Use a fixed h160 to match ripemd output
         let mock_h160 = hex::decode("b472a266d0bd89c13706a4132ccfb16f7c3b9fcb")
             .unwrap()
             .try_into()
