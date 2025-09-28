@@ -107,8 +107,9 @@ pub fn build_note_tx(
         outputs: vec![],
         lock_time: 0,
     };
-    // Fee estimate with one output (§7.3)
+    // Fee estimates (§7.3)
     let fee_one_output = (base_size + 34) * feerate_floor; // 34 bytes for one output
+    let fee_two_outputs = (base_size + 68) * feerate_floor; // 68 bytes for two outputs
     // Add recipient output
     let lock_b = create_lock_script(&h160_b_hash); // RPN: OP_DUP OP_HASH160 <pubkeyHash> OP_EQUALVERIFY OP_CHECKSIG
     tx.outputs.push(TxOut {
@@ -119,38 +120,34 @@ pub fn build_note_tx(
     let mut addr_a = String::new();
     let mut change_amount = 0;
     let mut fee = fee_one_output; // Default to one-output fee
-    // Try two-output case first to check for DustChange
-    let fee_two_outputs = (base_size + 68) * feerate_floor; // 68 bytes for two outputs
-    let change_two_outputs = sum_in
-        .checked_sub(amount)
-        .and_then(|x| x.checked_sub(fee_two_outputs));
-    if let Some(change_two) = change_two_outputs {
-        if change_two > 0 && change_two < dust {
-            return Err(PcwError::DustChange);
+    // Check two-output case first for DustChange
+    let after_amount = sum_in.checked_sub(amount);
+    if let Some(after) = after_amount {
+        let change_two_outputs = after.checked_sub(fee_two_outputs);
+        if let Some(change_two) = change_two_outputs {
+            if change_two > 0 && change_two < dust {
+                return Err(PcwError::DustChange);
+            }
+            if change_two >= dust {
+                addr_a = sender_change_address(scope, i, anchor_a)?;
+                let s_i_scalar = scope.derive_scalar("snd", i)?;
+                let tweak_a = scalar_mul(&s_i_scalar)?;
+                let p_ai = point_add(anchor_a, &tweak_a)?;
+                let h160_a = h160(&ser_p(&p_ai));
+                let h160_a_hash = Hash160(h160_a);
+                let lock_a = create_lock_script(&h160_a_hash); // RPN: OP_DUP OP_HASH160 <pubkeyHash> OP_EQUALVERIFY OP_CHECKSIG
+                tx.outputs.push(TxOut {
+                    satoshis: change_two as i64,
+                    lock_script: lock_a,
+                });
+                change_amount = change_two;
+                fee = fee_two_outputs; // Update fee for two outputs
+            }
         }
-        if change_two >= dust {
-            addr_a = sender_change_address(scope, i, anchor_a)?;
-            let s_i_scalar = scope.derive_scalar("snd", i)?;
-            let tweak_a = scalar_mul(&s_i_scalar)?;
-            let p_ai = point_add(anchor_a, &tweak_a)?;
-            let h160_a = h160(&ser_p(&p_ai));
-            let h160_a_hash = Hash160(h160_a);
-            let lock_a = create_lock_script(&h160_a_hash); // RPN: OP_DUP OP_HASH160 <pubkeyHash> OP_EQUALVERIFY OP_CHECKSIG
-            tx.outputs.push(TxOut {
-                satoshis: change_two as i64,
-                lock_script: lock_a,
-            });
-            change_amount = change_two;
-            fee = fee_two_outputs; // Update fee for two outputs
-        }
-    } else {
-        // Check one-output case for Underfunded
-        let change_one_output = sum_in
-            .checked_sub(amount)
-            .and_then(|x| x.checked_sub(fee_one_output));
-        if change_one_output.is_none() {
-            return Err(PcwError::Underfunded);
-        }
+    }
+    // Check for Underfunded if two-output case doesn't apply
+    if sum_in < amount + fee_one_output {
+        return Err(PcwError::Underfunded);
     }
     // Add inputs
     for utxo in &s_i_sorted {
