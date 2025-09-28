@@ -108,13 +108,9 @@ pub fn build_note_tx(
     let fee_one_output = (base_size + 34) * feerate_floor; // 34 bytes for one output
     let change_one_output = sum_in
         .checked_sub(amount)
-        .and_then(|x| x.checked_sub(fee_one_output))
-        .ok_or_else(|| {
-            PcwError::Other(format!(
-                "Underfunded in first check: sum_in={}, amount={}, fee_one_output={}",
-                sum_in, amount, fee_one_output
-            ))
-        })?;
+        .ok_or(PcwError::Underfunded)?
+        .checked_sub(fee_one_output)
+        .ok_or(PcwError::Underfunded)?;
     if change_one_output > 0 && change_one_output < dust {
         return Err(PcwError::DustChange);
     }
@@ -132,13 +128,9 @@ pub fn build_note_tx(
         let fee_two_outputs = (base_size + 68) * feerate_floor; // 68 bytes for two outputs
         let change_two_outputs = sum_in
             .checked_sub(amount)
-            .and_then(|x| x.checked_sub(fee_two_outputs))
-            .ok_or_else(|| {
-                PcwError::Other(format!(
-                    "Underfunded in second check: sum_in={}, amount={}, fee_two_outputs={}",
-                    sum_in, amount, fee_two_outputs
-                ))
-            })?;
+            .ok_or(PcwError::Underfunded)?
+            .checked_sub(fee_two_outputs)
+            .ok_or(PcwError::Underfunded)?;
         if change_two_outputs > 0 && change_two_outputs >= dust {
             addr_a = sender_change_address(scope, i, anchor_a)?;
             let s_i_scalar = scope.derive_scalar("snd", i)?;
