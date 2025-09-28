@@ -113,9 +113,6 @@ pub fn build_note_tx(
     let change_one_output = after_amount
         .checked_sub(fee_one_output)
         .ok_or(PcwError::Underfunded)?;
-    if change_one_output > 0 && change_one_output < dust {
-        return Err(PcwError::DustChange);
-    }
     // Add recipient output
     let lock_b = create_lock_script(&h160_b_hash); // RPN: OP_DUP OP_HASH160 <pubkeyHash> OP_EQUALVERIFY OP_CHECKSIG
     tx.outputs.push(TxOut {
@@ -133,7 +130,10 @@ pub fn build_note_tx(
             .ok_or(PcwError::Underfunded)?
             .checked_sub(fee_two_outputs)
             .ok_or(PcwError::Underfunded)?;
-        if change_two_outputs > 0 && change_two_outputs >= dust {
+        if change_two_outputs > 0 && change_two_outputs < dust {
+            return Err(PcwError::DustChange);
+        }
+        if change_two_outputs >= dust {
             addr_a = sender_change_address(scope, i, anchor_a)?;
             let s_i_scalar = scope.derive_scalar("snd", i)?;
             let tweak_a = scalar_mul(&s_i_scalar)?;
@@ -147,9 +147,9 @@ pub fn build_note_tx(
             });
             change_amount = change_two_outputs;
             fee = fee_two_outputs; // Update fee for two outputs
-        } else if change_two_outputs > 0 {
-            return Err(PcwError::DustChange);
         }
+    } else if sum_in < amount + fee_one_output {
+        return Err(PcwError::Underfunded);
     }
     // Add inputs
     for utxo in &s_i_sorted {
@@ -238,7 +238,6 @@ pub fn build_note_tx(
     };
     Ok((NoteTx(tx), meta))
 }
-
 /// Reverse P2PKH lock to base58 address (Addr_B,i or Addr_A,i) (§8.3 optional, for meta).
 fn reverse_base58(lock: &[u8]) -> Result<String, PcwError> {
     if lock.len() != 25 {
