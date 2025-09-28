@@ -97,6 +97,9 @@ pub fn build_note_tx(
             .then(a.outpoint.index.cmp(&b.outpoint.index))
     });
     let sum_in: u64 = s_i_sorted.iter().map(|u| u.value).sum();
+    if sum_in == 0 {
+        return Err(PcwError::Other("Zero input sum §7.3".to_string()));
+    }
     let base_size = 10 + 148 * m as u64; // Base tx size without outputs (§7.3)
     let mut tx = Tx {
         version: 1,
@@ -106,16 +109,15 @@ pub fn build_note_tx(
     };
     // Fee estimate with one output (§7.3)
     let fee_one_output = (base_size + 34) * feerate_floor; // 34 bytes for one output
-    let change_one_output = sum_in
-        .checked_sub(amount)
-        .ok_or(PcwError::Underfunded)?
+    let after_amount = sum_in.checked_sub(amount).ok_or(PcwError::Underfunded)?;
+    let change_one_output = after_amount
         .checked_sub(fee_one_output)
         .ok_or(PcwError::Underfunded)?;
     if change_one_output > 0 && change_one_output < dust {
         return Err(PcwError::DustChange);
     }
     // Add recipient output
-    let lock_b = create_lock_script(&h160_b_hash);
+    let lock_b = create_lock_script(&h160_b_hash); // RPN: OP_DUP OP_HASH160 <pubkeyHash> OP_EQUALVERIFY OP_CHECKSIG
     tx.outputs.push(TxOut {
         satoshis: amount as i64,
         lock_script: lock_b,
@@ -138,7 +140,7 @@ pub fn build_note_tx(
             let p_ai = point_add(anchor_a, &tweak_a)?;
             let h160_a = h160(&ser_p(&p_ai));
             let h160_a_hash = Hash160(h160_a);
-            let lock_a = create_lock_script(&h160_a_hash);
+            let lock_a = create_lock_script(&h160_a_hash); // RPN: OP_DUP OP_HASH160 <pubkeyHash> OP_EQUALVERIFY OP_CHECKSIG
             tx.outputs.push(TxOut {
                 satoshis: change_two_outputs as i64,
                 lock_script: lock_a,
