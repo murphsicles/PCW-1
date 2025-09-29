@@ -95,22 +95,29 @@ mod tests {
         // Split amount
         let split = bounded_split(&scope, 1000, 100, 1000)?;
         assert_eq!(split.iter().sum::<u64>(), 1000);
-        // Create mock UTXO
-        let mock_hash = utils::sha256(b"test_tx");
+        // Create mock UTXOs (two for buffer against selection/fee variances)
         let mock_h160 = utils::h160(&utils::ser_p(&utxo_pub));
         let mock_script = create_lock_script(&Hash160(mock_h160));
-        let utxo = Utxo {
+        let utxo1 = Utxo {
             outpoint: OutPoint {
-                hash: Hash256(mock_hash),
+                hash: Hash256(utils::sha256(b"test_tx_1")),
                 index: 0,
             },
-            value: 100000000, // Increased to cover total + fees for multiple notes
+            value: 100000000, // 100M sats base
+            script_pubkey: mock_script.0.clone(),
+        };
+        let utxo2 = Utxo {
+            outpoint: OutPoint {
+                hash: Hash256(utils::sha256(b"test_tx_2")),
+                index: 0,
+            },
+            value: 100000000, // +100M buffer for fees/dust/fan-out
             script_pubkey: mock_script.0.clone(),
         };
         // Build reservations
         let total = split.iter().sum::<u64>();
         let (reservations, _addrs, _amounts, _n) = build_reservations(
-            &[utxo],
+            &[utxo1, utxo2],
             total,
             &scope,
             &anchor_b.pub_key,
@@ -121,7 +128,7 @@ mod tests {
         )?;
         let s_i = reservations.get(0).unwrap().as_ref().unwrap();
         // Build transaction
-        let priv_keys = vec![utxo_priv];
+        let priv_keys = vec![utxo_priv; s_i.len()];
         let (_note_tx, meta) = build_note_tx(
             &scope,
             0,
