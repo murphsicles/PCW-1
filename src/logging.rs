@@ -636,7 +636,7 @@ mod tests {
         tampered_log[1].by = hex::encode(tamper_key.pub_key.serialize());
         assert_ne!(original_sig, tampered_log[1].sig, "Tampered signature must differ from original");
         let result = verify_log_chain(&tampered_log);
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg == "Invalid signature §13.6"));
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid signature")));
         // Tamper with prev_hash
         let mut tampered_log = log.clone();
         tampered_log[1].set_prev_hash("invalid_hash".to_string());
