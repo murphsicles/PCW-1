@@ -35,7 +35,7 @@ path = "examples/main.rs"
 
 [[bin]]
 name = "integration"
-path = "tests/integration.rs"
+path = "src/tests/integration.rs"
 test = true
 
 [profile.dev]
