@@ -343,57 +343,32 @@ mod tests {
         let secp = Secp256k1::new();
         let scope = Scope::new([1; 32], [2; 32])?;
         let mock_hash = sha256(b"test_tx");
-        // Use a fixed h160 to match ripemd output
-        let mock_h160 = hex::decode("b472a266d0bd89c13706a4132ccfb16f7c3b9fcb")
-            .unwrap()
-            .try_into()
-            .unwrap();
+        let mock_h160 = h160(&mock_hash);
         let mock_script = create_lock_script(&Hash160(mock_h160));
         let utxo = Utxo {
             outpoint: OutPoint {
                 hash: Hash256(mock_hash),
                 index: 0,
             },
-            value: 258, // Triggers DustChange: 258 - 100 - 226 = 32 < 50
+            value: 341, // Adjusted to trigger DustChange: 341 - 100 - 192 = 49 < 50
             script_pubkey: mock_script.0,
         };
         let priv_key = [1u8; 32];
         let anchor_b = PublicKey::from_secret_key(&secp, &SecretKey::from_byte_array(priv_key)?);
         let anchor_a = anchor_b;
-        let amount = 100;
-        let dust = 50;
         let result = build_note_tx(
             &scope,
             0,
             &[utxo],
-            amount,
+            100,
             &anchor_b,
             &anchor_a,
             1,
-            dust,
+            50,
             &[priv_key],
         );
-        if let Err(PcwError::DustChange) = result {
-            Ok(())
-        } else {
-            // Debug assertions to diagnose failure
-            let sum_in: u64 = 258;
-            let base_size = 10 + 148 * 1;
-            let fee_one_output = (base_size + 34) * 1;
-            let change_one_output = sum_in
-                .checked_sub(amount)
-                .and_then(|x| x.checked_sub(fee_one_output))
-                .unwrap_or(0);
-            let fee_two_outputs = (base_size + 68) * 1;
-            let change_two_outputs = sum_in
-                .checked_sub(amount)
-                .and_then(|x| x.checked_sub(fee_two_outputs))
-                .unwrap_or(0);
-            panic!(
-                "Expected DustChange, got {:?}. sum_in={}, amount={}, dust={}, fee_one_output={}, change_one_output={}, fee_two_outputs={}, change_two_outputs={}",
-                result, sum_in, amount, dust, fee_one_output, change_one_output, fee_two_outputs, change_two_outputs
-            );
-        }
+        assert!(matches!(result, Err(PcwError::DustChange)));
+        Ok(())
     }
 
     #[test]
