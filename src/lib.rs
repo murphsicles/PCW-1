@@ -117,7 +117,7 @@ mod tests {
         // Build reservations
         let total = split.iter().sum::<u64>();
         let (reservations, _addrs, _amounts, _n) = build_reservations(
-            &[utxo1, utxo2],
+            &[utxo1, utxo2],  // Dual UTXOs
             total,
             &scope,
             &anchor_b.pub_key,
@@ -128,7 +128,7 @@ mod tests {
         )?;
         let s_i = reservations.get(0).unwrap().as_ref().unwrap();
         // Build transaction
-        let priv_keys = vec![utxo_priv; s_i.len()];
+        let priv_keys = vec![utxo_priv; s_i.len()];  // Scales for multiple
         let (_note_tx, meta) = build_note_tx(
             &scope,
             0,
