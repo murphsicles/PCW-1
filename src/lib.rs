@@ -63,9 +63,9 @@ mod tests {
         let expiry = Utc::now() + Duration::days(1);
         let mut policy = Policy::new(
             hex::encode(anchor_b.pub_key.serialize()),
-            2000,  // Increased from 100 to cover 1000 invoice + fees
-            1000,
-            500,
+            2000,  // available (covers 1000 + fees)
+            500,   // vmin (swapped)
+            1000,  // vmax (swapped)
             1,
             expiry,
         )?;
@@ -104,7 +104,7 @@ mod tests {
                 hash: Hash256(mock_hash),
                 index: 0,
             },
-            value: 100000000, // Increased to cover total + fees for multiple notes
+            value: 100000000, // Covers total + fees
             script_pubkey: mock_script.0.clone(),
         };
         // Build reservations
@@ -197,8 +197,8 @@ mod tests {
         let mut policy = Policy::new(
             hex::encode(anchor_b.pub_key.serialize()),
             100,
-            1000,
-            500,
+            500,   // vmin (swapped)
+            1000,  // vmax (swapped)
             1,
             expiry,
         )?;
@@ -231,9 +231,9 @@ mod tests {
         // Create policy
         let mut policy = Policy::new(
             hex::encode(anchor_b.pub_key.serialize()),
-            20000,  // Increased from 100 to cover 10000 invoice + fees
-            1000,
-            500,
+            20000,  // available (covers 10000 + fees)
+            500,    // vmin (swapped)
+            1000,   // vmax (swapped)
             1,
             expiry,
         )?;
@@ -350,8 +350,8 @@ mod tests {
         let mut policy = Policy::new(
             hex::encode(anchor_b.pub_key.serialize()),
             100,
-            1000,
-            500,
+            500,   // vmin (swapped)
+            1000,  // vmax (swapped)
             1,
             expiry,
         )?;
