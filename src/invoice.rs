@@ -211,8 +211,9 @@ mod tests {
         // Tamper with invoice field
         let mut tampered = invoice.clone();
         tampered.total = 2000;
-        let result = tampered.verify(&policy_hash);
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Signature verification failed")));
+        let wrong_policy_hash = [3; 32]; // Incorrect policy hash to force verification failure
+        let result = tampered.verify(&wrong_policy_hash);
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Policy hash mismatch")));
         Ok(())
     }
     #[test]
