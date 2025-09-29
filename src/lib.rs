@@ -106,7 +106,7 @@ mod tests {
                 hash: Hash256(mock_hash),
                 index: 0,
             },
-            value: 2000, // Increased to cover amount + fee
+            value: 5000, // Increased to cover total + fees for multiple notes
             script_pubkey: mock_script.0.clone(),
         };
         // Build reservations
@@ -262,11 +262,11 @@ mod tests {
         let split = bounded_split(&scope, 10000, 100, 1000)?;
         assert!(split.len() >= 10 && split.len() <= 100);
         assert_eq!(split.iter().sum::<u64>(), 10000);
-        // Large UTXO set (20 UTXOs)
+        // Large UTXO set (100 UTXOs)
         let mock_h160 = utils::h160(&utils::ser_p(&utxo_pub));
         let mock_script = create_lock_script(&Hash160(mock_h160));
         let mut utxos = vec![];
-        for i in 0..20 {
+        for i in 0..100 {
             utxos.push(Utxo {
                 outpoint: OutPoint {
                     hash: Hash256(utils::sha256(&format!("test_tx_{}", i).as_bytes())),
@@ -408,7 +408,7 @@ mod tests {
                 hash: Hash256(mock_hash),
                 index: 0,
             },
-            value: 200, // Adjusted to trigger DustChange
+            value: 341, // Adjusted to trigger DustChange: 341 - 100 - 192 = 49 < 50
             script_pubkey: mock_script.0.clone(),
         };
         let priv_keys = vec![utxo_priv];
