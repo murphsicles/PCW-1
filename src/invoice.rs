@@ -207,10 +207,9 @@ mod tests {
         )?;
         invoice.sign(&key)?;
         // Tamper with signature
-        invoice.sig = "invalid".to_string();
+        invoice.sig = "00".to_string();
         let result = invoice.verify(&policy_hash);
-        assert!(
-            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid signature format"))
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid signature format"))
         );
         // Tamper with invoice field
         let mut tampered = invoice.clone();
