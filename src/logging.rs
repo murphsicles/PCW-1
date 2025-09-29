@@ -479,8 +479,8 @@ mod tests {
         let mut log: Vec<ReissueRecord> = Vec::new();
         let priv_k = [1; 32];
         let key = IdentityKeypair::new(priv_k)?;
-        // Create and sign first record
-        let mut record1 = ReissueRecord {
+        // Create unsigned first record
+        let record1 = ReissueRecord {
             invoice_hash: "test1".to_string(),
             i: 0,
             note_id: "note1".to_string(),
@@ -492,17 +492,17 @@ mod tests {
             addr_change: "addr_a1".to_string(),
             fee: 100,
             feerate_used: 1,
-            at: "2025-09-21T14:00:00Z".to_string(),
+            at: "".to_string(),
             by: "".to_string(),
             sig_alg: "".to_string(),
             sig: "".to_string(),
             prev_hash: "".to_string(),
             seq: 0,
         };
-        record1.sign(&key)?;
         append_to_log(&mut log, record1, None)?;
-        // Create and sign second record
-        let mut record2 = ReissueRecord {
+        log.last_mut().unwrap().sign(&key)?;
+        // Create unsigned second record
+        let record2 = ReissueRecord {
             invoice_hash: "test2".to_string(),
             i: 1,
             note_id: "note2".to_string(),
@@ -514,16 +514,15 @@ mod tests {
             addr_change: "addr_a2".to_string(),
             fee: 200,
             feerate_used: 2,
-            at: "2025-09-21T14:00:00Z".to_string(),
+            at: "".to_string(),
             by: "".to_string(),
             sig_alg: "".to_string(),
             sig: "".to_string(),
             prev_hash: "".to_string(),
             seq: 0,
         };
-        record2.sign(&key)?;
-        let prev_record = log[0].clone();
-        append_to_log(&mut log, record2, Some(&prev_record))?;
+        append_to_log(&mut log, record2, Some(&log[0]))?;
+        log.last_mut().unwrap().sign(&key)?;
         assert_eq!(log.len(), 2);
         assert_eq!(log[0].seq, 1);
         assert_eq!(log[1].seq, 2);
@@ -541,8 +540,8 @@ mod tests {
         let mut log: Vec<ReissueRecord> = Vec::new();
         let priv_k = [1; 32];
         let key = IdentityKeypair::new(priv_k)?;
-        // Create and sign first record
-        let mut record1 = ReissueRecord {
+        // Create unsigned first record
+        let record1 = ReissueRecord {
             invoice_hash: "test1".to_string(),
             i: 0,
             note_id: "note1".to_string(),
@@ -554,17 +553,17 @@ mod tests {
             addr_change: "addr_a1".to_string(),
             fee: 100,
             feerate_used: 1,
-            at: "2025-09-21T14:00:00Z".to_string(),
+            at: "".to_string(),
             by: "".to_string(),
             sig_alg: "".to_string(),
             sig: "".to_string(),
             prev_hash: "".to_string(),
             seq: 0,
         };
-        record1.sign(&key)?;
         append_to_log(&mut log, record1, None)?;
-        // Create and sign second record
-        let mut record2 = ReissueRecord {
+        log.last_mut().unwrap().sign(&key)?;
+        // Create unsigned second record
+        let record2 = ReissueRecord {
             invoice_hash: "test2".to_string(),
             i: 1,
             note_id: "note2".to_string(),
@@ -576,16 +575,15 @@ mod tests {
             addr_change: "addr_a2".to_string(),
             fee: 200,
             feerate_used: 2,
-            at: "2025-09-21T14:00:00Z".to_string(),
+            at: "".to_string(),
             by: "".to_string(),
             sig_alg: "".to_string(),
             sig: "".to_string(),
             prev_hash: "".to_string(),
             seq: 0,
         };
-        record2.sign(&key)?;
-        let prev_record = log[0].clone();
-        append_to_log(&mut log, record2, Some(&prev_record))?;
+        append_to_log(&mut log, record2, Some(&log[0]))?;
+        log.last_mut().unwrap().sign(&key)?;
         // Verify valid chain
         verify_log_chain(&log)?;
         // Tamper with signature to cause invalid DER format
