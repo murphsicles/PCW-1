@@ -37,7 +37,6 @@ pub use selection::{Utxo, build_reservations};
 pub use split::bounded_split;
 pub use tx::{NoteMeta, NoteTx, build_note_tx};
 pub use utils::ecdh_z;
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -47,7 +46,6 @@ mod tests {
     use sv::messages::OutPoint;
     use sv::transaction::p2pkh::create_lock_script;
     use sv::util::{Hash160, Hash256};
-
     #[test]
     fn test_protocol_integration() -> Result<(), PcwError> {
         let secp = Secp256k1::new();
@@ -106,7 +104,7 @@ mod tests {
                 hash: Hash256(mock_hash),
                 index: 0,
             },
-            value: 50000, // Increased to cover total + fees for multiple notes
+            value: 1000000, // Increased to cover total + fees for multiple notes
             script_pubkey: mock_script.0.clone(),
         };
         // Build reservations
@@ -172,7 +170,6 @@ mod tests {
         verify_proof(&proof, &manifest)?;
         Ok(())
     }
-
     #[test]
     fn test_invalid_keys() -> Result<(), PcwError> {
         // Test invalid private key
@@ -184,7 +181,6 @@ mod tests {
         assert!(matches!(result, Err(secp256k1::Error::InvalidPublicKey)));
         Ok(())
     }
-
     #[test]
     fn test_malformed_json() -> Result<(), PcwError> {
         let priv_b = [2u8; 32];
@@ -220,7 +216,6 @@ mod tests {
         assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Zero amount")));
         Ok(())
     }
-
     #[test]
     fn test_large_inputs() -> Result<(), PcwError> {
         let secp = Secp256k1::new();
@@ -272,7 +267,7 @@ mod tests {
                     hash: Hash256(utils::sha256(&format!("test_tx_{}", i).as_bytes())),
                     index: i as u32,
                 },
-                value: 1000,
+                value: 10000,
                 script_pubkey: mock_script.0.clone(),
             });
         }
@@ -339,7 +334,6 @@ mod tests {
         verify_proof(&proof, &manifest)?;
         Ok(())
     }
-
     #[test]
     fn test_failure_cases() -> Result<(), PcwError> {
         let secp = Secp256k1::new();
