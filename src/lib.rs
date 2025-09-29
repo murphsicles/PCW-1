@@ -63,7 +63,7 @@ mod tests {
         let expiry = Utc::now() + Duration::days(1);
         let mut policy = Policy::new(
             hex::encode(anchor_b.pub_key.serialize()),
-            100,
+            2000,  // Increased from 100 to cover 1000 invoice + fees
             1000,
             500,
             1,
@@ -231,7 +231,7 @@ mod tests {
         // Create policy
         let mut policy = Policy::new(
             hex::encode(anchor_b.pub_key.serialize()),
-            100,
+            20000,  // Increased from 100 to cover 10000 invoice + fees
             1000,
             500,
             1,
