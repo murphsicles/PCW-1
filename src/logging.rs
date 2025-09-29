@@ -11,7 +11,6 @@ use chrono::Utc;
 use secp256k1::{Message, PublicKey, Secp256k1, SecretKey, ecdsa::Signature};
 use serde::Serialize;
 use serde_json;
-
 /// Trait for signed, append-only logs (§13.6-§13.7).
 pub trait LogRecord: Serialize + Clone {
     /// Sign the record with the provided identity keypair.
@@ -31,14 +30,12 @@ pub trait LogRecord: Serialize + Clone {
     /// Set the signature fields (by, sig_alg, sig).
     fn set_signature(&mut self, by: String, sig_alg: String, sig: String);
 }
-
 /// Metadata for a conflicted outpoint.
 #[derive(Serialize, Clone, Debug)]
 pub struct OutpointMeta {
     pub hash: String,
     pub index: u32,
 }
-
 /// Reissue record (§13.6).
 #[derive(Serialize, Clone, Debug)]
 pub struct ReissueRecord {
@@ -60,7 +57,6 @@ pub struct ReissueRecord {
     pub prev_hash: String,
     pub seq: u64,
 }
-
 impl LogRecord for ReissueRecord {
     fn sign(&mut self, key: &IdentityKeypair) -> Result<(), PcwError> {
         let by = hex::encode(key.pub_key.serialize());
@@ -114,7 +110,6 @@ impl LogRecord for ReissueRecord {
         self.sig = sig;
     }
 }
-
 /// Cancel record (§13.6).
 #[derive(Serialize, Clone, Debug)]
 pub struct CancelRecord {
@@ -131,7 +126,6 @@ pub struct CancelRecord {
     pub prev_hash: String,
     pub seq: u64,
 }
-
 impl LogRecord for CancelRecord {
     fn sign(&mut self, key: &IdentityKeypair) -> Result<(), PcwError> {
         let by = hex::encode(key.pub_key.serialize());
@@ -185,7 +179,6 @@ impl LogRecord for CancelRecord {
         self.sig = sig;
     }
 }
-
 /// Conflict record (§13.6).
 #[derive(Serialize, Clone, Debug)]
 pub struct ConflictRecord {
@@ -201,7 +194,6 @@ pub struct ConflictRecord {
     pub prev_hash: String,
     pub seq: u64,
 }
-
 impl LogRecord for ConflictRecord {
     fn sign(&mut self, key: &IdentityKeypair) -> Result<(), PcwError> {
         let by = hex::encode(key.pub_key.serialize());
@@ -255,7 +247,6 @@ impl LogRecord for ConflictRecord {
         self.sig = sig;
     }
 }
-
 /// Orphaned record (§13.6).
 #[derive(Serialize, Clone, Debug)]
 pub struct OrphanedRecord {
@@ -272,7 +263,6 @@ pub struct OrphanedRecord {
     pub prev_hash: String,
     pub seq: u64,
 }
-
 impl LogRecord for OrphanedRecord {
     fn sign(&mut self, key: &IdentityKeypair) -> Result<(), PcwError> {
         let by = hex::encode(key.pub_key.serialize());
@@ -326,7 +316,6 @@ impl LogRecord for OrphanedRecord {
         self.sig = sig;
     }
 }
-
 /// Append to log with chaining (§13.7).
 pub fn append_to_log<T: LogRecord>(
     log: &mut Vec<T>,
@@ -347,7 +336,6 @@ pub fn append_to_log<T: LogRecord>(
     log.push(record);
     Ok(())
 }
-
 /// Verify log chain integrity (§13.7).
 pub fn verify_log_chain<T: LogRecord>(log: &[T]) -> Result<(), PcwError> {
     if log.is_empty() {
@@ -387,12 +375,10 @@ pub fn verify_log_chain<T: LogRecord>(log: &[T]) -> Result<(), PcwError> {
     }
     Ok(())
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::keys::IdentityKeypair;
-
     #[test]
     fn test_reissue_record_sign_verify() -> Result<(), PcwError> {
         let priv_k = [1; 32];
@@ -420,7 +406,6 @@ mod tests {
         record.verify()?;
         Ok(())
     }
-
     #[test]
     fn test_cancel_record_sign_verify() -> Result<(), PcwError> {
         let priv_k = [1; 32];
@@ -443,7 +428,6 @@ mod tests {
         record.verify()?;
         Ok(())
     }
-
     #[test]
     fn test_conflict_record_sign_verify() -> Result<(), PcwError> {
         let priv_k = [1; 32];
@@ -468,7 +452,6 @@ mod tests {
         record.verify()?;
         Ok(())
     }
-
     #[test]
     fn test_orphaned_record_sign_verify() -> Result<(), PcwError> {
         let priv_k = [1; 32];
@@ -491,7 +474,6 @@ mod tests {
         record.verify()?;
         Ok(())
     }
-
     #[test]
     fn test_append_to_log() -> Result<(), PcwError> {
         let mut log: Vec<ReissueRecord> = Vec::new();
@@ -540,7 +522,7 @@ mod tests {
             seq: 0,
         };
         record2.sign(&key)?;
-        let prev_record = log[0].clone(); // Clone to avoid borrow conflict
+        let prev_record = log[0].clone();
         append_to_log(&mut log, record2, Some(&prev_record))?;
         assert_eq!(log.len(), 2);
         assert_eq!(log[0].seq, 1);
@@ -554,7 +536,6 @@ mod tests {
         );
         Ok(())
     }
-
     #[test]
     fn test_log_chain_tampering() -> Result<(), PcwError> {
         let mut log: Vec<ReissueRecord> = Vec::new();
@@ -603,17 +584,17 @@ mod tests {
             seq: 0,
         };
         record2.sign(&key)?;
-        let prev_record = log[0].clone(); // Clone to avoid borrow conflict
+        let prev_record = log[0].clone();
         append_to_log(&mut log, record2, Some(&prev_record))?;
         // Verify valid chain
         verify_log_chain(&log)?;
         // Tamper with signature (use a valid DER signature from a different key)
         let mut tampered_log = log.clone();
         let original_sig = tampered_log[1].sig.clone();
-        let priv_k_tamper = [2; 32]; // Different key for tampering
+        let priv_k_tamper = [2; 32];
         let tamper_key = IdentityKeypair::new(priv_k_tamper)?;
         let mut tamper_record = ReissueRecord {
-            invoice_hash: "test2".to_string(), // Same as original to isolate signature change
+            invoice_hash: "test2".to_string(),
             i: 1,
             note_id: "note2".to_string(),
             event: "reissue".to_string(),
@@ -636,28 +617,22 @@ mod tests {
         tampered_log[1].by = hex::encode(tamper_key.pub_key.serialize());
         assert_ne!(original_sig, tampered_log[1].sig, "Tampered signature must differ from original");
         let result = verify_log_chain(&tampered_log);
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid signature")));
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid signature §13.6")));
         // Tamper with prev_hash
         let mut tampered_log = log.clone();
         tampered_log[1].set_prev_hash("invalid_hash".to_string());
         let result = verify_log_chain(&tampered_log);
-        assert!(
-            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid prev_hash"))
-        );
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid prev_hash")));
         // Tamper with seq
         let mut tampered_log = log.clone();
         tampered_log[1].set_seq(3);
         let result = verify_log_chain(&tampered_log);
-        assert!(
-            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid sequence number §13.7"))
-        );
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid sequence number §13.7")));
         // Tamper with first record's prev_hash
         let mut tampered_log = log.clone();
         tampered_log[0].set_prev_hash("invalid_hash".to_string());
         let result = verify_log_chain(&tampered_log);
-        assert!(
-            matches!(result, Err(PcwError::Other(msg)) if msg.contains("First record must have empty prev_hash §13.7"))
-        );
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("First record must have empty prev_hash §13.7")));
         Ok(())
     }
 }
