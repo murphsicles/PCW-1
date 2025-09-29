@@ -104,7 +104,7 @@ mod tests {
                 hash: Hash256(mock_hash),
                 index: 0,
             },
-            value: 10000000, // Increased to cover total + fees for multiple notes
+            value: 100000000, // Increased to cover total + fees for multiple notes
             script_pubkey: mock_script.0.clone(),
         };
         // Build reservations
