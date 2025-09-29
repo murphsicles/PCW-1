@@ -521,7 +521,9 @@ mod tests {
             prev_hash: "".to_string(),
             seq: 0,
         };
-        append_to_log(&mut log, record2, Some(&log[0]))?;
+        // Clone prev to avoid borrow conflict
+        let prev_record = log[0].clone();
+        append_to_log(&mut log, record2, Some(&prev_record))?;
         log.last_mut().unwrap().sign(&key)?;
         assert_eq!(log.len(), 2);
         assert_eq!(log[0].seq, 1);
@@ -582,7 +584,9 @@ mod tests {
             prev_hash: "".to_string(),
             seq: 0,
         };
-        append_to_log(&mut log, record2, Some(&log[0]))?;
+        // Clone prev to avoid borrow conflict
+        let prev_record = log[0].clone();
+        append_to_log(&mut log, record2, Some(&prev_record))?;
         log.last_mut().unwrap().sign(&key)?;
         // Verify valid chain
         verify_log_chain(&log)?;
