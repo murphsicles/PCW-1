@@ -63,10 +63,10 @@ mod tests {
         let expiry = Utc::now() + Duration::days(1);
         let mut policy = Policy::new(
             hex::encode(anchor_b.pub_key.serialize()),
-            2000,  // available
-            500,   // vmin
+            2000,  // Bumped available to cover 1000 invoice + fees
             1000,  // vmax
-            1000,  // per_address_cap
+            500,   // vmin
+            1,
             expiry,
         )?;
         policy.sign(&identity_b)?;
@@ -197,9 +197,9 @@ mod tests {
         let mut policy = Policy::new(
             hex::encode(anchor_b.pub_key.serialize()),
             100,
-            500,   // vmin
             1000,  // vmax
-            1000,  // per_address_cap
+            500,   // vmin
+            1,
             expiry,
         )?;
         policy.sign(&identity_b)?;
@@ -231,10 +231,10 @@ mod tests {
         // Create policy
         let mut policy = Policy::new(
             hex::encode(anchor_b.pub_key.serialize()),
-            20000,  // available
-            500,    // vmin
+            20000,  // Bumped available to cover 10000 invoice + fees
             1000,   // vmax
-            1000,   // per_address_cap
+            500,    // vmin
+            1,
             expiry,
         )?;
         policy.sign(&identity_b)?;
@@ -350,9 +350,9 @@ mod tests {
         let mut policy = Policy::new(
             hex::encode(anchor_b.pub_key.serialize()),
             100,
-            500,   // vmin
             1000,  // vmax
-            1000,  // per_address_cap
+            500,   // vmin
+            1,
             expiry,
         )?;
         policy.sign(&identity_b)?;
