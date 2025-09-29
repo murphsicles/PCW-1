@@ -35,7 +35,7 @@ path = "examples/main.rs"
 
 [[test]]
 name = "integration"
-path = "tests/integration.rs"
+path = "src/tests/integration.rs"
 
 [profile.dev]
 opt-level = 3
