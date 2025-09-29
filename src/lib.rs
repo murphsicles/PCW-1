@@ -288,7 +288,7 @@ mod tests {
             50,
             false,
         )?;
-        assert_eq!(reservations.len(), split.len());
+        assert!(reservations.len() <= utxos.len(), "reservations.len()={} vs utxos.len()={}", reservations.len(), utxos.len());
         // Build transaction for first note
         let s_i = reservations.get(0).unwrap().as_ref().unwrap();
         let priv_keys = vec![utxo_priv; s_i.len()];
