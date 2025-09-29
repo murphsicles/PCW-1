@@ -27,7 +27,7 @@ unicode-normalization = "0.1.24"
 
 [dev-dependencies]
 criterion = "0.7.0"
-proptest = "1.7.0"
+proptest = "1.8.0"
 
 [[example]]
 name = "main"
