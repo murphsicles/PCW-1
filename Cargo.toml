@@ -33,10 +33,9 @@ proptest = "1.8.0"
 name = "main"
 path = "examples/main.rs"
 
-[[bin]]
+[[test]]
 name = "integration"
-path = "src/tests/integration.rs"
-test = true
+path = "tests/integration.rs"
 
 [profile.dev]
 opt-level = 3
