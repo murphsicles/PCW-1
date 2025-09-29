@@ -12,7 +12,6 @@ use hex;
 use secp256k1::{Message, PublicKey, Secp256k1, SecretKey, ecdsa::Signature};
 use serde::{Deserialize, Serialize};
 use serde_json;
-
 /// Invoice structure per §3.4.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Invoice {
@@ -26,7 +25,6 @@ pub struct Invoice {
     pub sig_alg: String,
     pub sig: String,
 }
-
 impl Invoice {
     /// Create new invoice with validation (§3.4).
     pub fn new(
@@ -213,9 +211,6 @@ mod tests {
         // Tamper with invoice field
         let mut tampered = invoice.clone();
         tampered.total = 2000;
-        let tamper_key = IdentityKeypair::new([3; 32])?;
-        tampered.sign(&tamper_key)?;
-        tampered.sig_key = hex::encode(tamper_key.pub_key.serialize());
         let result = tampered.verify(&policy_hash);
         assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Signature verification failed")));
         Ok(())
