@@ -603,9 +603,9 @@ mod tests {
         // Tamper with seq
         let mut tampered_log = log.clone();
         tampered_log[1].set_seq(3);
-        // Re-sign to isolate seq violation (keeps sig valid for tampered seq)
-        tampered_log[1].sign(&key)?;
         let result = verify_log_chain(&tampered_log);
+        // Debug print for CI trace
+        eprintln!("Seq tamper result: {:?}", result);
         assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid sequence number §13.7")));
         // Tamper with first record's prev_hash
         let mut tampered_log = log.clone();
