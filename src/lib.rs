@@ -63,10 +63,10 @@ mod tests {
         let expiry = Utc::now() + Duration::days(1);
         let mut policy = Policy::new(
             hex::encode(anchor_b.pub_key.serialize()),
-            2000,  // available (covers 1000 + fees)
-            500,   // vmin (swapped)
-            1000,  // vmax (swapped)
-            1,
+            2000,  // available
+            500,   // vmin
+            1000,  // vmax
+            1000,  // per_address_cap
             expiry,
         )?;
         policy.sign(&identity_b)?;
@@ -104,7 +104,7 @@ mod tests {
                 hash: Hash256(mock_hash),
                 index: 0,
             },
-            value: 100000000, // Covers total + fees
+            value: 100000000, // Increased to cover total + fees for multiple notes
             script_pubkey: mock_script.0.clone(),
         };
         // Build reservations
@@ -197,9 +197,9 @@ mod tests {
         let mut policy = Policy::new(
             hex::encode(anchor_b.pub_key.serialize()),
             100,
-            500,   // vmin (swapped)
-            1000,  // vmax (swapped)
-            1,
+            500,   // vmin
+            1000,  // vmax
+            1000,  // per_address_cap
             expiry,
         )?;
         policy.sign(&identity_b)?;
@@ -231,10 +231,10 @@ mod tests {
         // Create policy
         let mut policy = Policy::new(
             hex::encode(anchor_b.pub_key.serialize()),
-            20000,  // available (covers 10000 + fees)
-            500,    // vmin (swapped)
-            1000,   // vmax (swapped)
-            1,
+            20000,  // available
+            500,    // vmin
+            1000,   // vmax
+            1000,   // per_address_cap
             expiry,
         )?;
         policy.sign(&identity_b)?;
@@ -350,9 +350,9 @@ mod tests {
         let mut policy = Policy::new(
             hex::encode(anchor_b.pub_key.serialize()),
             100,
-            500,   // vmin (swapped)
-            1000,  // vmax (swapped)
-            1,
+            500,   // vmin
+            1000,  // vmax
+            1000,  // per_address_cap
             expiry,
         )?;
         policy.sign(&identity_b)?;
