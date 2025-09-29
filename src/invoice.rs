@@ -206,8 +206,8 @@ mod tests {
             expiry,
         )?;
         invoice.sign(&key)?;
-        // Tamper with signature
-        invoice.sig = "00".to_string();
+        // Tamper with signature to cause invalid DER format
+        invoice.sig = hex::encode(&[0x30, 0x01]); // Malformed DER (incomplete sequence)
         let result = invoice.verify(&policy_hash);
         assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid signature format"))
         );
