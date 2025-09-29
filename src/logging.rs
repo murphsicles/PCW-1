@@ -642,7 +642,7 @@ mod tests {
         tampered_log[1].set_prev_hash("invalid_hash".to_string());
         let result = verify_log_chain(&tampered_log);
         assert!(
-            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid signature"))
+            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid prev_hash"))
         );
         // Tamper with seq
         let mut tampered_log = log.clone();
