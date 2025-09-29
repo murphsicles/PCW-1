@@ -209,15 +209,15 @@ mod tests {
         // Tamper with signature to cause invalid DER format
         invoice.sig = hex::encode(&[0x30, 0x01]); // Malformed DER (incomplete sequence)
         let result = invoice.verify(&policy_hash);
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid signature format"))
-        );
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid signature format")));
         // Tamper with invoice field
         let mut tampered = invoice.clone();
         tampered.total = 2000;
+        let tamper_key = IdentityKeypair::new([3; 32])?;
+        tampered.sign(&tamper_key)?;
+        tampered.by = hex::encode(tamper_key.pub_key.serialize());
         let result = tampered.verify(&policy_hash);
-        assert!(
-            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Signature verification failed"))
-        );
+        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Signature verification failed")));
         Ok(())
     }
     #[test]
