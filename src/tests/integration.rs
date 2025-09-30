@@ -56,7 +56,7 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
     // Split
     let split = bounded_split(&scope, 2000, 100, 1000)?;
     assert_eq!(split.iter().sum::<u64>(), 2000);
-    // Mock UTXOs
+    // Mock UTXOs (increased values to cover fees/dust)
     let mock_hash = sha256(b"test_tx");
     let mock_h160 = h160(&mock_hash);
     let mock_script = create_lock_script(&Hash160(mock_h160));
@@ -66,7 +66,7 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
                 hash: Hash256(mock_hash),
                 index: 0,
             },
-            value: 1500,
+            value: 5000,
             script_pubkey: mock_script.0.clone(),
         },
         Utxo {
@@ -74,7 +74,7 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
                 hash: Hash256(sha256(b"test_tx_2")),
                 index: 1,
             },
-            value: 1500,
+            value: 5000,
             script_pubkey: mock_script.0.clone(),
         },
     ];
@@ -146,7 +146,7 @@ fn test_dust_change() -> Result<(), PcwError> {
             hash: Hash256(mock_hash),
             index: 0,
         },
-        value: 101,
+        value: 149, // Adjusted for dust change: 149 - 100 - 0 fee = 49 < 50 threshold
         script_pubkey: mock_script.0.clone(),
     }];
     let split = vec![100];
