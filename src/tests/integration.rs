@@ -1,11 +1,20 @@
-use pcw_protocol::{PcwError, IdentityKeypair, AnchorKeypair, Policy, Invoice, Scope, Utxo, Entry, Manifest, bounded_split, ecdh_z, build_reservations, build_note_tx, compute_leaves, merkle_root, generate_proof, verify_proof};
-use pcw_protocol::utils::{sha256, h160};
+use pcw_protocol::errors::PcwError;
+use pcw_protocol::invoice::Invoice;
+use pcw_protocol::keys::{AnchorKeypair, IdentityKeypair};
+use pcw_protocol::policy::Policy;
+use pcw_protocol::receipts::{compute_leaves, Entry, generate_proof, Manifest, merkle_root, verify_proof};
+use pcw_protocol::scope::Scope;
+use pcw_protocol::selection::Utxo;
+use pcw_protocol::split::bounded_split;
+use pcw_protocol::tx::{build_note_tx};
+use pcw_protocol::utils::{ecdh_z, h160, sha256};
 use chrono::{Duration, Utc};
 use hex;
 use secp256k1::{PublicKey, Secp256k1, SecretKey};
 use sv::messages::OutPoint;
 use sv::transaction::p2pkh::create_lock_script;
 use sv::util::{Hash160, Hash256};
+use std::collections::HashMap;
 
 #[cfg(test)]
 mod tests {
@@ -61,7 +70,7 @@ mod tests {
                     index: 0,
                 },
                 value: 1500,
-                script_pubkey: mock_script.to_vec(),
+                script_pubkey: mock_script.as_bytes().to_vec(),
             },
             Utxo {
                 outpoint: OutPoint {
@@ -69,7 +78,7 @@ mod tests {
                     index: 1,
                 },
                 value: 1500,
-                script_pubkey: mock_script.to_vec(),
+                script_pubkey: mock_script.as_bytes().to_vec(),
             },
         ];
         let total = split.iter().sum::<u64>();
@@ -77,7 +86,7 @@ mod tests {
         assert_eq!(r.len(), split.len());
         // Build tx for i=0
         let i = 0u32;
-        let s_i = r.get(&(i as usize)).unwrap().as_ref().unwrap();
+        let s_i = r.get(i as usize).unwrap().as_ref().unwrap();
         let priv_keys = vec![[5; 32]; s_i.len()];
         let (note_tx, meta) = build_note_tx(
             &scope,
@@ -139,7 +148,7 @@ mod tests {
                 index: 0,
             },
             value: 101,
-            script_pubkey: mock_script.to_vec(),
+            script_pubkey: mock_script.as_bytes().to_vec(),
         }];
         let split = vec![100];
         let priv_keys = vec![[5; 32]];
