@@ -4,7 +4,7 @@ use pcw_protocol::keys::{AnchorKeypair, IdentityKeypair};
 use pcw_protocol::policy::Policy;
 use pcw_protocol::receipts::{compute_leaves, Entry, generate_proof, Manifest, merkle_root, verify_proof};
 use pcw_protocol::scope::Scope;
-use pcw_protocol::selection::Utxo;
+use pcw_protocol::selection::{build_reservations, Utxo};
 use pcw_protocol::split::bounded_split;
 use pcw_protocol::tx::build_note_tx;
 use pcw_protocol::utils::{ecdh_z, h160, sha256};
@@ -67,7 +67,7 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
                 index: 0,
             },
             value: 1500,
-            script_pubkey: mock_script.as_bytes().to_vec(),
+            script_pubkey: mock_script.to_bytes(),
         },
         Utxo {
             outpoint: OutPoint {
@@ -75,7 +75,7 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
                 index: 1,
             },
             value: 1500,
-            script_pubkey: mock_script.as_bytes().to_vec(),
+            script_pubkey: mock_script.to_bytes(),
         },
     ];
     let total = split.iter().sum::<u64>();
@@ -147,7 +147,7 @@ fn test_dust_change() -> Result<(), PcwError> {
             index: 0,
         },
         value: 101,
-        script_pubkey: mock_script.as_bytes().to_vec(),
+        script_pubkey: mock_script.to_bytes(),
     }];
     let split = vec![100];
     let priv_keys = vec![[5; 32]];
