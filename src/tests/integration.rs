@@ -67,7 +67,7 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
                 index: 0,
             },
             value: 1500,
-            script_pubkey: mock_script.to_bytes(),
+            script_pubkey: mock_script.0.clone(),
         },
         Utxo {
             outpoint: OutPoint {
@@ -75,7 +75,7 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
                 index: 1,
             },
             value: 1500,
-            script_pubkey: mock_script.to_bytes(),
+            script_pubkey: mock_script.0.clone(),
         },
     ];
     let total = split.iter().sum::<u64>();
@@ -113,7 +113,7 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
         merkle_root: "".to_string(),
         count: split.len(),
         entries,
-        };
+    };
     let leaves = compute_leaves(&manifest, &amounts, &addr_payloads)?;
     let root = merkle_root(&leaves)?;
     manifest.merkle_root = hex::encode(root);
@@ -147,7 +147,7 @@ fn test_dust_change() -> Result<(), PcwError> {
             index: 0,
         },
         value: 101,
-        script_pubkey: mock_script.to_bytes(),
+        script_pubkey: mock_script.0.clone(),
     }];
     let split = vec![100];
     let priv_keys = vec![[5; 32]];
