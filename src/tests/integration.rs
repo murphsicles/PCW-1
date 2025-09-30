@@ -158,3 +158,7 @@ mod tests {
         Ok(())
     }
 }
+
+fn main() {
+    // This is a test binary, main is empty
+}
