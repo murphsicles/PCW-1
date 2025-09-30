@@ -138,6 +138,7 @@ fn test_dust_change() -> Result<(), PcwError> {
     let secret_key = SecretKey::from_byte_array([1; 32]).unwrap();
     let anchor_b = PublicKey::from_secret_key(&secp, &secret_key);
     let anchor_a = anchor_b.clone();
+    // Mock UTXOs (value=645 to force change < 546 dust threshold)
     let mock_hash = sha256(b"test_tx");
     let mock_h160 = h160(&mock_hash);
     let mock_script = create_lock_script(&Hash160(mock_h160));
@@ -146,7 +147,7 @@ fn test_dust_change() -> Result<(), PcwError> {
             hash: Hash256(mock_hash),
             index: 0,
         },
-        value: 149, // Adjusted for dust change: 149 - 100 - 0 fee = 49 < 50 threshold
+        value: 645,
         script_pubkey: mock_script.0.clone(),
     }];
     let split = vec![100];
