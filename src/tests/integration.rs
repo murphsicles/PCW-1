@@ -133,7 +133,7 @@ fn test_infeasible_split() -> Result<(), PcwError> {
 
 #[test]
 fn test_dust_change() -> Result<(), PcwError> {
-    let _secp = Secp256k1::new();
+    let secp = Secp256k1::new();
     let scope = Scope::new([1; 32], [2; 32])?;
     let secret_key = SecretKey::from_byte_array([1; 32]).unwrap();
     let anchor_b = PublicKey::from_secret_key(&secp, &secret_key);
