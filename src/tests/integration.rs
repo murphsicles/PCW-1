@@ -17,7 +17,7 @@ use sv::util::{Hash160, Hash256};
 
 #[test]
 fn test_full_protocol_flow() -> Result<(), PcwError> {
-    let secp = Secp256k1::new();
+    let _secp = Secp256k1::new();
     // Mock keys
     let priv_a = [1; 32];
     let identity_a = IdentityKeypair::new(priv_a)?;
@@ -85,7 +85,7 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
     let i = 0u32;
     let s_i = r.get(i as usize).unwrap().as_ref().unwrap();
     let priv_keys = vec![[5; 32]; s_i.len()];
-    let (note_tx, meta) = build_note_tx(
+    let (_note_tx, meta) = build_note_tx(
         &scope,
         i,
         s_i,
@@ -99,7 +99,7 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
     assert_eq!(meta.amount, split[0]);
     assert!(meta.txid.len() > 0);
     // Receipts
-    let amounts = split;
+    let amounts = split.clone();
     let addr_payloads = vec![[0; 21]; split.len()];
     let mut entries = vec![];
     for j in 0..split.len() {
@@ -133,7 +133,7 @@ fn test_infeasible_split() -> Result<(), PcwError> {
 
 #[test]
 fn test_dust_change() -> Result<(), PcwError> {
-    let secp = Secp256k1::new();
+    let _secp = Secp256k1::new();
     let scope = Scope::new([1; 32], [2; 32])?;
     let secret_key = SecretKey::from_byte_array([1; 32]).unwrap();
     let anchor_b = PublicKey::from_secret_key(&secp, &secret_key);
