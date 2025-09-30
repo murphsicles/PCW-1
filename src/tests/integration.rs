@@ -1,11 +1,13 @@
+use pcw_protocol::*;
+use pcw_protocol::utils::{sha256, h160};
+use chrono::{Duration, Utc};
+use secp256k1::{PublicKey, Secp256k1, SecretKey};
+use sv::messages::OutPoint;
+use sv::transaction::p2pkh::create_lock_script;
+use sv::util::{Hash160, Hash256};
+
 #[cfg(test)]
 mod tests {
-    use pcw_protocol::*;
-    use secp256k1::{PublicKey, Secp256k1, SecretKey};
-    use sv::messages::OutPoint;
-    use sv::transaction::p2pkh::create_lock_script;
-    use sv::util::{Hash160, Hash256};
-
     #[test]
     fn test_full_protocol_flow() -> Result<(), PcwError> {
         let secp = Secp256k1::new();
@@ -17,7 +19,7 @@ mod tests {
         let anchor_a = AnchorKeypair::new([3; 32])?;
         let anchor_b = AnchorKeypair::new([4; 32])?;
         // Policy
-        let expiry = Utc::now() + chrono::Duration::days(1);
+        let expiry = Utc::now() + Duration::days(1);
         let mut policy = Policy::new(
             hex::encode(anchor_b.pub_key.serialize()),
             100,
@@ -48,8 +50,8 @@ mod tests {
         let split = bounded_split(&scope, 2000, 100, 1000)?;
         assert_eq!(split.iter().sum::<u64>(), 2000);
         // Mock UTXOs
-        let mock_hash = utils::sha256(b"test_tx");
-        let mock_h160 = utils::h160(&mock_hash);
+        let mock_hash = sha256(b"test_tx");
+        let mock_h160 = h160(&mock_hash);
         let mock_script = create_lock_script(&Hash160(mock_h160));
         let u0 = vec![
             Utxo {
@@ -58,23 +60,23 @@ mod tests {
                     index: 0,
                 },
                 value: 1500,
-                script_pubkey: mock_script.as_bytes().to_vec(),
+                script_pubkey: mock_script.clone(),
             },
             Utxo {
                 outpoint: OutPoint {
-                    hash: Hash256(utils::sha256(b"test_tx_2")),
+                    hash: Hash256(sha256(b"test_tx_2")),
                     index: 1,
                 },
                 value: 1500,
-                script_pubkey: mock_script.as_bytes().to_vec(),
+                script_pubkey: mock_script.clone(),
             },
         ];
         let total = split.iter().sum::<u64>();
         let (r, _addrs, _amounts, _n) = build_reservations(&u0, total, &scope, &anchor_b.pub_key, &anchor_a.pub_key, 1, 50, false)?;
         assert_eq!(r.len(), split.len());
         // Build tx for i=0
-        let i = 0;
-        let s_i = r.get(i).unwrap().as_ref().unwrap();
+        let i = 0u32;
+        let s_i = r.get(&i).unwrap().as_ref().unwrap();
         let priv_keys = vec![[5; 32]; s_i.len()];
         let (note_tx, meta) = build_note_tx(
             &scope,
@@ -124,11 +126,11 @@ mod tests {
     fn test_dust_change() -> Result<(), PcwError> {
         let secp = Secp256k1::new();
         let scope = Scope::new([1; 32], [2; 32])?;
-        let secret_key = SecretKey::from_slice(&[1; 32]).unwrap();  // Use from_slice for safety
+        let secret_key = SecretKey::from_byte_array([1; 32]).unwrap(); // Use from_byte_array
         let anchor_b = PublicKey::from_secret_key(&secp, &secret_key);
         let anchor_a = anchor_b.clone();
-        let mock_hash = utils::sha256(b"test_tx");
-        let mock_h160 = utils::h160(&mock_hash);
+        let mock_hash = sha256(b"test_tx");
+        let mock_h160 = h160(&mock_hash);
         let mock_script = create_lock_script(&Hash160(mock_h160));
         let u0 = vec![Utxo {
             outpoint: OutPoint {
@@ -136,7 +138,7 @@ mod tests {
                 index: 0,
             },
             value: 101, // Causes dust change
-            script_pubkey: mock_script.as_bytes().to_vec(),
+            script_pubkey: mock_script.clone(),
         }];
         let split = vec![100];
         let priv_keys = vec![[5; 32]];
