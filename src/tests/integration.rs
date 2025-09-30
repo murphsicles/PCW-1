@@ -67,7 +67,7 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
                 index: 0,
             },
             value: 1500,
-            script_pubkey: mock_script.to_bytes(),
+            script_pubkey: mock_script.as_bytes().to_vec(),
         },
         Utxo {
             outpoint: OutPoint {
@@ -75,7 +75,7 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
                 index: 1,
             },
             value: 1500,
-            script_pubkey: mock_script.to_bytes(),
+            script_pubkey: mock_script.as_bytes().to_vec(),
         },
     ];
     let total = split.iter().sum::<u64>();
@@ -147,7 +147,7 @@ fn test_dust_change() -> Result<(), PcwError> {
             index: 0,
         },
         value: 101,
-        script_pubkey: mock_script.to_bytes(),
+        script_pubkey: mock_script.as_bytes().to_vec(),
     }];
     let split = vec![100];
     let priv_keys = vec![[5; 32]];
