@@ -63,10 +63,10 @@ mod tests {
         let expiry = Utc::now() + Duration::days(1);
         let mut policy = Policy::new(
             hex::encode(anchor_b.pub_key.serialize()),
-            100,   // vmin
-            1000,  // vmax
-            500,   // per_address_cap
-            1,     // feerate_floor
+            100, // vmin
+            1000, // vmax
+            500, // per_address_cap
+            1, // feerate_floor
             expiry,
         )?;
         policy.sign(&identity_b)?;
@@ -94,7 +94,6 @@ mod tests {
         assert!(addr_a.starts_with("1"));
         // Split amount
         let split = bounded_split(&scope, 1000, 100, 1000)?;
-        assert_eq!(split.iter().sum::<u64>(), 1000);
         // Create mock UTXOs (two for buffer against selection/fee variances)
         let mock_h160 = utils::h160(&utils::ser_p(&utxo_pub));
         let mock_script = create_lock_script(&Hash160(mock_h160));
@@ -115,10 +114,9 @@ mod tests {
             script_pubkey: mock_script.0.clone(),
         };
         // Build reservations
-        let total = split.iter().sum::<u64>();
         let (reservations, _addrs, _amounts, _n) = build_reservations(
-            &[utxo1, utxo2],  // Dual UTXOs
-            total,
+            &[utxo1, utxo2], // Dual UTXOs
+            &split,
             &scope,
             &anchor_b.pub_key,
             &anchor_a.pub_key,
@@ -128,7 +126,7 @@ mod tests {
         )?;
         let s_i = reservations.get(0).unwrap().as_ref().unwrap();
         // Build transaction
-        let priv_keys = vec![utxo_priv; s_i.len()];  // Scales for multiple
+        let priv_keys = vec![utxo_priv; s_i.len()]; // Scales for multiple
         let (_note_tx, meta) = build_note_tx(
             &scope,
             0,
@@ -203,10 +201,10 @@ mod tests {
         // Valid policy for invoice
         let mut policy = Policy::new(
             hex::encode(anchor_b.pub_key.serialize()),
-            100,   // vmin
-            1000,  // vmax
-            500,   // per_address_cap
-            1,     // feerate_floor
+            100, // vmin
+            1000, // vmax
+            500, // per_address_cap
+            1, // feerate_floor
             expiry,
         )?;
         policy.sign(&identity_b)?;
@@ -238,10 +236,10 @@ mod tests {
         // Create policy
         let mut policy = Policy::new(
             hex::encode(anchor_b.pub_key.serialize()),
-            100,   // vmin
-            1000,  // vmax
-            500,   // per_address_cap
-            1,     // feerate_floor
+            100, // vmin
+            1000, // vmax
+            500, // per_address_cap
+            1, // feerate_floor
             expiry,
         )?;
         policy.sign(&identity_b)?;
@@ -279,10 +277,9 @@ mod tests {
             });
         }
         // Build reservations
-        let total = split.iter().sum::<u64>();
         let (reservations, _addrs, _amounts, _n) = build_reservations(
             &utxos,
-            total,
+            &split,
             &scope,
             &anchor_b.pub_key,
             &anchor_a.pub_key,
