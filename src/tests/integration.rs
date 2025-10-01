@@ -29,9 +29,9 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
     let expiry = Utc::now() + Duration::days(1);
     let mut policy = Policy::new(
         hex::encode(anchor_b.pub_key.serialize()),
-        100,
-        1000,
-        500,
+        500,  // Increased min_output to match bounded_split
+        1000, // Increased max_output
+        1000, // Increased per_address_cap
         1,
         expiry,
     )?;
@@ -53,11 +53,11 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
     // Scope
     let z = ecdh_z(&priv_a, &identity_b.pub_key)?;
     let scope = Scope::new(z, h_i)?;
-    // Split (reduced max outputs to 2 to lower fees)
+    // Split
     let split = bounded_split(&scope, 2000, 500, 1000)?;
     println!("Split: {:?}", split);
     assert_eq!(split.iter().sum::<u64>(), 2000);
-    // Mock UTXOs (50000 each for fee buffer)
+    // Mock UTXOs
     let mock_hash = sha256(b"test_tx");
     let mock_h160 = h160(&mock_hash);
     let mock_script = create_lock_script(&Hash160(mock_h160));
@@ -81,8 +81,8 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
     ];
     let total = split.iter().sum::<u64>();
     println!("Total: {}, UTXOs: {:?}", total, u0);
-    println!("Calling build_reservations with total: {}, fee_rate: 50, vsize_factor: 1, split_len: {}", total, split.len());
-    let (r, _addrs, _amounts, _n) = build_reservations(&u0, total, &scope, &anchor_b.pub_key, &anchor_a.pub_key, 1, 50, false)?;
+    println!("Calling build_reservations with total: {}, fee_rate: 1, vsize_factor: 1, split_len: {}", total, split.len());
+    let (r, _addrs, _amounts, _n) = build_reservations(&u0, total, &scope, &anchor_b.pub_key, &anchor_a.pub_key, 1, 546, false)?;
     println!("Reservations: {:?}", r);
     assert_eq!(r.len(), split.len());
     // Build tx for i=0
@@ -90,7 +90,7 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
     let s_i = r.get(i as usize).unwrap().as_ref().unwrap();
     println!("Reservation for i=0: {:?}", s_i);
     let priv_keys = vec![[5; 32]; s_i.len()];
-    println!("Calling build_note_tx with amount: {}, fee_rate: 50, vsize_factor: 1", split[0]);
+    println!("Calling build_note_tx with amount: {}, fee_rate: 1, vsize_factor: 1, dust: 546", split[0]);
     let result = build_note_tx(
         &scope,
         i,
@@ -99,7 +99,7 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
         &anchor_b.pub_key,
         &anchor_a.pub_key,
         1,
-        50,
+        546,
         &priv_keys,
     );
     println!("Build note tx result: {:?}", result);
@@ -160,7 +160,7 @@ fn test_dust_change() -> Result<(), PcwError> {
     }];
     let split = vec![100];
     let priv_keys = vec![[5; 32]];
-    println!("Calling build_note_tx with input: 545, output: 100, fee_rate: 50, vsize_factor: 1");
+    println!("Calling build_note_tx with input: 545, output: 100, fee_rate: 1, vsize_factor: 1, dust: 546");
     let result = build_note_tx(
         &scope,
         0,
@@ -169,7 +169,7 @@ fn test_dust_change() -> Result<(), PcwError> {
         &anchor_b,
         &anchor_a,
         1,
-        50,
+        546, // Use correct dust threshold
         &priv_keys,
     );
     println!("Build note tx result: {:?}", result);
