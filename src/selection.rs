@@ -339,11 +339,11 @@ mod tests {
                 hash: Hash256(mock_hash),
                 index: 0,
             },
-            value: 1200,
+            value: 1800,
             script_pubkey: mock_script.0,
         }];
         let used = HashSet::new();
-        let total = 1600;
+        let total = 1000;
         let feerate_floor = 1;
         let dust = 50;
         let secret_key = SecretKey::from_byte_array([1; 32]).unwrap();
@@ -358,8 +358,8 @@ mod tests {
             &scope,
             &sender_anchor,
         )?;
-        assert_eq!(fan_out_utxos.len(), 1); // 1000 / 1000 = 1
-        assert_eq!(fan_out_utxos[0].value, 1200);
+        assert_eq!(fan_out_utxos.len(), 1);
+        assert_eq!(fan_out_utxos[0].value, 1000);
         Ok(())
     }
 
