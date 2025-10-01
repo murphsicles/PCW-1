@@ -343,7 +343,7 @@ mod tests {
             script_pubkey: mock_script.0,
         }];
         let used = HashSet::new();
-        let total = 1200;
+        let total = 1600;
         let feerate_floor = 1;
         let dust = 50;
         let secret_key = SecretKey::from_byte_array([1; 32]).unwrap();
@@ -359,7 +359,7 @@ mod tests {
             &sender_anchor,
         )?;
         assert_eq!(fan_out_utxos.len(), 1); // 1000 / 1000 = 1
-        assert_eq!(fan_out_utxos[0].value, 1000);
+        assert_eq!(fan_out_utxos[0].value, 1200);
         Ok(())
     }
 
