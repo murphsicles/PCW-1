@@ -11,7 +11,6 @@ use secp256k1::{PublicKey, Secp256k1, SecretKey};
 use sv::messages::OutPoint;
 use sv::transaction::p2pkh::create_lock_script;
 use sv::util::{Hash160, Hash256};
-
 fn main() -> Result<(), PcwError> {
     let secp = Secp256k1::new();
     // Mock keys
@@ -68,15 +67,14 @@ fn main() -> Result<(), PcwError> {
         script_pubkey: mock_script.0,
     }];
     // Build reservations
-    let total = amounts.iter().sum::<u64>();
     let (reservations, _addrs, _amounts, _n) = build_reservations(
         &u0,
-        total,
+        &amounts,
         &scope,
         &anchor_b.pub_key,
         &anchor_a.pub_key,
-        1,     // feerate_floor
-        50,    // dust
+        1, // feerate_floor
+        50, // dust
         false, // fanout_allowed
     )?;
     // Access reservations
