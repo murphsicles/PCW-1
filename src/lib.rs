@@ -391,7 +391,7 @@ mod tests {
         let total = split.iter().sum::<u64>();
         let result = build_reservations(
             &[utxo],
-            total,
+            &split,
             &scope,
             &anchor_b.pub_key,
             &anchor_a.pub_key,
