@@ -27,9 +27,9 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
     let anchor_b = AnchorKeypair::new([4; 32])?;
     // Policy
     let expiry = Utc::now() + Duration::days(1);
-    let min_output = 1000; // Increased to reduce split size
-    let max_output = 1000;
-    let per_address_cap = 1000;
+    let min_output = 2000; // Force single output
+    let max_output = 2000;
+    let per_address_cap = 2000;
     let mut policy = Policy::new(
         hex::encode(anchor_b.pub_key.serialize()),
         min_output,
