@@ -339,11 +339,11 @@ mod tests {
                 hash: Hash256(mock_hash),
                 index: 0,
             },
-            value: 1000,
+            value: 1200,
             script_pubkey: mock_script.0,
         }];
         let used = HashSet::new();
-        let total = 1000;
+        let total = 1200;
         let feerate_floor = 1;
         let dust = 50;
         let secret_key = SecretKey::from_byte_array([1; 32]).unwrap();
