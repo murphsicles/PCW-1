@@ -388,7 +388,7 @@ mod tests {
             script_pubkey: mock_script.0.clone(),
         };
         let split = bounded_split(&scope, 1000, 100, 1000)?;
-        let total = split.iter().sum::<u64>();
+        let _total = split.iter().sum::<u64>();
         let result = build_reservations(
             &[utxo],
             &split,
