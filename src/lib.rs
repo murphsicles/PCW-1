@@ -93,7 +93,7 @@ mod tests {
         assert!(addr_b.starts_with("1"));
         assert!(addr_a.starts_with("1"));
         // Split amount
-        let split = bounded_split(&scope, 1000, 100, 1000)?;
+        let split = bounded_split(&scope, 1000, 500, 1000)?;
         // Create mock UTXOs (two for buffer against selection/fee variances)
         let mock_h160 = utils::h160(&utils::ser_p(&utxo_pub));
         let mock_script = create_lock_script(&Hash160(mock_h160));
