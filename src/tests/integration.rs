@@ -27,9 +27,9 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
     let anchor_b = AnchorKeypair::new([4; 32])?;
     // Policy
     let expiry = Utc::now() + Duration::days(1);
-    let min_output = 500;
-    let max_output = 500;
-    let per_address_cap = 500;
+    let min_output = 1000;
+    let max_output = 1000;
+    let per_address_cap = 1000;
     let mut policy = Policy::new(
         hex::encode(anchor_b.pub_key.serialize()),
         min_output,
@@ -60,7 +60,7 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
     let split = bounded_split(&scope, 2000, min_output, max_output)?;
     println!("Split: {:?}", split);
     assert_eq!(split.iter().sum::<u64>(), 2000);
-    // Mock UTXOs (4 UTXOs to match n=4)
+    // Mock UTXOs (2 UTXOs for n=2)
     let mock_hash = sha256(b"test_tx");
     let mock_h160 = h160(&mock_hash);
     let mock_script = create_lock_script(&Hash160(mock_h160));
@@ -81,27 +81,10 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
             value: 50000,
             script_pubkey: mock_script.0.clone(),
         },
-        Utxo {
-            outpoint: OutPoint {
-                hash: Hash256(sha256(b"test_tx_3")),
-                index: 2,
-            },
-            value: 50000,
-            script_pubkey: mock_script.0.clone(),
-        },
-        Utxo {
-            outpoint: OutPoint {
-                hash: Hash256(sha256(b"test_tx_4")),
-                index: 3,
-            },
-            value: 50000,
-            script_pubkey: mock_script.0.clone(),
-        },
     ];
-    let total = split.iter().sum::<u64>();
-    println!("Total: {}, UTXOs: {:?}", total, u0);
-    println!("Calling build_reservations with total: {}, fee_rate: 1, vsize_factor: 1, split_len: {}, min_output: {}, per_address_cap: {}", total, split.len(), min_output, per_address_cap);
-    let (r, _addrs, _amounts, _n) = build_reservations(&u0, total, &scope, &anchor_b.pub_key, &anchor_a.pub_key, 1, 546, false)?;
+    println!("Total: {}, UTXOs: {:?}", split.iter().sum::<u64>(), u0);
+    println!("Calling build_reservations with split_len: {}", split.len());
+    let (r, _addrs, _amounts, _n) = build_reservations(&u0, &split, &scope, &anchor_b.pub_key, &anchor_a.pub_key, 1, 546, false)?;
     println!("Reservations: {:?}", r);
     assert_eq!(r.len(), split.len());
     // Build tx for i=0
