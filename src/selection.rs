@@ -25,34 +25,11 @@ pub struct Utxo {
     pub script_pubkey: Vec<u8>,
 }
 
-/// Computes N_min and N_max for the given parameters (§6.2).
-pub fn compute_n_min_max(
-    total: u64,
-    vmin: u64,
-    vmax: u64,
-    per_address_cap: u64,
-) -> Result<(usize, usize), PcwError> {
-    if total < vmin || vmin == 0 || vmax < vmin || per_address_cap < vmin || per_address_cap > vmax
-    {
-        return Err(PcwError::Other("Invalid split parameters §6.2".to_string()));
-    }
-    let n_min = total.div_ceil(per_address_cap);
-    let n_max = if vmax > 0 {
-        total.div_ceil(vmin)
-    } else {
-        u64::MAX
-    };
-    if n_min > n_max {
-        return Err(PcwError::InfeasibleSplit);
-    }
-    Ok((n_min.try_into().unwrap(), n_max.try_into().unwrap()))
-}
-
-/// Builds reservations S_i and addresses for N notes (§6.4).
+/// Builds reservations S_i and addresses for the given split notes (§6.4).
 #[allow(clippy::too_many_arguments)]
 pub fn build_reservations(
     utxos: &[Utxo],
-    total: u64,
+    split: &[u64],
     scope: &Scope,
     recipient_anchor: &PublicKey,
     sender_anchor: &PublicKey,
@@ -60,8 +37,11 @@ pub fn build_reservations(
     dust: u64,
     fanout_allowed: bool,
 ) -> Result<ReservationResult, PcwError> {
-    let (n_min, _n_max) = compute_n_min_max(total, 100, 1000, 500)?;
-    let n = max(n_min, 1);
+    let n = split.len();
+    if n == 0 {
+        return Err(PcwError::Other("Empty split §6.4".to_string()));
+    }
+    let total: u64 = split.iter().sum();
     let mut u_sorted = utxos.to_vec();
     u_sorted.sort_by(|a, b| {
         a.value
@@ -76,7 +56,7 @@ pub fn build_reservations(
     let mut amounts = vec![0u64; n];
     let mut fanout_done = false;
     for i in 0..n {
-        let target = total / n as u64;
+        let target = split[i];
         let s_i = select_utxos(&u_sorted, &mut used, target, feerate_floor, dust)?;
         match s_i {
             Some(s_i) => {
@@ -192,7 +172,7 @@ fn select_utxos(
 fn fan_out(
     utxos: &[Utxo],
     used: &HashSet<Hash256>,
-    split: u64,
+    total: u64,
     feerate_floor: u64,
     dust: u64,
     scope: &Scope,
@@ -206,8 +186,8 @@ fn fan_out(
         .collect::<Vec<_>>();
     available.sort_by(|a, b| a.value.cmp(&b.value).reverse());
     let mut fan_out_utxos = vec![];
-    let n = (available.iter().map(|u| u.value).sum::<u64>() / split).max(1) as usize;
-    let target = split + base_fee + feerate_floor * (148 + 34 * n as u64);
+    let n = (available.iter().map(|u| u.value).sum::<u64>() / total).max(1) as usize;
+    let target = total + base_fee + feerate_floor * (148 + 34 * n as u64);
     let mut sum = 0;
     let mut selected = vec![];
     for utxo in available {
@@ -231,7 +211,7 @@ fn fan_out(
                         hash: Hash256(sha256(format!("fan_out_{}", i).as_bytes())),
                         index: i as u32,
                     },
-                    value: split,
+                    value: total / n as u64,
                     script_pubkey,
                 });
             }
@@ -265,16 +245,6 @@ mod tests {
     use secp256k1::{PublicKey, Secp256k1, SecretKey};
     use sv::transaction::p2pkh::create_lock_script;
     use sv::util::Hash160;
-
-    #[test]
-    fn test_compute_n_min_max() -> Result<(), PcwError> {
-        let (n_min, n_max) = compute_n_min_max(1000, 100, 1000, 500)?;
-        assert_eq!(n_min, 2); // 1000 / 500 = 2
-        assert_eq!(n_max, 10); // 1000 / 100 = 10
-        let result = compute_n_min_max(1000, 600, 1000, 500);
-        assert!(result.is_err()); // Infeasible: n_min=2 > n_max=1
-        Ok(())
-    }
 
     #[test]
     fn test_select_utxos() -> Result<(), PcwError> {
@@ -336,13 +306,14 @@ mod tests {
                 script_pubkey: mock_script.0.clone(),
             },
         ];
+        let split = vec![500, 500];
         let secret_key = SecretKey::from_byte_array([1; 32]).unwrap();
         let secp = Secp256k1::new();
         let recipient_anchor = PublicKey::from_secret_key(&secp, &secret_key);
         let sender_anchor = recipient_anchor;
         let (reservations, addrs, amounts, n) = build_reservations(
             &utxos,
-            1000,
+            &split,
             &scope,
             &recipient_anchor,
             &sender_anchor,
@@ -354,7 +325,7 @@ mod tests {
         assert_eq!(reservations.len(), 2);
         assert_eq!(addrs.len(), 2);
         assert_eq!(amounts.len(), 2);
-        assert_eq!(amounts.iter().sum::<u64>(), 1000);
+        assert_eq!(amounts, vec![500, 500]);
         Ok(())
     }
 
@@ -373,7 +344,7 @@ mod tests {
             script_pubkey: mock_script.0,
         }];
         let used = HashSet::new();
-        let split = 400;
+        let total = 1000;
         let feerate_floor = 1;
         let dust = 50;
         let secret_key = SecretKey::from_byte_array([1; 32]).unwrap();
@@ -382,14 +353,14 @@ mod tests {
         let fan_out_utxos = fan_out(
             &utxos,
             &used,
-            split,
+            total,
             feerate_floor,
             dust,
             &scope,
             &sender_anchor,
         )?;
-        assert_eq!(fan_out_utxos.len(), 2); // 1000 / 400 = 2
-        assert_eq!(fan_out_utxos[0].value, 400);
+        assert_eq!(fan_out_utxos.len(), 1); // 1000 / 1000 = 1
+        assert_eq!(fan_out_utxos[0].value, 1000);
         Ok(())
     }
 
