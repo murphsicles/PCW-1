@@ -339,7 +339,7 @@ mod tests {
                 hash: Hash256(mock_hash),
                 index: 0,
             },
-            value: 1800,
+            value: 2000,
             script_pubkey: mock_script.0,
         }];
         let used = HashSet::new();
@@ -359,7 +359,7 @@ mod tests {
             &sender_anchor,
         )?;
         assert_eq!(fan_out_utxos.len(), 1);
-        assert_eq!(fan_out_utxos[0].value, 1000);
+        assert_eq!(fan_out_utxos[0].value, 1600);
         Ok(())
     }
 
