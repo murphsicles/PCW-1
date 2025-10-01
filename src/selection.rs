@@ -9,7 +9,6 @@ use crate::errors::PcwError;
 use crate::scope::Scope;
 use crate::utils::sha256;
 use secp256k1::PublicKey;
-use std::cmp::max;
 use std::collections::{HashMap, HashSet};
 use sv::messages::OutPoint;
 use sv::util::Hash256;
