@@ -55,8 +55,9 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
     let scope = Scope::new(z, h_i)?;
     // Split
     let split = bounded_split(&scope, 2000, 100, 1000)?;
+    println!("Split: {:?}", split);
     assert_eq!(split.iter().sum::<u64>(), 2000);
-    // Mock UTXOs (bumped to 10000 each for fee/dust buffer)
+    // Mock UTXOs (increased to 20000 each for fee buffer)
     let mock_hash = sha256(b"test_tx");
     let mock_h160 = h160(&mock_hash);
     let mock_script = create_lock_script(&Hash160(mock_h160));
@@ -66,7 +67,7 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
                 hash: Hash256(mock_hash),
                 index: 0,
             },
-            value: 10000,
+            value: 20000,
             script_pubkey: mock_script.0.clone(),
         },
         Utxo {
@@ -74,18 +75,21 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
                 hash: Hash256(sha256(b"test_tx_2")),
                 index: 1,
             },
-            value: 10000,
+            value: 20000,
             script_pubkey: mock_script.0.clone(),
         },
     ];
     let total = split.iter().sum::<u64>();
+    println!("Total: {}, UTXOs: {:?}", total, u0);
     let (r, _addrs, _amounts, _n) = build_reservations(&u0, total, &scope, &anchor_b.pub_key, &anchor_a.pub_key, 1, 50, false)?;
+    println!("Reservations: {:?}", r);
     assert_eq!(r.len(), split.len());
     // Build tx for i=0
     let i = 0u32;
     let s_i = r.get(i as usize).unwrap().as_ref().unwrap();
+    println!("Reservation for i=0: {:?}", s_i);
     let priv_keys = vec![[5; 32]; s_i.len()];
-    let (_note_tx, meta) = build_note_tx(
+    let result = build_note_tx(
         &scope,
         i,
         s_i,
@@ -95,7 +99,9 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
         1,
         50,
         &priv_keys,
-    )?;
+    );
+    println!("Build note tx result: {:?}", result);
+    let (_note_tx, meta) = result?;
     assert_eq!(meta.amount, split[0]);
     assert!(meta.txid.len() > 0);
     // Receipts
@@ -163,8 +169,9 @@ fn test_dust_change() -> Result<(), PcwError> {
         50,
         &priv_keys,
     );
-    assert!(result.is_err());
-    assert!(matches!(result, Err(PcwError::DustChange)));
+    println!("Build note tx result: {:?}", result);
+    assert!(result.is_err(), "Expected error, got {:?}", result);
+    assert!(matches!(result, Err(PcwError::DustChange)), "Expected DustChange, got {:?}", result);
     Ok(())
 }
 
