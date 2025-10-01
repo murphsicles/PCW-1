@@ -358,8 +358,9 @@ mod tests {
             &scope,
             &sender_anchor,
         )?;
-        assert_eq!(fan_out_utxos.len(), 1);
+        assert_eq!(fan_out_utxos.len(), 2);
         assert_eq!(fan_out_utxos[0].value, 1000);
+        assert_eq!(fan_out_utxos[1].value, 1000);
         Ok(())
     }
 
