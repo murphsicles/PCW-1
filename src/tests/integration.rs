@@ -27,11 +27,14 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
     let anchor_b = AnchorKeypair::new([4; 32])?;
     // Policy
     let expiry = Utc::now() + Duration::days(1);
+    let min_output = 500;
+    let max_output = 1000;
+    let per_address_cap = 1000;
     let mut policy = Policy::new(
         hex::encode(anchor_b.pub_key.serialize()),
-        500,  // Increased min_output to match bounded_split
-        1000, // Increased max_output
-        1000, // Increased per_address_cap
+        min_output,
+        max_output,
+        per_address_cap,
         1,
         expiry,
     )?;
@@ -54,10 +57,10 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
     let z = ecdh_z(&priv_a, &identity_b.pub_key)?;
     let scope = Scope::new(z, h_i)?;
     // Split
-    let split = bounded_split(&scope, 2000, 500, 1000)?;
+    let split = bounded_split(&scope, 2000, min_output, max_output)?;
     println!("Split: {:?}", split);
     assert_eq!(split.iter().sum::<u64>(), 2000);
-    // Mock UTXOs
+    // Mock UTXOs (added third UTXO for disjoint reservations)
     let mock_hash = sha256(b"test_tx");
     let mock_h160 = h160(&mock_hash);
     let mock_script = create_lock_script(&Hash160(mock_h160));
@@ -78,10 +81,18 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
             value: 50000,
             script_pubkey: mock_script.0.clone(),
         },
+        Utxo {
+            outpoint: OutPoint {
+                hash: Hash256(sha256(b"test_tx_3")),
+                index: 2,
+            },
+            value: 50000,
+            script_pubkey: mock_script.0.clone(),
+        },
     ];
     let total = split.iter().sum::<u64>();
     println!("Total: {}, UTXOs: {:?}", total, u0);
-    println!("Calling build_reservations with total: {}, fee_rate: 1, vsize_factor: 1, split_len: {}", total, split.len());
+    println!("Calling build_reservations with total: {}, fee_rate: 1, vsize_factor: 1, split_len: {}, min_output: {}, per_address_cap: {}", total, split.len(), min_output, per_address_cap);
     let (r, _addrs, _amounts, _n) = build_reservations(&u0, total, &scope, &anchor_b.pub_key, &anchor_a.pub_key, 1, 546, false)?;
     println!("Reservations: {:?}", r);
     assert_eq!(r.len(), split.len());
@@ -169,7 +180,7 @@ fn test_dust_change() -> Result<(), PcwError> {
         &anchor_b,
         &anchor_a,
         1,
-        546, // Use correct dust threshold
+        546,
         &priv_keys,
     );
     println!("Build note tx result: {:?}", result);
