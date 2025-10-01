@@ -27,7 +27,7 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
     let anchor_b = AnchorKeypair::new([4; 32])?;
     // Policy
     let expiry = Utc::now() + Duration::days(1);
-    let min_output = 500;
+    let min_output = 1000; // Increased to reduce split size
     let max_output = 1000;
     let per_address_cap = 1000;
     let mut policy = Policy::new(
@@ -60,7 +60,7 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
     let split = bounded_split(&scope, 2000, min_output, max_output)?;
     println!("Split: {:?}", split);
     assert_eq!(split.iter().sum::<u64>(), 2000);
-    // Mock UTXOs (added third UTXO for disjoint reservations)
+    // Mock UTXOs
     let mock_hash = sha256(b"test_tx");
     let mock_h160 = h160(&mock_hash);
     let mock_script = create_lock_script(&Hash160(mock_h160));
