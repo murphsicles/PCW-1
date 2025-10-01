@@ -63,7 +63,7 @@ mod tests {
         let expiry = Utc::now() + Duration::days(1);
         let mut policy = Policy::new(
             hex::encode(anchor_b.pub_key.serialize()),
-            100, // vmin
+            500, // vmin
             1000, // vmax
             500, // per_address_cap
             1, // feerate_floor
