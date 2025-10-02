@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod tests {
     use pcw_protocol::{PcwError, Scope, Utxo, build_reservations};
-    use pcw_protocol::keys::{AnchorKeypair, IdentityKeypair};
     use pcw_protocol::utils::{h160, sha256};
     use secp256k1::{PublicKey, Secp256k1, SecretKey};
     use std::collections::HashSet;
@@ -87,12 +86,12 @@ mod tests {
         let utxos = vec![
             Utxo {
                 outpoint: mock_outpoint(1),
-                value: 60 + 10 + 1 * (148 * 2 + 34), // Buffer for fees with 2 inputs
+                value: 290, // <292 (needed_1), but 580 >440 (needed_2)
                 script_pubkey: mock_script.0.clone(),
             },
             Utxo {
                 outpoint: mock_outpoint(2),
-                value: 60 + 10 + 1 * (148 * 2 + 34),
+                value: 290,
                 script_pubkey: mock_script.0.clone(),
             },
         ];
@@ -137,12 +136,12 @@ mod tests {
         let utxos = vec![
             Utxo {
                 outpoint: mock_outpoint(1),
-                value: 80 + 10 + 1 * (148 * 2 + 34 * 2), // Buffer for 2 inputs, 2 outputs
+                value: 310, // <312 (needed_1), but 620 >460 (needed_2)
                 script_pubkey: mock_script.0.clone(),
             },
             Utxo {
                 outpoint: mock_outpoint(2),
-                value: 80 + 10 + 1 * (148 * 2 + 34 * 2),
+                value: 310,
                 script_pubkey: mock_script.0.clone(),
             },
         ];
@@ -185,7 +184,7 @@ mod tests {
         let mock_script = create_lock_script(&Hash160(mock_h160));
         let utxo = Utxo {
             outpoint: mock_outpoint(1),
-            value: 101 + 10 + 1 * (148 + 34 * 2) - 1, // Change =1 < dust=50
+            value: 101 + 10 + 1 * (148 + 34 * 2), // Change =1 < dust=50
             script_pubkey: mock_script.0.clone(),
         };
         let split = vec![100];
