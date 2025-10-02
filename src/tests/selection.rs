@@ -1,9 +1,9 @@
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pcw_protocol::{PcwError, Scope, selection::Utxo};
-    use pcw_protocol::utils::{h160, sha256};
+    use pcw_protocol::{PcwError, Scope, selection::Utxo, build_reservations};
     use pcw_protocol::keys::{AnchorKeypair, IdentityKeypair};
+    use pcw_protocol::utils::{h160, sha256};
     use secp256k1::{PublicKey, Secp256k1, SecretKey};
     use std::collections::HashSet;
     use proptest::prelude::*;
@@ -38,10 +38,10 @@ mod tests {
                 });
             }
             let split = vec![per; num_utxo];
-            let r = build_reservations(&u0, &split, &scope, &recipient_anchor, &sender_anchor, 1, 1, 3, 5, true).unwrap();
-            prop_assert_eq!(r.0.len(), num_utxo);
+            let (r, _, _, _) = build_reservations(&u0, &split, &scope, &recipient_anchor, &sender_anchor, 1, 50, false).unwrap();
+            prop_assert_eq!(r.len(), num_utxo);
             let mut used = HashSet::new();
-            for (i, s_i) in r.0.iter().enumerate() {
+            for (i, s_i) in r.iter().enumerate() {
                 if let Some(si) = s_i {
                     for u in si {
                         prop_assert!(!used.contains(&u.outpoint.hash));
