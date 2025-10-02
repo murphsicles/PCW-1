@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use pcw_protocol::{PcwError, Scope};
+    use pcw_protocol::{PcwError, Scope, build_reservations};
     use pcw_protocol::keys::{AnchorKeypair, IdentityKeypair};
     use pcw_protocol::utils::{h160, sha256};
     use secp256k1::{PublicKey, Secp256k1, SecretKey};
@@ -56,6 +55,11 @@ mod tests {
 
     #[test]
     fn test_select_utxos_exact_single() -> Result<(), PcwError> {
+        let secp = Secp256k1::new();
+        let scope = Scope::new([1; 32], [2; 32]).unwrap();
+        let secret_key = SecretKey::from_byte_array([1; 32]).unwrap();
+        let recipient_anchor = PublicKey::from_secret_key(&secp, &secret_key);
+        let sender_anchor = recipient_anchor;
         let mock_h160 = h160(&sha256(b"test"));
         let mock_script = create_lock_script(&Hash160(mock_h160));
         let utxo = Utxo {
@@ -63,20 +67,21 @@ mod tests {
             value: 100 + 10 + 1 * (148 + 34), // Covers target + base_fee + fee
             script_pubkey: mock_script.0.clone(),
         };
-        let mut used = HashSet::new();
-        let target = 100;
-        let feerate_floor = 1;
-        let dust = 1;
-        let s = select_utxos(&[utxo], &mut used, target, feerate_floor, dust)?;
-        assert!(s.is_some());
-        assert_eq!(s.unwrap().len(), 1);
-        assert_eq!(s.unwrap()[0].value, 100 + 10 + 1 * (148 + 34));
-        assert_eq!(used.len(), 1);
+        let split = vec![100];
+        let (r, _, _, _) = build_reservations(&[utxo], &split, &scope, &recipient_anchor, &sender_anchor, 1, 1, false).unwrap();
+        let s = r[0].as_ref().unwrap();
+        assert_eq!(s.len(), 1);
+        assert_eq!(s[0].value, 100 + 10 + 1 * (148 + 34));
         Ok(())
     }
 
     #[test]
     fn test_select_utxos_exact_few() -> Result<(), PcwError> {
+        let secp = Secp256k1::new();
+        let scope = Scope::new([1; 32], [2; 32]).unwrap();
+        let secret_key = SecretKey::from_byte_array([1; 32]).unwrap();
+        let recipient_anchor = PublicKey::from_secret_key(&secp, &secret_key);
+        let sender_anchor = recipient_anchor;
         let mock_h160 = h160(&sha256(b"test"));
         let mock_script = create_lock_script(&Hash160(mock_h160));
         let utxos = vec![
@@ -91,19 +96,20 @@ mod tests {
                 script_pubkey: mock_script.0.clone(),
             },
         ];
-        let mut used = HashSet::new();
-        let target = 100; // Requires both UTXOs
-        let feerate_floor = 1;
-        let dust = 1;
-        let s = select_utxos(&utxos, &mut used, target, feerate_floor, dust)?;
-        assert!(s.is_some());
-        assert_eq!(s.unwrap().len(), 2);
-        assert_eq!(used.len(), 2);
+        let split = vec![100]; // Single note requiring both
+        let (r, _, _, _) = build_reservations(&utxos, &split, &scope, &recipient_anchor, &sender_anchor, 1, 1, false).unwrap();
+        let s = r[0].as_ref().unwrap();
+        assert_eq!(s.len(), 2);
         Ok(())
     }
 
     #[test]
     fn test_select_utxos_single_over() -> Result<(), PcwError> {
+        let secp = Secp256k1::new();
+        let scope = Scope::new([1; 32], [2; 32]).unwrap();
+        let secret_key = SecretKey::from_byte_array([1; 32]).unwrap();
+        let recipient_anchor = PublicKey::from_secret_key(&secp, &secret_key);
+        let sender_anchor = recipient_anchor;
         let mock_h160 = h160(&sha256(b"test"));
         let mock_script = create_lock_script(&Hash160(mock_h160));
         let utxo = Utxo {
@@ -111,20 +117,21 @@ mod tests {
             value: 200, // Overshoots target
             script_pubkey: mock_script.0.clone(),
         };
-        let mut used = HashSet::new();
-        let target = 100;
-        let feerate_floor = 1;
-        let dust = 1;
-        let s = select_utxos(&[utxo], &mut used, target, feerate_floor, dust)?;
-        assert!(s.is_some());
-        assert_eq!(s.unwrap().len(), 1);
-        assert_eq!(s.unwrap()[0].value, 200);
-        assert_eq!(used.len(), 1);
+        let split = vec![100];
+        let (r, _, _, _) = build_reservations(&[utxo], &split, &scope, &recipient_anchor, &sender_anchor, 1, 1, false).unwrap();
+        let s = r[0].as_ref().unwrap();
+        assert_eq!(s.len(), 1);
+        assert_eq!(s[0].value, 200);
         Ok(())
     }
 
     #[test]
     fn test_select_utxos_few_over() -> Result<(), PcwError> {
+        let secp = Secp256k1::new();
+        let scope = Scope::new([1; 32], [2; 32]).unwrap();
+        let secret_key = SecretKey::from_byte_array([1; 32]).unwrap();
+        let recipient_anchor = PublicKey::from_secret_key(&secp, &secret_key);
+        let sender_anchor = recipient_anchor;
         let mock_h160 = h160(&sha256(b"test"));
         let mock_script = create_lock_script(&Hash160(mock_h160));
         let utxos = vec![
@@ -139,19 +146,20 @@ mod tests {
                 script_pubkey: mock_script.0.clone(),
             },
         ];
-        let mut used = HashSet::new();
-        let target = 120; // Requires both, overshoots
-        let feerate_floor = 1;
-        let dust = 1;
-        let s = select_utxos(&utxos, &mut used, target, feerate_floor, dust)?;
-        assert!(s.is_some());
-        assert_eq!(s.unwrap().len(), 2);
-        assert_eq!(used.len(), 2);
+        let split = vec![120]; // Requires both, overshoots
+        let (r, _, _, _) = build_reservations(&utxos, &split, &scope, &recipient_anchor, &sender_anchor, 1, 1, false).unwrap();
+        let s = r[0].as_ref().unwrap();
+        assert_eq!(s.len(), 2);
         Ok(())
     }
 
     #[test]
     fn test_select_utxos_underfunded() -> Result<(), PcwError> {
+        let secp = Secp256k1::new();
+        let scope = Scope::new([1; 32], [2; 32]).unwrap();
+        let secret_key = SecretKey::from_byte_array([1; 32]).unwrap();
+        let recipient_anchor = PublicKey::from_secret_key(&secp, &secret_key);
+        let sender_anchor = recipient_anchor;
         let mock_h160 = h160(&sha256(b"test"));
         let mock_script = create_lock_script(&Hash160(mock_h160));
         let utxo = Utxo {
@@ -159,18 +167,20 @@ mod tests {
             value: 50,
             script_pubkey: mock_script.0.clone(),
         };
-        let mut used = HashSet::new();
-        let target = 100;
-        let feerate_floor = 1;
-        let dust = 1;
-        let s = select_utxos(&[utxo], &mut used, target, feerate_floor, dust)?;
-        assert!(s.is_none());
-        assert_eq!(used.len(), 0);
+        let split = vec![100];
+        let result = build_reservations(&[utxo], &split, &scope, &recipient_anchor, &sender_anchor, 1, 1, false);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(PcwError::Underfunded)));
         Ok(())
     }
 
     #[test]
     fn test_select_utxos_dust_change() -> Result<(), PcwError> {
+        let secp = Secp256k1::new();
+        let scope = Scope::new([1; 32], [2; 32]).unwrap();
+        let secret_key = SecretKey::from_byte_array([1; 32]).unwrap();
+        let recipient_anchor = PublicKey::from_secret_key(&secp, &secret_key);
+        let sender_anchor = recipient_anchor;
         let mock_h160 = h160(&sha256(b"test"));
         let mock_script = create_lock_script(&Hash160(mock_h160));
         let utxo = Utxo {
@@ -178,14 +188,10 @@ mod tests {
             value: 101, // Causes dust change
             script_pubkey: mock_script.0.clone(),
         };
-        let mut used = HashSet::new();
-        let target = 100;
-        let feerate_floor = 1;
-        let dust = 50;
-        let result = select_utxos(&[utxo], &mut used, target, feerate_floor, dust);
+        let split = vec![100];
+        let result = build_reservations(&[utxo], &split, &scope, &recipient_anchor, &sender_anchor, 1, 50, false);
         assert!(result.is_err());
         assert!(matches!(result, Err(PcwError::DustChange)));
-        assert_eq!(used.len(), 0);
         Ok(())
     }
 }
