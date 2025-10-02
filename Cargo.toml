@@ -37,5 +37,9 @@ path = "examples/main.rs"
 name = "integration"
 path = "src/tests/integration.rs"
 
+[[test]]
+name = "selection"
+path = "src/tests/selection.rs"
+
 [profile.dev]
 opt-level = 3
