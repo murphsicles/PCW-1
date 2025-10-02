@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use pcw_protocol::{PcwError, Scope, build_reservations};
-    use pcw_protocol::selection::Utxo;
+    use pcw_protocol::{PcwError, Scope, Utxo, build_reservations};
     use pcw_protocol::keys::{AnchorKeypair, IdentityKeypair};
     use pcw_protocol::utils::{h160, sha256};
     use secp256k1::{PublicKey, Secp256k1, SecretKey};
@@ -29,7 +28,7 @@ mod tests {
             let mock_h160 = h160(&sha256(b"test"));
             let mock_script = create_lock_script(&Hash160(mock_h160));
             let mut u0 = vec![];
-            let per = sum / num_utxo as u64;
+            let per = (sum / num_utxo as u64) + 300;  // Buffer for fees
             for i in 0..num_utxo {
                 u0.push(Utxo {
                     outpoint: mock_outpoint(i as u8),
@@ -37,7 +36,7 @@ mod tests {
                     script_pubkey: mock_script.0.clone(),
                 });
             }
-            let split = vec![per; num_utxo];
+            let split = vec![sum / num_utxo as u64; num_utxo];
             let (r, _, _, _) = build_reservations(&u0, &split, &scope, &recipient_anchor, &sender_anchor, 1, 50, false).unwrap();
             prop_assert_eq!(r.len(), num_utxo);
             let mut used = HashSet::new();
@@ -88,12 +87,12 @@ mod tests {
         let utxos = vec![
             Utxo {
                 outpoint: mock_outpoint(1),
-                value: 60,
+                value: 60 + 10 + 1 * (148 * 2 + 34), // Buffer for fees with 2 inputs
                 script_pubkey: mock_script.0.clone(),
             },
             Utxo {
                 outpoint: mock_outpoint(2),
-                value: 60,
+                value: 60 + 10 + 1 * (148 * 2 + 34),
                 script_pubkey: mock_script.0.clone(),
             },
         ];
@@ -115,14 +114,14 @@ mod tests {
         let mock_script = create_lock_script(&Hash160(mock_h160));
         let utxo = Utxo {
             outpoint: mock_outpoint(1),
-            value: 200, // Overshoots target
+            value: 200 + 10 + 1 * (148 + 34 * 2), // Buffer for 2 outputs
             script_pubkey: mock_script.0.clone(),
         };
         let split = vec![100];
         let (r, _, _, _) = build_reservations(&[utxo], &split, &scope, &recipient_anchor, &sender_anchor, 1, 1, false).unwrap();
         let s = r[0].as_ref().unwrap();
         assert_eq!(s.len(), 1);
-        assert_eq!(s[0].value, 200);
+        assert_eq!(s[0].value, 200 + 10 + 1 * (148 + 34 * 2));
         Ok(())
     }
 
@@ -138,12 +137,12 @@ mod tests {
         let utxos = vec![
             Utxo {
                 outpoint: mock_outpoint(1),
-                value: 80,
+                value: 80 + 10 + 1 * (148 * 2 + 34 * 2), // Buffer for 2 inputs, 2 outputs
                 script_pubkey: mock_script.0.clone(),
             },
             Utxo {
                 outpoint: mock_outpoint(2),
-                value: 80,
+                value: 80 + 10 + 1 * (148 * 2 + 34 * 2),
                 script_pubkey: mock_script.0.clone(),
             },
         ];
@@ -186,7 +185,7 @@ mod tests {
         let mock_script = create_lock_script(&Hash160(mock_h160));
         let utxo = Utxo {
             outpoint: mock_outpoint(1),
-            value: 101, // Causes dust change
+            value: 101 + 10 + 1 * (148 + 34 * 2) - 1, // Change =1 < dust=50
             script_pubkey: mock_script.0.clone(),
         };
         let split = vec![100];
