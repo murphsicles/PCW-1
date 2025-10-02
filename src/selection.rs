@@ -139,25 +139,24 @@ fn select_utxos(
     for utxo in &sorted_utxos {
         let m = 1;
         
-        // First check for exact match (1 output, no change)
-        let fee_one_output = base_fee + feerate_floor * (148 * m as u64 + 34);
-        if utxo.value == target + fee_one_output {
-            // Exact match, no change output needed
-            used.insert(utxo.outpoint.hash);
-            return Ok(Some(vec![utxo.clone()]));
-        }
+        // Check minimum requirement (1 input, 1 output)
+        let fee_min = base_fee + feerate_floor * (148 * m as u64 + 34);
         
-        // Check for near-over match (2 outputs, with change)
-        let fee_two_outputs = base_fee + feerate_floor * (148 * m as u64 + 34 * 2);
-        if utxo.value >= target + fee_two_outputs {
-            let change = utxo.value - target - fee_two_outputs;
+        if utxo.value >= target + fee_min {
+            // Calculate actual fee needed (might need 2 outputs for change)
+            let fee_with_change = base_fee + feerate_floor * (148 * m as u64 + 34 * 2);
             
-            // Reject if change would be dust
-            if change > 0 && change < dust {
-                continue; // Try next UTXO
+            // Calculate change if we use 2 outputs
+            if utxo.value >= target + fee_with_change {
+                let change = utxo.value - target - fee_with_change;
+                
+                // If change would be dust, reject this UTXO
+                if change > 0 && change < dust {
+                    continue;
+                }
             }
             
-            // Valid selection
+            // Valid selection (either exact match with 1 output, or valid change with 2 outputs)
             used.insert(utxo.outpoint.hash);
             return Ok(Some(vec![utxo.clone()]));
         }
