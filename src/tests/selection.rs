@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
     use pcw_protocol::{PcwError, Scope, build_reservations};
+    use pcw_protocol::selection::Utxo;
     use pcw_protocol::keys::{AnchorKeypair, IdentityKeypair};
     use pcw_protocol::utils::{h160, sha256};
     use secp256k1::{PublicKey, Secp256k1, SecretKey};
