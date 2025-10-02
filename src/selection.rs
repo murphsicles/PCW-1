@@ -138,9 +138,26 @@ fn select_utxos(
     sorted_utxos.sort_by(|a, b| a.value.cmp(&b.value).reverse());
     for utxo in &sorted_utxos {
         let m = 1;
-        let fee = base_fee + feerate_floor * (148 * m as u64 + 34); // 1 input, 1 output
-        if utxo.value >= target + fee {
-            // Exact or near-over match
+        
+        // First check for exact match (1 output, no change)
+        let fee_one_output = base_fee + feerate_floor * (148 * m as u64 + 34);
+        if utxo.value == target + fee_one_output {
+            // Exact match, no change output needed
+            used.insert(utxo.outpoint.hash);
+            return Ok(Some(vec![utxo.clone()]));
+        }
+        
+        // Check for near-over match (2 outputs, with change)
+        let fee_two_outputs = base_fee + feerate_floor * (148 * m as u64 + 34 * 2);
+        if utxo.value >= target + fee_two_outputs {
+            let change = utxo.value - target - fee_two_outputs;
+            
+            // Reject if change would be dust
+            if change > 0 && change < dust {
+                continue; // Try next UTXO
+            }
+            
+            // Valid selection
             used.insert(utxo.outpoint.hash);
             return Ok(Some(vec![utxo.clone()]));
         }
