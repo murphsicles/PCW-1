@@ -1,8 +1,10 @@
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pcw_protocol::selection::{select_utxos, Utxo};
+    use pcw_protocol::{PcwError, Scope, selection::Utxo};
     use pcw_protocol::utils::{h160, sha256};
+    use pcw_protocol::keys::{AnchorKeypair, IdentityKeypair};
+    use secp256k1::{PublicKey, Secp256k1, SecretKey};
     use std::collections::HashSet;
     use proptest::prelude::*;
     use sv::messages::OutPoint;
@@ -19,6 +21,11 @@ mod tests {
     proptest! {
         #[test]
         fn prop_build_reservations(sum in 1000u64..10000, num_utxo in 5..20usize) {
+            let secp = Secp256k1::new();
+            let scope = Scope::new([1; 32], [2; 32]).unwrap();
+            let secret_key = SecretKey::from_byte_array([1; 32]).unwrap();
+            let recipient_anchor = PublicKey::from_secret_key(&secp, &secret_key);
+            let sender_anchor = recipient_anchor;
             let mock_h160 = h160(&sha256(b"test"));
             let mock_script = create_lock_script(&Hash160(mock_h160));
             let mut u0 = vec![];
@@ -27,17 +34,21 @@ mod tests {
                 u0.push(Utxo {
                     outpoint: mock_outpoint(i as u8),
                     value: per,
-                    script_pubkey: mock_script.to_bytes(),
+                    script_pubkey: mock_script.0.clone(),
                 });
             }
             let split = vec![per; num_utxo];
-            let r = build_reservations(&u0, &split, 1, 1, 3, 5, true).unwrap();
-            prop_assert_eq!(r.len(), num_utxo);
+            let r = build_reservations(&u0, &split, &scope, &recipient_anchor, &sender_anchor, 1, 1, 3, 5, true).unwrap();
+            prop_assert_eq!(r.0.len(), num_utxo);
             let mut used = HashSet::new();
-            for (_, s_i) in r {
-                for u in &s_i {
-                    prop_assert!(!used.contains(&u.outpoint));
-                    used.insert(u.outpoint.clone());
+            for (i, s_i) in r.0.iter().enumerate() {
+                if let Some(si) = s_i {
+                    for u in si {
+                        prop_assert!(!used.contains(&u.outpoint.hash));
+                        used.insert(u.outpoint.hash);
+                    }
+                } else {
+                    prop_assert!(false, "Reservation {} is None", i);
                 }
             }
         }
@@ -49,16 +60,17 @@ mod tests {
         let mock_script = create_lock_script(&Hash160(mock_h160));
         let utxo = Utxo {
             outpoint: mock_outpoint(1),
-            value: 100 + 148 + 34, // Covers target + fees
-            script_pubkey: mock_script.to_bytes(),
+            value: 100 + 10 + 1 * (148 + 34), // Covers target + base_fee + fee
+            script_pubkey: mock_script.0.clone(),
         };
         let mut used = HashSet::new();
         let target = 100;
         let feerate_floor = 1;
         let dust = 1;
         let s = select_utxos(&[utxo], &mut used, target, feerate_floor, dust)?;
+        assert!(s.is_some());
         assert_eq!(s.unwrap().len(), 1);
-        assert_eq!(s.unwrap()[0].value, 100 + 148 + 34);
+        assert_eq!(s.unwrap()[0].value, 100 + 10 + 1 * (148 + 34));
         assert_eq!(used.len(), 1);
         Ok(())
     }
@@ -71,12 +83,12 @@ mod tests {
             Utxo {
                 outpoint: mock_outpoint(1),
                 value: 60,
-                script_pubkey: mock_script.to_bytes(),
+                script_pubkey: mock_script.0.clone(),
             },
             Utxo {
                 outpoint: mock_outpoint(2),
                 value: 60,
-                script_pubkey: mock_script.to_bytes(),
+                script_pubkey: mock_script.0.clone(),
             },
         ];
         let mut used = HashSet::new();
@@ -84,6 +96,7 @@ mod tests {
         let feerate_floor = 1;
         let dust = 1;
         let s = select_utxos(&utxos, &mut used, target, feerate_floor, dust)?;
+        assert!(s.is_some());
         assert_eq!(s.unwrap().len(), 2);
         assert_eq!(used.len(), 2);
         Ok(())
@@ -96,13 +109,14 @@ mod tests {
         let utxo = Utxo {
             outpoint: mock_outpoint(1),
             value: 200, // Overshoots target
-            script_pubkey: mock_script.to_bytes(),
+            script_pubkey: mock_script.0.clone(),
         };
         let mut used = HashSet::new();
         let target = 100;
         let feerate_floor = 1;
         let dust = 1;
         let s = select_utxos(&[utxo], &mut used, target, feerate_floor, dust)?;
+        assert!(s.is_some());
         assert_eq!(s.unwrap().len(), 1);
         assert_eq!(s.unwrap()[0].value, 200);
         assert_eq!(used.len(), 1);
@@ -117,12 +131,12 @@ mod tests {
             Utxo {
                 outpoint: mock_outpoint(1),
                 value: 80,
-                script_pubkey: mock_script.to_bytes(),
+                script_pubkey: mock_script.0.clone(),
             },
             Utxo {
                 outpoint: mock_outpoint(2),
                 value: 80,
-                script_pubkey: mock_script.to_bytes(),
+                script_pubkey: mock_script.0.clone(),
             },
         ];
         let mut used = HashSet::new();
@@ -130,6 +144,7 @@ mod tests {
         let feerate_floor = 1;
         let dust = 1;
         let s = select_utxos(&utxos, &mut used, target, feerate_floor, dust)?;
+        assert!(s.is_some());
         assert_eq!(s.unwrap().len(), 2);
         assert_eq!(used.len(), 2);
         Ok(())
@@ -142,7 +157,7 @@ mod tests {
         let utxo = Utxo {
             outpoint: mock_outpoint(1),
             value: 50,
-            script_pubkey: mock_script.to_bytes(),
+            script_pubkey: mock_script.0.clone(),
         };
         let mut used = HashSet::new();
         let target = 100;
@@ -161,7 +176,7 @@ mod tests {
         let utxo = Utxo {
             outpoint: mock_outpoint(1),
             value: 101, // Causes dust change
-            script_pubkey: mock_script.to_bytes(),
+            script_pubkey: mock_script.0.clone(),
         };
         let mut used = HashSet::new();
         let target = 100;
