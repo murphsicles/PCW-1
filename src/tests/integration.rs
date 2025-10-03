@@ -1,15 +1,17 @@
+use chrono::{Duration, Utc};
+use hex;
 use pcw_protocol::errors::PcwError;
 use pcw_protocol::invoice::Invoice;
 use pcw_protocol::keys::{AnchorKeypair, IdentityKeypair};
 use pcw_protocol::policy::Policy;
-use pcw_protocol::receipts::{compute_leaves, Entry, generate_proof, Manifest, merkle_root, verify_proof};
+use pcw_protocol::receipts::{
+    Entry, Manifest, compute_leaves, generate_proof, merkle_root, verify_proof,
+};
 use pcw_protocol::scope::Scope;
-use pcw_protocol::selection::{build_reservations, Utxo};
+use pcw_protocol::selection::{Utxo, build_reservations};
 use pcw_protocol::split::bounded_split;
 use pcw_protocol::tx::build_note_tx;
 use pcw_protocol::utils::{ecdh_z, h160, sha256};
-use chrono::{Duration, Utc};
-use hex;
 use secp256k1::{PublicKey, Secp256k1, SecretKey};
 use sv::messages::OutPoint;
 use sv::transaction::p2pkh::create_lock_script;
@@ -84,7 +86,16 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
     ];
     println!("Total: {}, UTXOs: {:?}", split.iter().sum::<u64>(), u0);
     println!("Calling build_reservations with split_len: {}", split.len());
-    let (r, _addrs, _amounts, _n) = build_reservations(&u0, &split, &scope, &anchor_b.pub_key, &anchor_a.pub_key, 1, 546, false)?;
+    let (r, _addrs, _amounts, _n) = build_reservations(
+        &u0,
+        &split,
+        &scope,
+        &anchor_b.pub_key,
+        &anchor_a.pub_key,
+        1,
+        546,
+        false,
+    )?;
     println!("Reservations: {:?}", r);
     assert_eq!(r.len(), split.len());
     // Build tx for i=0
@@ -92,7 +103,10 @@ fn test_full_protocol_flow() -> Result<(), PcwError> {
     let s_i = r.get(i as usize).unwrap().as_ref().unwrap();
     println!("Reservation for i=0: {:?}", s_i);
     let priv_keys = vec![[5; 32]; s_i.len()];
-    println!("Calling build_note_tx with amount: {}, fee_rate: 1, vsize_factor: 1, dust: 546", split[0]);
+    println!(
+        "Calling build_note_tx with amount: {}, fee_rate: 1, vsize_factor: 1, dust: 546",
+        split[0]
+    );
     let result = build_note_tx(
         &scope,
         i,
@@ -162,24 +176,25 @@ fn test_dust_change() -> Result<(), PcwError> {
     }];
     let split = vec![100];
     let priv_keys = vec![[5; 32]];
-    println!("Calling build_note_tx with input: 545, output: 100, fee_rate: 1, vsize_factor: 1, dust: 546");
+    println!(
+        "Calling build_note_tx with input: 545, output: 100, fee_rate: 1, vsize_factor: 1, dust: 546"
+    );
     let result = build_note_tx(
-        &scope,
-        0,
-        &u0,
-        split[0],
-        &anchor_b,
-        &anchor_a,
-        1,
-        546,
-        &priv_keys,
+        &scope, 0, &u0, split[0], &anchor_b, &anchor_a, 1, 546, &priv_keys,
     );
     println!("Build note tx result: {:?}", result);
     if let Ok((note_tx, meta)) = &result {
-        println!("Transaction details: inputs={:?}, outputs={:?}, fee={}, change_amount={}", note_tx.0.inputs, note_tx.0.outputs, meta.fee, meta.change_amount);
+        println!(
+            "Transaction details: inputs={:?}, outputs={:?}, fee={}, change_amount={}",
+            note_tx.0.inputs, note_tx.0.outputs, meta.fee, meta.change_amount
+        );
     }
     assert!(result.is_err(), "Expected error, got {:?}", result);
-    assert!(matches!(result, Err(PcwError::DustChange)), "Expected DustChange, got {:?}", result);
+    assert!(
+        matches!(result, Err(PcwError::DustChange)),
+        "Expected DustChange, got {:?}",
+        result
+    );
     Ok(())
 }
 

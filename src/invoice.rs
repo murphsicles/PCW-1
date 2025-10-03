@@ -207,13 +207,17 @@ mod tests {
         // Tamper with signature to cause invalid DER format
         invoice.sig = hex::encode(&[0x30, 0x01]); // Malformed DER (incomplete sequence)
         let result = invoice.verify(&policy_hash);
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid signature format")));
+        assert!(
+            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid signature format"))
+        );
         // Tamper with invoice field
         let mut tampered = invoice.clone();
         tampered.total = 2000;
         let wrong_policy_hash = [3; 32]; // Incorrect policy hash to force verification failure
         let result = tampered.verify(&wrong_policy_hash);
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Policy hash mismatch")));
+        assert!(
+            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Policy hash mismatch"))
+        );
         Ok(())
     }
     #[test]

@@ -1,4 +1,4 @@
-use criterion::{black_box, Criterion, criterion_group, criterion_main};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use pcw_protocol::scope::Scope;
 use pcw_protocol::split::bounded_split;
 

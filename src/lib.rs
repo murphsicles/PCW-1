@@ -63,10 +63,10 @@ mod tests {
         let expiry = Utc::now() + Duration::days(1);
         let mut policy = Policy::new(
             hex::encode(anchor_b.pub_key.serialize()),
-            500, // vmin
+            500,  // vmin
             1000, // vmax
-            500, // per_address_cap
-            1, // feerate_floor
+            500,  // per_address_cap
+            1,    // feerate_floor
             expiry,
         )?;
         policy.sign(&identity_b)?;
@@ -201,10 +201,10 @@ mod tests {
         // Valid policy for invoice
         let mut policy = Policy::new(
             hex::encode(anchor_b.pub_key.serialize()),
-            100, // vmin
+            100,  // vmin
             1000, // vmax
-            500, // per_address_cap
-            1, // feerate_floor
+            500,  // per_address_cap
+            1,    // feerate_floor
             expiry,
         )?;
         policy.sign(&identity_b)?;
@@ -236,10 +236,10 @@ mod tests {
         // Create policy
         let mut policy = Policy::new(
             hex::encode(anchor_b.pub_key.serialize()),
-            100, // vmin
+            100,  // vmin
             1000, // vmax
-            500, // per_address_cap
-            1, // feerate_floor
+            500,  // per_address_cap
+            1,    // feerate_floor
             expiry,
         )?;
         policy.sign(&identity_b)?;
@@ -287,7 +287,12 @@ mod tests {
             50,
             false,
         )?;
-        assert!(reservations.len() <= utxos.len(), "reservations.len()={} vs utxos.len()={}", reservations.len(), utxos.len());
+        assert!(
+            reservations.len() <= utxos.len(),
+            "reservations.len()={} vs utxos.len()={}",
+            reservations.len(),
+            utxos.len()
+        );
         // Build transaction for first note
         let s_i = reservations.get(0).unwrap().as_ref().unwrap();
         let priv_keys = vec![utxo_priv; s_i.len()];
@@ -353,10 +358,10 @@ mod tests {
         // Create policy
         let mut policy = Policy::new(
             hex::encode(anchor_b.pub_key.serialize()),
-            100,   // vmin
-            1000,  // vmax
-            500,   // per_address_cap
-            1,     // feerate_floor
+            100,  // vmin
+            1000, // vmax
+            500,  // per_address_cap
+            1,    // feerate_floor
             expiry,
         )?;
         policy.sign(&identity_b)?;

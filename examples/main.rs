@@ -73,8 +73,8 @@ fn main() -> Result<(), PcwError> {
         &scope,
         &anchor_b.pub_key,
         &anchor_a.pub_key,
-        1, // feerate_floor
-        50, // dust
+        1,     // feerate_floor
+        50,    // dust
         false, // fanout_allowed
     )?;
     // Access reservations
