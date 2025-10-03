@@ -594,7 +594,9 @@ mod tests {
         let mut tampered_log = log.clone();
         tampered_log[1].sig = hex::encode(&[0x30, 0x01]); // Malformed DER (incomplete sequence)
         let result = verify_log_chain(&tampered_log);
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid signature §13.6")));
+        assert!(
+            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid signature §13.6"))
+        );
         // Tamper with prev_hash
         let mut tampered_log = log.clone();
         tampered_log[1].set_prev_hash("invalid_hash".to_string());
@@ -604,12 +606,16 @@ mod tests {
         let mut tampered_log = log.clone();
         tampered_log[1].set_seq(3);
         let result = verify_log_chain(&tampered_log);
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid sequence number")));
+        assert!(
+            matches!(result, Err(PcwError::Other(msg)) if msg.contains("Invalid sequence number"))
+        );
         // Tamper with first record's prev_hash
         let mut tampered_log = log.clone();
         tampered_log[0].set_prev_hash("invalid_hash".to_string());
         let result = verify_log_chain(&tampered_log);
-        assert!(matches!(result, Err(PcwError::Other(msg)) if msg.contains("First record must have empty prev_hash")));
+        assert!(
+            matches!(result, Err(PcwError::Other(msg)) if msg.contains("First record must have empty prev_hash"))
+        );
         Ok(())
     }
 }
