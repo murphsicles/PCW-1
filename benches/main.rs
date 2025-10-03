@@ -1,4 +1,4 @@
-use criterion::{Criterion, criterion_group, criterion_main};
+use criterion::{black_box, Criterion, criterion_group, criterion_main};
 use pcw_protocol::scope::Scope;
 use pcw_protocol::split::bounded_split;
 
@@ -12,7 +12,11 @@ fn bench_split(c: &mut Criterion) {
 fn bench_derive_scalar(c: &mut Criterion) {
     let scope = Scope::new([1u8; 32], [2u8; 32]).expect("Valid scope");
     c.bench_function("derive_scalar 1000 times", |b| {
-        b.iter(|| (0..1000).for_each(|i| scope.derive_scalar("recv", i).unwrap()))
+        b.iter(|| {
+            for i in 0..1000 {
+                black_box(scope.derive_scalar("recv", i).unwrap());
+            }
+        })
     });
 }
 
