@@ -129,6 +129,8 @@ fn select_utxos(
     let base_fee = feerate_floor * 10; // Base tx fee
     let mut min_selected = None;
     let mut min_count = usize::MAX;
+    let mut found_dust_issue = false;
+    
     // Stage A: Try single-input exact or near-over (§6.4, preference 1-2)
     let mut sorted_utxos = utxos
         .iter()
@@ -136,6 +138,7 @@ fn select_utxos(
         .cloned()
         .collect::<Vec<_>>();
     sorted_utxos.sort_by(|a, b| a.value.cmp(&b.value).reverse());
+    
     for utxo in &sorted_utxos {
         let m = 1;
         
@@ -150,8 +153,9 @@ fn select_utxos(
             if utxo.value >= target + fee_with_change {
                 let change = utxo.value - target - fee_with_change;
                 
-                // If change would be dust, reject this UTXO
+                // If change would be dust, we have a dust issue
                 if change > 0 && change < dust {
+                    found_dust_issue = true;
                     continue;
                 }
             }
@@ -161,6 +165,7 @@ fn select_utxos(
             return Ok(Some(vec![utxo.clone()]));
         }
     }
+    
     // Stage B: Try multiple inputs (§6.4, preference 3)
     let mut sum = 0;
     let mut selected = vec![];
@@ -180,6 +185,12 @@ fn select_utxos(
         }
         return Ok(Some(selected));
     }
+    
+    // If we found UTXOs but they all would create dust, return DustChange error
+    if found_dust_issue {
+        return Err(PcwError::DustChange);
+    }
+    
     Ok(None)
 }
 
