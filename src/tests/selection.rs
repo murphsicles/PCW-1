@@ -1,10 +1,10 @@
 #[cfg(test)]
 mod tests {
-    use pcw_protocol::{PcwError, Scope, Utxo, build_reservations};
     use pcw_protocol::utils::{h160, sha256};
+    use pcw_protocol::{PcwError, Scope, Utxo, build_reservations};
+    use proptest::prelude::*;
     use secp256k1::{PublicKey, Secp256k1, SecretKey};
     use std::collections::HashSet;
-    use proptest::prelude::*;
     use sv::messages::OutPoint;
     use sv::transaction::p2pkh::create_lock_script;
     use sv::util::{Hash160, Hash256};
@@ -67,7 +67,17 @@ mod tests {
             script_pubkey: mock_script.0.clone(),
         };
         let split = vec![100];
-        let (r, _, _, _) = build_reservations(&[utxo], &split, &scope, &recipient_anchor, &sender_anchor, 1, 1, false).unwrap();
+        let (r, _, _, _) = build_reservations(
+            &[utxo],
+            &split,
+            &scope,
+            &recipient_anchor,
+            &sender_anchor,
+            1,
+            1,
+            false,
+        )
+        .unwrap();
         let s = r[0].as_ref().unwrap();
         assert_eq!(s.len(), 1);
         assert_eq!(s[0].value, 100 + 10 + 1 * (148 + 34));
@@ -96,7 +106,17 @@ mod tests {
             },
         ];
         let split = vec![100]; // Single note requiring both
-        let (r, _, _, _) = build_reservations(&utxos, &split, &scope, &recipient_anchor, &sender_anchor, 1, 1, false).unwrap();
+        let (r, _, _, _) = build_reservations(
+            &utxos,
+            &split,
+            &scope,
+            &recipient_anchor,
+            &sender_anchor,
+            1,
+            1,
+            false,
+        )
+        .unwrap();
         let s = r[0].as_ref().unwrap();
         assert_eq!(s.len(), 2);
         Ok(())
@@ -117,7 +137,17 @@ mod tests {
             script_pubkey: mock_script.0.clone(),
         };
         let split = vec![100];
-        let (r, _, _, _) = build_reservations(&[utxo], &split, &scope, &recipient_anchor, &sender_anchor, 1, 1, false).unwrap();
+        let (r, _, _, _) = build_reservations(
+            &[utxo],
+            &split,
+            &scope,
+            &recipient_anchor,
+            &sender_anchor,
+            1,
+            1,
+            false,
+        )
+        .unwrap();
         let s = r[0].as_ref().unwrap();
         assert_eq!(s.len(), 1);
         assert_eq!(s[0].value, 200 + 10 + 1 * (148 + 34 * 2));
@@ -146,7 +176,17 @@ mod tests {
             },
         ];
         let split = vec![120]; // Requires both, overshoots
-        let (r, _, _, _) = build_reservations(&utxos, &split, &scope, &recipient_anchor, &sender_anchor, 1, 1, false).unwrap();
+        let (r, _, _, _) = build_reservations(
+            &utxos,
+            &split,
+            &scope,
+            &recipient_anchor,
+            &sender_anchor,
+            1,
+            1,
+            false,
+        )
+        .unwrap();
         let s = r[0].as_ref().unwrap();
         assert_eq!(s.len(), 2);
         Ok(())
@@ -167,7 +207,16 @@ mod tests {
             script_pubkey: mock_script.0.clone(),
         };
         let split = vec![100];
-        let result = build_reservations(&[utxo], &split, &scope, &recipient_anchor, &sender_anchor, 1, 1, false);
+        let result = build_reservations(
+            &[utxo],
+            &split,
+            &scope,
+            &recipient_anchor,
+            &sender_anchor,
+            1,
+            1,
+            false,
+        );
         assert!(result.is_err());
         assert!(matches!(result, Err(PcwError::Underfunded)));
         Ok(())
@@ -188,7 +237,16 @@ mod tests {
             script_pubkey: mock_script.0.clone(),
         };
         let split = vec![100];
-        let result = build_reservations(&[utxo], &split, &scope, &recipient_anchor, &sender_anchor, 1, 50, false);
+        let result = build_reservations(
+            &[utxo],
+            &split,
+            &scope,
+            &recipient_anchor,
+            &sender_anchor,
+            1,
+            50,
+            false,
+        );
         assert!(result.is_err());
         assert!(matches!(result, Err(PcwError::DustChange)));
         Ok(())
